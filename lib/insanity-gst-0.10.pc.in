@@ -1,0 +1,12 @@
+# This is the pkg-config file for libinsanity-gst-0.10
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: insanity-gst-0.10
+Description: insanity-gst-0.10 is a library to help write tests for gstreamer 0.10
+Version: @VERSION@
+Requires: insanity
+Libs: -L${libdir} -linsanity-gst-0.10
+Cflags: -I${includedir}

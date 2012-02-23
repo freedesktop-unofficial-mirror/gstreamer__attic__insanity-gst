@@ -1,0 +1,1 @@
+noinst_SCRIPTS=insanity-generator-elements
