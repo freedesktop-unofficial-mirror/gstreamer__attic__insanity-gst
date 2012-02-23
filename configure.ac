@@ -52,6 +52,7 @@ AC_CHECK_PROG(HAVE_PKG_CONFIG,pkg-config,yes)
 PKG_CHECK_MODULES(GLIB, glib-2.0)
 PKG_CHECK_MODULES(GOBJECT, gobject-2.0)
 PKG_CHECK_MODULES(GTHREAD, gthread-2.0)
+PKG_CHECK_MODULES(GST, gstreamer-${GST_TARGET})
 PKG_CHECK_MODULES(INSANITY, insanity)
 
 dnl check for gobject-introspection

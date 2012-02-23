@@ -31,6 +31,9 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
+#include <gst/gst.h>
+
 #include <insanity-gst/insanitygsttest.h>
 
 G_DEFINE_TYPE (InsanityGstTest, insanity_gst_test,
@@ -38,17 +41,34 @@ G_DEFINE_TYPE (InsanityGstTest, insanity_gst_test,
 
 struct _InsanityGstTestPrivateData
 {
-  int dummy;
+  GstPipeline *pipeline;
 };
 
-#if 0
+static void
+init_gstreamer ()
+{
+  int argc = 1;
+  char **argv;
+
+  argv = g_malloc (2 * sizeof (char*));
+  argv[0] = "foo";
+  argv[1] = NULL;
+  gst_init (&argc, &argv);
+  g_free (argv);
+}
+
 static gboolean
 insanity_gst_test_setup (InsanityTest *test)
 {
-  if (!INSANITY_THREADED_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
+  InsanityGstTestPrivateData *priv = INSANITY_GST_TEST (test)->priv;
+
+  if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
 
   printf("insanity_gst_test_setup\n");
+  init_gstreamer ();
+
+  priv->pipeline = GST_PIPELINE (gst_pipeline_new ("test-pipeline"));
 
   return TRUE;
 }
@@ -56,7 +76,7 @@ insanity_gst_test_setup (InsanityTest *test)
 static gboolean
 insanity_gst_test_start (InsanityTest *test)
 {
-  if (!INSANITY_THREADED_TEST_CLASS (insanity_gst_test_parent_class)->start (test))
+  if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->start (test))
     return FALSE;
 
   printf("insanity_gst_test_start\n");
@@ -69,17 +89,23 @@ insanity_gst_test_stop (InsanityTest *test)
 {
   printf("insanity_gst_test_stop\n");
 
-  INSANITY_THREADED_TEST_CLASS (insanity_gst_test_parent_class)->stop (test);
+  INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->stop (test);
 }
 
 static void
 insanity_gst_test_teardown (InsanityTest *test)
 {
+  InsanityGstTestPrivateData *priv = INSANITY_GST_TEST (test)->priv;
+
   printf("insanity_gst_test_teardown\n");
 
-  INSANITY_THREADED_TEST_CLASS (insanity_gst_test_parent_class)->teardown (test);
+  if (priv->pipeline)
+    gst_object_unref (priv->pipeline);
+
+  gst_deinit ();
+
+  INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->teardown (test);
 }
-#endif
 
 static void
 insanity_gst_test_init (InsanityGstTest * test)
@@ -96,12 +122,10 @@ insanity_gst_test_class_init (InsanityGstTestClass * klass)
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   InsanityTestClass *test_class = INSANITY_TEST_CLASS (klass);
 
-#if 0
   test_class->setup = &insanity_gst_test_setup;
   test_class->start = &insanity_gst_test_start;
   test_class->stop = &insanity_gst_test_stop;
   test_class->teardown = &insanity_gst_test_teardown;
-#endif
 
   g_type_class_add_private (klass, sizeof (InsanityGstTestPrivateData));
 }

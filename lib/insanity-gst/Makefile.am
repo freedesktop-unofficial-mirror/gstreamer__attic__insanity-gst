@@ -12,8 +12,8 @@ libinsanity_gst_0_10_la_SOURCES=\
 insanityinc_HEADERS=\
   insanitygsttest.h
 
-libinsanity_gst_0_10_la_LIBADD=$(INSANITY_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS) $(DBUS_LIBS)
-libinsanity_gst_0_10_la_CFLAGS=$(INSANITY_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(DBUS_CFLAGS)
+libinsanity_gst_0_10_la_LIBADD=$(GST_LIBS) $(INSANITY_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS) $(DBUS_LIBS)
+libinsanity_gst_0_10_la_CFLAGS=$(GST_CFLAGS) $(INSANITY_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(DBUS_CFLAGS)
 
 if HAVE_INTROSPECTION
 BUILT_GIRSOURCES = InsanityGst-0.10-1.0.gir
@@ -30,6 +30,7 @@ InsanityGst-0.10-1.0.gir: $(INTROSPECTION_SCANNER) libinsanity-gst-0.10.la
 		-DIN_GOBJECT_INTROSPECTION=1 \
 		--c-include='insanity-gst-0.10/insanitygsttest.h' \
 		--library=libinsanity-gst-0.10.la \
+		--include=Gst-@GST_TARGET@ \
 		--include=Insanity-1.0 \
 		--include=GLib-2.0 \
 		--include=GObject-2.0 \
