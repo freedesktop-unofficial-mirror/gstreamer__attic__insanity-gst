@@ -64,12 +64,15 @@ struct _InsanityGstPipelineTestClass
   /* vtable */
   GstPipeline *(*create_pipeline) (InsanityGstPipelineTest *test);
   gboolean (*bus_message) (InsanityGstPipelineTest *test, GstMessage *msg);
+  gboolean (*reached_initial_state) (InsanityGstPipelineTest *test);
 
   /*< private >*/
   gpointer _insanity_reserved[INSANITY_PADDING];
 };
 
 InsanityGstPipelineTest *insanity_gst_pipeline_test_new(const char *name, const char *description, const char *full_description);
+
+void insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, GstState state);
 
 /* Handy macros */
 #define INSANITY_TYPE_GST_PIPELINE_TEST                (insanity_gst_pipeline_test_get_type ())

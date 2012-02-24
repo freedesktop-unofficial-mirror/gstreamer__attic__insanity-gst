@@ -38,6 +38,7 @@
 
 static guint create_pipeline_signal;
 static guint bus_message_signal;
+static guint reached_initial_state_signal;
 
 G_DEFINE_TYPE (InsanityGstPipelineTest, insanity_gst_pipeline_test,
     INSANITY_TYPE_GST_TEST);
@@ -47,7 +48,9 @@ struct _InsanityGstPipelineTestPrivateData
   GstPipeline *pipeline;
   GstBus *bus;
 
+  GstState initial_state;
   gboolean reached_initial_state;
+  unsigned int error_count;
 
   GHashTable *elements_used;
 };
@@ -76,6 +79,33 @@ add_element_used (InsanityGstPipelineTest *ptest, GstElement *element)
   GstElementFactory *factory = gst_element_get_factory (element);
   const char *factory_name = factory ? gst_element_factory_get_longname (factory) : "(no factory)";
   g_hash_table_insert (ptest->priv->elements_used, gst_element_get_name (element), g_strdup(factory_name));
+}
+
+static void
+send_error (InsanityGstPipelineTest *ptest, const GError *error, const char *debug)
+{
+  char label[32];
+  GValue string_value = {0};
+
+  ptest->priv->error_count++;
+  g_value_init (&string_value, G_TYPE_STRING);
+
+  g_value_set_string (&string_value, g_quark_to_string (error->domain));
+  snprintf (label, sizeof (label), "errors.%u.domain", ptest->priv->error_count);
+  insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+  g_value_reset (&string_value);
+
+  g_value_set_string (&string_value, error->message);
+  snprintf (label, sizeof (label), "errors.%u.message", ptest->priv->error_count);
+  insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+  g_value_reset (&string_value);
+
+  if (debug) {
+    g_value_set_string (&string_value, debug);
+    snprintf (label, sizeof (label), "errors.%u.debug", ptest->priv->error_count);
+    insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+    g_value_reset (&string_value);
+  }
 }
 
 static void on_element_added (GstElement *bin, GstElement *element, InsanityGstPipelineTest *ptest);
@@ -127,6 +157,7 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
   InsanityGstPipelineTest *ptest = (InsanityGstPipelineTest *) data;
   gboolean ret = FALSE;
 
+  /* Allow the test code to handle the message instead */
   g_signal_emit (ptest, bus_message_signal, 0, message, &ret);
   if (!ret)
     return GST_BUS_PASS;
@@ -137,14 +168,40 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
       char *debug = NULL;
 
       gst_message_parse_error (message, &error, &debug);
-      printf("Error: %s: TODO\n", error->message);
-      if (debug) {
-        printf("Additional debug: %s\n", debug);
-        g_free (debug);
-      }
+      send_error (ptest, error, debug);
       g_error_free (error);
+      g_free (debug);
+      insanity_test_done (INSANITY_TEST (ptest));
       break;
     }
+    case GST_MESSAGE_STATE_CHANGED:
+      if (GST_MESSAGE_SRC (message) == GST_OBJECT (ptest->priv->pipeline)) {
+        GstState oldstate, newstate, pending;
+        gst_message_parse_state_changed (message, &oldstate, &newstate, &pending);
+        if (newstate == ptest->priv->initial_state && pending == GST_STATE_VOID_PENDING) {
+          gboolean ret = TRUE;
+
+          ptest->priv->reached_initial_state = TRUE;
+          insanity_test_validate_step (INSANITY_TEST (ptest), "reached-initial-state", TRUE, NULL);
+
+          /* Tell the test we reached our initial state */
+          g_signal_emit (ptest, reached_initial_state_signal, 0, &ret);
+          if (ret) {
+            insanity_test_done (INSANITY_TEST (ptest));
+          }
+        }
+      }
+      break;
+    case GST_MESSAGE_EOS:
+      if (GST_MESSAGE_SRC (message) == GST_OBJECT (ptest->priv->pipeline)) {
+        /* Warning from the original Python source:
+           # it's not 100% sure we want to stop here, because of the
+           # race between the final state-change message and the eos message
+           # arriving on the bus.
+         */
+        insanity_test_done (INSANITY_TEST (ptest)); // TODO: test reached initial state, timeout, etc
+      }
+      break;
     default:
       break;
   }
@@ -179,6 +236,7 @@ static gboolean
 insanity_gst_pipeline_test_start (InsanityTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
+  GstStateChangeReturn sret;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start (test))
     return FALSE;
@@ -186,6 +244,11 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
   printf("insanity_gst_pipeline_test_start\n");
   create_trackers (ptest);
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
+
+  sret = gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), ptest->priv->initial_state);
+  insanity_test_validate_step (test, "pipeline-change-state", (sret != GST_STATE_CHANGE_FAILURE), NULL);
+  if (sret == GST_STATE_CHANGE_FAILURE)
+    return FALSE;
 
   return TRUE;
 }
@@ -205,6 +268,8 @@ insanity_gst_pipeline_test_teardown (InsanityTest *test)
   InsanityGstPipelineTestPrivateData *priv = INSANITY_GST_PIPELINE_TEST (test)->priv;
 
   printf("insanity_gst_pipeline_test_teardown\n");
+
+  insanity_test_validate_step (test, "no-errors-seen", priv->error_count == 0, NULL);
 
   gst_object_unref (priv->bus);
   gst_object_unref (priv->pipeline);
@@ -248,6 +313,13 @@ insanity_gst_pipeline_test_bus_message (InsanityGstPipelineTest *ptest, GstMessa
   return TRUE;
 }
 
+static gboolean
+insanity_gst_pipeline_test_reached_initial_state (InsanityGstPipelineTest *ptest)
+{
+  /* By default, we quit */
+  return TRUE;
+}
+
 static void
 insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
 {
@@ -261,6 +333,8 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   priv->pipeline = NULL;
   priv->elements_used = g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
   priv->reached_initial_state = FALSE;
+  priv->error_count = 0;
+  priv->initial_state = GST_STATE_PLAYING;
 
   /* Add our own items, etc */
   g_value_init (&empty_string, G_TYPE_STRING);
@@ -312,6 +386,77 @@ insanity_cclosure_user_marshal_OBJECT__VOID (GClosure     *closure,
   g_value_take_object (return_value, v_return);
 }
 
+#define g_marshal_value_peek_object(v)   g_value_get_object (v)
+void
+insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT (GClosure     *closure,
+                                         GValue       *return_value G_GNUC_UNUSED,
+                                         guint         n_param_values,
+                                         const GValue *param_values,
+                                         gpointer      invocation_hint G_GNUC_UNUSED,
+                                         gpointer      marshal_data)
+{
+  typedef gboolean (*GMarshalFunc_BOOLEAN__MINIOBJECT) (gpointer     data1,
+                                                    gpointer     arg_1,
+                                                    gpointer     data2);
+  register GMarshalFunc_BOOLEAN__MINIOBJECT callback;
+  register GCClosure *cc = (GCClosure*) closure;
+  register gpointer data1, data2;
+  gboolean v_return;
+
+  g_return_if_fail (return_value != NULL);
+  g_return_if_fail (n_param_values == 2);
+
+  if (G_CCLOSURE_SWAP_DATA (closure))
+    {
+      data1 = closure->data;
+      data2 = g_value_peek_pointer (param_values + 0);
+    }
+  else
+    {
+      data1 = g_value_peek_pointer (param_values + 0);
+      data2 = closure->data;
+    }
+  callback = (GMarshalFunc_BOOLEAN__MINIOBJECT) (marshal_data ? marshal_data : cc->callback);
+
+  v_return = callback (data1,
+                       gst_value_get_mini_object (param_values + 1),
+                       data2);
+
+  g_value_set_boolean (return_value, v_return);
+}
+
+static void
+insanity_cclosure_marshal_BOOLEAN__VOID (GClosure * closure,
+    GValue * return_value G_GNUC_UNUSED,
+    guint n_param_values,
+    const GValue * param_values,
+    gpointer invocation_hint G_GNUC_UNUSED, gpointer marshal_data)
+{
+  typedef gboolean (*GMarshalFunc_BOOLEAN__VOID) (gpointer data1,
+      gpointer data2);
+  register GMarshalFunc_BOOLEAN__VOID callback;
+  register GCClosure *cc = (GCClosure *) closure;
+  register gpointer data1, data2;
+  gboolean v_return;
+
+  g_return_if_fail (return_value != NULL);
+  g_return_if_fail (n_param_values == 1);
+
+  if (G_CCLOSURE_SWAP_DATA (closure)) {
+    data1 = closure->data;
+    data2 = g_value_peek_pointer (param_values + 0);
+  } else {
+    data1 = g_value_peek_pointer (param_values + 0);
+    data2 = closure->data;
+  }
+  callback =
+      (GMarshalFunc_BOOLEAN__VOID) (marshal_data ? marshal_data : cc->callback);
+
+  v_return = callback (data1, data2);
+
+  g_value_set_boolean (return_value, v_return);
+}
+
 static gboolean
 stop_accumulator (GSignalInvocationHint * ihint,
     GValue * return_accu, const GValue * handler_return, gpointer data)
@@ -330,6 +475,7 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   InsanityTestClass *test_class = INSANITY_TEST_CLASS (klass);
+  InsanityThreadedTestClass *threaded_test_class = INSANITY_THREADED_TEST_CLASS (klass);
 
   test_class->setup = &insanity_gst_pipeline_test_setup;
   test_class->start = &insanity_gst_pipeline_test_start;
@@ -338,6 +484,7 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
 
   klass->create_pipeline = &insanity_gst_pipeline_test_create_pipeline;
   klass->bus_message = &insanity_gst_pipeline_test_bus_message;
+  klass->reached_initial_state = &insanity_gst_pipeline_test_reached_initial_state;
 
   g_type_class_add_private (klass, sizeof (InsanityGstPipelineTestPrivateData));
 
@@ -355,7 +502,15 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
       G_STRUCT_OFFSET (InsanityGstPipelineTestClass, bus_message),
       NULL, NULL,
-      insanity_cclosure_user_marshal_OBJECT__VOID,
+      insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT,
+      G_TYPE_BOOLEAN /* return_type */ ,
+      1, GST_TYPE_MESSAGE, NULL);
+  reached_initial_state_signal = g_signal_new ("reached-initial-state",
+      G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
+      G_STRUCT_OFFSET (InsanityGstPipelineTestClass, reached_initial_state),
+      NULL, NULL,
+      insanity_cclosure_marshal_BOOLEAN__VOID,
       G_TYPE_BOOLEAN /* return_type */ ,
       0, NULL);
 }
@@ -379,3 +534,18 @@ insanity_gst_pipeline_test_new (const char *name, const char *description, const
     g_object_set (test, "full-description", full_description, NULL);
   return test;
 }
+
+/**
+ * insanity_gst_pipeline_test_set_initial_state:
+ * @test: the #InsanityGstPipelineTest to change
+ * @state: the #GstState to which to bring the pipeline at test start
+ *
+ * Selects the state to which the pipeline should be brought to at test
+ * start. By default, it is GST_STATE_PLAYING.
+ */
+void
+insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, GstState state)
+{
+  test->priv->initial_state = state;
+}
+
