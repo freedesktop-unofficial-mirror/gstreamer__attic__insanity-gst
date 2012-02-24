@@ -51,34 +51,43 @@ struct _InsanityGstPipelineTestPrivateData
   GstState initial_state;
   gboolean reached_initial_state;
   unsigned int error_count;
-
-  GHashTable *elements_used;
+  unsigned int tag_count;
+  unsigned int element_count;
 };
-
-static void
-destroy_trackers (InsanityGstPipelineTest *ptest)
-{
-  InsanityGstPipelineTestPrivateData *priv = ptest->priv;
-
-  if (priv->elements_used) {
-    g_hash_table_destroy (priv->elements_used);
-  }
-}
-
-static void
-create_trackers (InsanityGstPipelineTest *ptest)
-{
-  InsanityGstPipelineTestPrivateData *priv = ptest->priv;
-
-  priv->elements_used = g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
-}
 
 static void
 add_element_used (InsanityGstPipelineTest *ptest, GstElement *element)
 {
-  GstElementFactory *factory = gst_element_get_factory (element);
-  const char *factory_name = factory ? gst_element_factory_get_longname (factory) : "(no factory)";
-  g_hash_table_insert (ptest->priv->elements_used, gst_element_get_name (element), g_strdup(factory_name));
+  GstElementFactory *factory;
+  const char *factory_name;
+  char label[32];
+  GValue string_value = {0};
+  GstElement *parent;
+
+  ptest->priv->element_count++;
+  g_value_init (&string_value, G_TYPE_STRING);
+
+  factory = gst_element_get_factory (element);
+  factory_name = factory ? gst_element_factory_get_longname (factory) : "(no factory)";
+
+  g_value_take_string (&string_value, gst_element_get_name (element));
+  snprintf (label, sizeof (label), "elements-used.%u.name", ptest->priv->element_count);
+  insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+  g_value_reset (&string_value);
+
+  g_value_set_string (&string_value, factory_name);
+  snprintf (label, sizeof (label), "elements-used.%u.factory", ptest->priv->element_count);
+  insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+  g_value_reset (&string_value);
+
+  parent = GST_ELEMENT (gst_element_get_parent (element));
+  if (parent) {
+    g_value_take_string (&string_value, gst_element_get_name (parent));
+    snprintf (label, sizeof (label), "elements-used.%u.parent", ptest->priv->element_count);
+    insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+    g_value_reset (&string_value);
+    gst_object_unref (parent);
+  }
 }
 
 static void
@@ -151,6 +160,88 @@ on_element_added (GstElement *bin, GstElement *element, InsanityGstPipelineTest 
     watch_container (ptest, GST_BIN (element));
 }
 
+static void
+send_tag (const GstTagList * list, const gchar * tag, gpointer data)
+{
+  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (data);
+  gint i, count;
+  GValue string_value = {0};
+  char label[48];
+
+  count = gst_tag_list_get_tag_size (list, tag);
+  g_value_init (&string_value, G_TYPE_STRING);
+
+  ptest->priv->tag_count++;
+
+  for (i = 0; i < count; i++) {
+    gchar *str;
+
+    if (gst_tag_get_type (tag) == G_TYPE_STRING) {
+      if (!gst_tag_list_get_string_index (list, tag, i, &str))
+        g_assert_not_reached ();
+    } else if (gst_tag_get_type (tag) == GST_TYPE_BUFFER) {
+      GstBuffer *img;
+
+      img = gst_value_get_buffer (gst_tag_list_get_value_index (list, tag, i));
+      if (img) {
+        gchar *caps_str;
+
+        caps_str = GST_BUFFER_CAPS (img) ?
+            gst_caps_to_string (GST_BUFFER_CAPS (img)) : g_strdup ("unknown");
+        str = g_strdup_printf ("buffer of %u bytes, type: %s",
+            GST_BUFFER_SIZE (img), caps_str);
+        g_free (caps_str);
+      } else {
+        str = g_strdup ("NULL buffer");
+      }
+    } else if (gst_tag_get_type (tag) == GST_TYPE_DATE_TIME) {
+      GstDateTime *dt = NULL;
+
+      gst_tag_list_get_date_time_index (list, tag, i, &dt);
+      if (gst_date_time_get_hour (dt) < 0) {
+        str = g_strdup_printf ("%02u-%02u-%04u", gst_date_time_get_day (dt),
+            gst_date_time_get_month (dt), gst_date_time_get_year (dt));
+      } else {
+        gdouble tz_offset = gst_date_time_get_time_zone_offset (dt);
+        gchar tz_str[32];
+
+        if (tz_offset != 0.0) {
+          g_snprintf (tz_str, sizeof (tz_str), "(UTC %s%gh)",
+              (tz_offset > 0.0) ? "+" : "", tz_offset);
+        } else {
+          g_snprintf (tz_str, sizeof (tz_str), "(UTC)");
+        }
+
+        str = g_strdup_printf ("%04u-%02u-%02u %02u:%02u:%02u %s",
+            gst_date_time_get_year (dt), gst_date_time_get_month (dt),
+            gst_date_time_get_day (dt), gst_date_time_get_hour (dt),
+            gst_date_time_get_minute (dt), gst_date_time_get_second (dt),
+            tz_str);
+      }
+      gst_date_time_unref (dt);
+    } else {
+      str =
+          g_strdup_value_contents (gst_tag_list_get_value_index (list, tag, i));
+    }
+
+    if (i == 0) {
+      g_value_set_string (&string_value, gst_tag_get_nick (tag));
+      snprintf (label, sizeof (label), "tags.%u.id", ptest->priv->tag_count);
+      insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+      g_value_reset (&string_value);
+    }
+    g_value_set_string (&string_value, str);
+    if (count > 1)
+      snprintf (label, sizeof (label), "tags.%u.value.%u", ptest->priv->tag_count, i);
+    else
+      snprintf (label, sizeof (label), "tags.%u.value", ptest->priv->tag_count);
+    insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+    g_value_reset (&string_value);
+
+    g_free (str);
+  }
+}
+
 static GstBusSyncReply
 bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
 {
@@ -192,6 +283,13 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
         }
       }
       break;
+    case GST_MESSAGE_TAG: {
+      GstTagList *tags;
+      gst_message_parse_tag (message, &tags);
+      gst_tag_list_foreach (tags, &send_tag, (gpointer)ptest);
+      gst_tag_list_free (tags);
+      break;
+    }
     case GST_MESSAGE_EOS:
       if (GST_MESSAGE_SRC (message) == GST_OBJECT (ptest->priv->pipeline)) {
         /* Warning from the original Python source:
@@ -242,7 +340,6 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
     return FALSE;
 
   printf("insanity_gst_pipeline_test_start\n");
-  create_trackers (ptest);
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
 
   sret = gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), ptest->priv->initial_state);
@@ -257,7 +354,6 @@ static void
 insanity_gst_pipeline_test_stop (InsanityTest *test)
 {
   printf("insanity_gst_pipeline_test_stop\n");
-  destroy_trackers (INSANITY_GST_PIPELINE_TEST (test));
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
 }
@@ -331,9 +427,10 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   gsttest->priv = priv;
 
   priv->pipeline = NULL;
-  priv->elements_used = g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
   priv->reached_initial_state = FALSE;
   priv->error_count = 0;
+  priv->tag_count = 0;
+  priv->element_count = 0;
   priv->initial_state = GST_STATE_PLAYING;
 
   /* Add our own items, etc */
@@ -346,6 +443,9 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   insanity_test_add_checklist_item (test, "reached-initial-state", "The pipeline reached the initial GstElementState", NULL);
   insanity_test_add_checklist_item (test, "no-errors-seen", "No errors were emitted from the pipeline", NULL);
 
+  insanity_test_add_extra_info (test, "errors", "List of errors emitted by the pipeline");
+  insanity_test_add_extra_info (test, "tags", "List of tags emitted by the pipeline");
+  insanity_test_add_extra_info (test, "elements-used", "List of elements used");
 
   g_value_unset (&empty_string);
 }
