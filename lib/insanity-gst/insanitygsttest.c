@@ -61,11 +61,18 @@ static gboolean
 insanity_gst_test_setup (InsanityTest *test)
 {
   InsanityGstTestPrivateData *priv = INSANITY_GST_TEST (test)->priv;
+  const char *debuglog;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
 
   printf("insanity_gst_test_setup\n");
+
+  /* Set GST_DEBUG_FILE to the target filename */
+  debuglog = insanity_test_get_output_filename (test, "gst-debug-log");
+  printf("Got GST debug log file: %s\n", debuglog);
+  g_setenv ("GST_DEBUG_FILE", debuglog, TRUE);
+
   init_gstreamer ();
 
   priv->pipeline = GST_PIPELINE (gst_pipeline_new ("test-pipeline"));
@@ -108,12 +115,16 @@ insanity_gst_test_teardown (InsanityTest *test)
 }
 
 static void
-insanity_gst_test_init (InsanityGstTest * test)
+insanity_gst_test_init (InsanityGstTest * gsttest)
 {
-  InsanityGstTestPrivateData *priv = G_TYPE_INSTANCE_GET_PRIVATE (test,
+  InsanityTest *test = INSANITY_TEST (gsttest);
+  InsanityGstTestPrivateData *priv = G_TYPE_INSTANCE_GET_PRIVATE (gsttest,
       INSANITY_TYPE_GST_TEST, InsanityGstTestPrivateData);
 
-  test->priv = priv;
+  gsttest->priv = priv;
+
+  /* Add our own items, etc */
+  insanity_test_add_output_file (test, "gst-debug-log", "The GStreamer debug log");
 }
 
 static void
