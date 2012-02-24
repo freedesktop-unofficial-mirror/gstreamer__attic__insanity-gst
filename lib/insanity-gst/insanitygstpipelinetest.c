@@ -255,16 +255,15 @@ waiting_for_state_change (InsanityGstPipelineTest *ptest)
   return FALSE;
 }
 
-static GstBusSyncReply
-bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
+static void
+handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
 {
-  InsanityGstPipelineTest *ptest = (InsanityGstPipelineTest *) data;
   gboolean ret = FALSE;
 
   /* Allow the test code to handle the message instead */
   g_signal_emit (ptest, bus_message_signal, 0, message, &ret);
   if (!ret)
-    return GST_BUS_PASS;
+    return;
 
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR: {
@@ -324,7 +323,6 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
     default:
       break;
   }
-  return GST_BUS_PASS;
 }
 
 static gboolean
@@ -346,7 +344,6 @@ insanity_gst_pipeline_test_setup (InsanityTest *test)
   watch_container (ptest, GST_BIN (priv->pipeline));
 
   priv->bus = gst_element_get_bus (GST_ELEMENT (priv->pipeline));
-  gst_bus_set_sync_handler (priv->bus, bus_sync_handler, (gpointer) ptest);
 
   return TRUE;
 }
@@ -421,9 +418,11 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest *test)
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
 
   while (!ptest->priv->done) {
-    GstMessage *msg = gst_bus_poll (ptest->priv->bus, GST_MESSAGE_ANY, GST_SECOND);
-    if (msg)
+    GstMessage *msg = gst_bus_pop (ptest->priv->bus);
+    if (msg) {
+      handle_message (ptest, msg);
       gst_message_unref (msg);
+    }
   }
   insanity_test_done (INSANITY_TEST (ptest));
 }
