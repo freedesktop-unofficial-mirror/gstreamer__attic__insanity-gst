@@ -386,8 +386,10 @@ insanity_gst_pipeline_test_stop (InsanityTest *test)
     ptest->priv->wait_timeout_id = 0;
   }
 
-  gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_NULL);
-  gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state, &pending, GST_CLOCK_TIME_NONE);
+  if (ptest->priv->pipeline) {
+    gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_NULL);
+    gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state, &pending, GST_CLOCK_TIME_NONE);
+  }
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
 }
@@ -401,8 +403,14 @@ insanity_gst_pipeline_test_teardown (InsanityTest *test)
 
   insanity_test_validate_step (test, "no-errors-seen", priv->error_count == 0, NULL);
 
-  gst_object_unref (priv->bus);
-  gst_object_unref (priv->pipeline);
+  if (priv->bus) {
+    gst_object_unref (priv->bus);
+    priv->bus = NULL;
+  }
+  if (priv->pipeline) {
+    gst_object_unref (priv->pipeline);
+    priv->pipeline = NULL;
+  }
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->teardown (test);
 }
@@ -474,6 +482,7 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   gsttest->priv = priv;
 
   priv->pipeline = NULL;
+  priv->bus = NULL;
   priv->reached_initial_state = FALSE;
   priv->error_count = 0;
   priv->tag_count = 0;
