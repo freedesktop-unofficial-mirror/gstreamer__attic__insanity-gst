@@ -25,6 +25,7 @@
 
 #include <insanity/insanitydefs.h>
 #include <insanity-gst/insanitygsttest.h>
+#include <insanity-gst/insanitygstpipelinetest.h>
 
 #endif
 
