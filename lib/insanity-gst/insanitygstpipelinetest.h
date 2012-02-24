@@ -25,6 +25,7 @@
 
 #include <glib.h>
 #include <glib-object.h>
+#include <gst/gst.h>
 
 #include <insanity/insanitydefs.h>
 #include <insanity-gst/insanitygsttest.h>
@@ -58,6 +59,10 @@ struct _InsanityGstPipelineTest {
 struct _InsanityGstPipelineTestClass
 {
   InsanityGstTestClass parent_class;
+
+  /*< public >*/
+  /* vtable */
+  GstPipeline *(*create_pipeline) (InsanityGstPipelineTest *test);
 
   /*< private >*/
   gpointer _insanity_reserved[INSANITY_PADDING];
