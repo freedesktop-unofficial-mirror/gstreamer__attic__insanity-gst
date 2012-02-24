@@ -37,6 +37,7 @@
 #include <insanity-gst/insanitygstpipelinetest.h>
 
 static guint create_pipeline_signal;
+static guint bus_message_signal;
 
 G_DEFINE_TYPE (InsanityGstPipelineTest, insanity_gst_pipeline_test,
     INSANITY_TYPE_GST_TEST);
@@ -44,6 +45,7 @@ G_DEFINE_TYPE (InsanityGstPipelineTest, insanity_gst_pipeline_test,
 struct _InsanityGstPipelineTestPrivateData
 {
   GstPipeline *pipeline;
+  GstBus *bus;
 
   gboolean reached_initial_state;
 
@@ -119,6 +121,36 @@ on_element_added (GstElement *bin, GstElement *element, InsanityGstPipelineTest 
     watch_container (ptest, GST_BIN (element));
 }
 
+static GstBusSyncReply
+bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
+{
+  InsanityGstPipelineTest *ptest = (InsanityGstPipelineTest *) data;
+  gboolean ret = FALSE;
+
+  g_signal_emit (ptest, bus_message_signal, 0, message, &ret);
+  if (!ret)
+    return GST_BUS_PASS;
+
+  switch (GST_MESSAGE_TYPE (message)) {
+    case GST_MESSAGE_ERROR: {
+      GError *error = NULL;
+      char *debug = NULL;
+
+      gst_message_parse_error (message, &error, &debug);
+      printf("Error: %s: TODO\n", error->message);
+      if (debug) {
+        printf("Additional debug: %s\n", debug);
+        g_free (debug);
+      }
+      g_error_free (error);
+      break;
+    }
+    default:
+      break;
+  }
+  return GST_BUS_PASS;
+}
+
 static gboolean
 insanity_gst_pipeline_test_setup (InsanityTest *test)
 {
@@ -136,6 +168,9 @@ insanity_gst_pipeline_test_setup (InsanityTest *test)
   if (!priv->pipeline)
     return FALSE;
   watch_container (ptest, GST_BIN (priv->pipeline));
+
+  priv->bus = gst_element_get_bus (GST_ELEMENT (priv->pipeline));
+  gst_bus_set_sync_handler (priv->bus, bus_sync_handler, (gpointer) ptest);
 
   return TRUE;
 }
@@ -171,6 +206,7 @@ insanity_gst_pipeline_test_teardown (InsanityTest *test)
 
   printf("insanity_gst_pipeline_test_teardown\n");
 
+  gst_object_unref (priv->bus);
   gst_object_unref (priv->pipeline);
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->teardown (test);
@@ -202,6 +238,14 @@ insanity_gst_pipeline_test_create_pipeline (InsanityGstPipelineTest *ptest)
   }
 
   return pipeline;
+}
+
+static gboolean
+insanity_gst_pipeline_test_bus_message (InsanityGstPipelineTest *ptest, GstMessage *msg)
+{
+  /* By default, we do not ignore the message */
+  printf("Got message %s\n", GST_MESSAGE_TYPE_NAME (msg));
+  return TRUE;
 }
 
 static void
@@ -293,10 +337,11 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
   test_class->teardown = &insanity_gst_pipeline_test_teardown;
 
   klass->create_pipeline = &insanity_gst_pipeline_test_create_pipeline;
+  klass->bus_message = &insanity_gst_pipeline_test_bus_message;
 
   g_type_class_add_private (klass, sizeof (InsanityGstPipelineTestPrivateData));
 
-  create_pipeline_signal = g_signal_new ("create_pipeline",
+  create_pipeline_signal = g_signal_new ("create-pipeline",
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
       G_STRUCT_OFFSET (InsanityGstPipelineTestClass, create_pipeline),
@@ -304,6 +349,14 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       /*&stop_accumulator*/NULL, NULL,
       insanity_cclosure_user_marshal_OBJECT__VOID,
       GST_TYPE_PIPELINE /* return_type */ ,
+      0, NULL);
+  bus_message_signal = g_signal_new ("bus-message",
+      G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
+      G_STRUCT_OFFSET (InsanityGstPipelineTestClass, bus_message),
+      NULL, NULL,
+      insanity_cclosure_user_marshal_OBJECT__VOID,
+      G_TYPE_BOOLEAN /* return_type */ ,
       0, NULL);
 }
 

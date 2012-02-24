@@ -63,6 +63,7 @@ struct _InsanityGstPipelineTestClass
   /*< public >*/
   /* vtable */
   GstPipeline *(*create_pipeline) (InsanityGstPipelineTest *test);
+  gboolean (*bus_message) (InsanityGstPipelineTest *test, GstMessage *msg);
 
   /*< private >*/
   gpointer _insanity_reserved[INSANITY_PADDING];
