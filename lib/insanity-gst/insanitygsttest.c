@@ -41,7 +41,7 @@ G_DEFINE_TYPE (InsanityGstTest, insanity_gst_test,
 
 struct _InsanityGstTestPrivateData
 {
-  GstPipeline *pipeline;
+  int dummy;
 };
 
 static void
@@ -83,8 +83,6 @@ insanity_gst_test_setup (InsanityTest *test)
 
   init_gstreamer ();
 
-  priv->pipeline = GST_PIPELINE (gst_pipeline_new ("test-pipeline"));
-
   return TRUE;
 }
 
@@ -113,9 +111,6 @@ insanity_gst_test_teardown (InsanityTest *test)
   InsanityGstTestPrivateData *priv = INSANITY_GST_TEST (test)->priv;
 
   printf("insanity_gst_test_teardown\n");
-
-  if (priv->pipeline)
-    gst_object_unref (priv->pipeline);
 
   gst_deinit ();
 
