@@ -7,10 +7,12 @@ insanityincdir=$(includedir)/insanity-gst-0.10
 lib_LTLIBRARIES=libinsanity-gst-0.10.la
 
 libinsanity_gst_0_10_la_SOURCES=\
-  insanitygsttest.c
+  insanitygsttest.c \
+  insanitygstpipelinetest.c
 
 insanityinc_HEADERS=\
-  insanitygsttest.h
+  insanitygsttest.h \
+  insanitygstpipelinetest.h
 
 libinsanity_gst_0_10_la_LIBADD=$(GST_LIBS) $(INSANITY_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS) $(DBUS_LIBS)
 libinsanity_gst_0_10_la_CFLAGS=$(GST_CFLAGS) $(INSANITY_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(DBUS_CFLAGS)
