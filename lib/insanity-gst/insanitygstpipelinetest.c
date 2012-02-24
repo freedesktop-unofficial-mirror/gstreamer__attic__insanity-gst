@@ -53,6 +53,10 @@ struct _InsanityGstPipelineTestPrivateData
   unsigned int error_count;
   unsigned int tag_count;
   unsigned int element_count;
+
+  guint wait_timeout_id;
+
+  gboolean done;
 };
 
 static void
@@ -242,6 +246,15 @@ send_tag (const GstTagList * list, const gchar * tag, gpointer data)
   }
 }
 
+static gboolean
+waiting_for_state_change (InsanityGstPipelineTest *ptest)
+{
+  ptest->priv->done = TRUE;
+
+  /* one shot */
+  return FALSE;
+}
+
 static GstBusSyncReply
 bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
 {
@@ -262,7 +275,7 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
       send_error (ptest, error, debug);
       g_error_free (error);
       g_free (debug);
-      insanity_test_done (INSANITY_TEST (ptest));
+      ptest->priv->done = TRUE;
       break;
     }
     case GST_MESSAGE_STATE_CHANGED:
@@ -278,7 +291,7 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
           /* Tell the test we reached our initial state */
           g_signal_emit (ptest, reached_initial_state_signal, 0, &ret);
           if (ret) {
-            insanity_test_done (INSANITY_TEST (ptest));
+            ptest->priv->done = TRUE;
           }
         }
       }
@@ -297,7 +310,15 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
            # race between the final state-change message and the eos message
            # arriving on the bus.
          */
-        insanity_test_done (INSANITY_TEST (ptest)); // TODO: test reached initial state, timeout, etc
+        if (ptest->priv->reached_initial_state) {
+          ptest->priv->done = TRUE;
+        }
+        else {
+          /* If we've not seen the state change to initial state yet, we give
+             an extra 3 seconds for it to complete */
+          ptest->priv->wait_timeout_id = g_timeout_add (3000,
+              (GSourceFunc )&waiting_for_state_change, ptest);
+        }
       }
       break;
     default:
@@ -339,6 +360,8 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
   if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start (test))
     return FALSE;
 
+  ptest->priv->done = FALSE;
+
   printf("insanity_gst_pipeline_test_start\n");
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
 
@@ -353,7 +376,18 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
 static void
 insanity_gst_pipeline_test_stop (InsanityTest *test)
 {
+  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
+  GstState state, pending;
+
   printf("insanity_gst_pipeline_test_stop\n");
+
+  if (ptest->priv->wait_timeout_id) {
+    g_source_remove (ptest->priv->wait_timeout_id);
+    ptest->priv->wait_timeout_id = 0;
+  }
+
+  gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_NULL);
+  gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state, &pending, GST_CLOCK_TIME_NONE);
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
 }
@@ -371,6 +405,19 @@ insanity_gst_pipeline_test_teardown (InsanityTest *test)
   gst_object_unref (priv->pipeline);
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->teardown (test);
+}
+
+static void
+insanity_gst_pipeline_test_test (InsanityThreadedTest *test)
+{
+  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
+
+  while (!ptest->priv->done) {
+    GstMessage *msg = gst_bus_poll (ptest->priv->bus, GST_MESSAGE_ANY, GST_SECOND);
+    if (msg)
+      gst_message_unref (msg);
+  }
+  insanity_test_done (INSANITY_TEST (ptest));
 }
 
 static GstPipeline *
@@ -432,6 +479,8 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   priv->tag_count = 0;
   priv->element_count = 0;
   priv->initial_state = GST_STATE_PLAYING;
+  priv->wait_timeout_id = 0;
+  priv->done = FALSE;
 
   /* Add our own items, etc */
   g_value_init (&empty_string, G_TYPE_STRING);
@@ -581,6 +630,8 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
   test_class->start = &insanity_gst_pipeline_test_start;
   test_class->stop = &insanity_gst_pipeline_test_stop;
   test_class->teardown = &insanity_gst_pipeline_test_teardown;
+
+  threaded_test_class->test = &insanity_gst_pipeline_test_test;
 
   klass->create_pipeline = &insanity_gst_pipeline_test_create_pipeline;
   klass->bus_message = &insanity_gst_pipeline_test_bus_message;
