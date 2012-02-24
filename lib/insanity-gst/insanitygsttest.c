@@ -144,8 +144,8 @@ InsanityGstTest *
 insanity_gst_test_new (const char *name, const char *description, const char *full_description)
 {
   InsanityGstTest *test = g_object_new (insanity_gst_test_get_type (),
-      "name", name, "desc", description, NULL);
+      "name", name, "description", description, NULL);
   if (full_description)
-    g_object_set (test, "full-desc", full_description, NULL);
+    g_object_set (test, "full-description", full_description, NULL);
   return test;
 }
