@@ -73,6 +73,14 @@ insanity_gst_test_setup (InsanityTest *test)
   printf("Got GST debug log file: %s\n", debuglog);
   g_setenv ("GST_DEBUG_FILE", debuglog, TRUE);
 
+  /* We don't want the tests to update the registry because:
+   * it will make the tests start up faster
+   * the tests across testrun should be using the same registry/plugins
+   *
+   * This feature is only available since 0.10.19.1 (24th April 2008) in
+   * GStreamer core */
+  g_setenv ("GST_REGISTRY_UPDATE", "no", TRUE);
+
   init_gstreamer ();
 
   priv->pipeline = GST_PIPELINE (gst_pipeline_new ("test-pipeline"));
