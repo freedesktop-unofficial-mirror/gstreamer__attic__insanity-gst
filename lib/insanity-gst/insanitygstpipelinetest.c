@@ -289,7 +289,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
 
           /* Tell the test we reached our initial state */
           g_signal_emit (ptest, reached_initial_state_signal, 0, &ret);
-          if (ret) {
+          if (!ret) {
             ptest->priv->done = TRUE;
           }
         }
@@ -660,7 +660,7 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
       G_STRUCT_OFFSET (InsanityGstPipelineTestClass, bus_message),
-      NULL, NULL,
+      &stop_accumulator, NULL,
       insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT,
       G_TYPE_BOOLEAN /* return_type */ ,
       1, GST_TYPE_MESSAGE, NULL);
@@ -668,7 +668,7 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
       G_STRUCT_OFFSET (InsanityGstPipelineTestClass, reached_initial_state),
-      NULL, NULL,
+      &stop_accumulator, NULL,
       insanity_cclosure_marshal_BOOLEAN__VOID,
       G_TYPE_BOOLEAN /* return_type */ ,
       0, NULL);
