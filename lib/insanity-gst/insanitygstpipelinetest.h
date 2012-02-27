@@ -73,6 +73,7 @@ struct _InsanityGstPipelineTestClass
 InsanityGstPipelineTest *insanity_gst_pipeline_test_new(const char *name, const char *description, const char *full_description);
 
 void insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, GstState state);
+void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest *test, GstPipeline *(f)(InsanityGstPipelineTest*, gpointer userdata), gpointer userdata, GDestroyNotify dnotify);
 
 /* Handy macros */
 #define INSANITY_TYPE_GST_PIPELINE_TEST                (insanity_gst_pipeline_test_get_type ())

@@ -36,7 +36,6 @@
 
 #include <insanity-gst/insanitygstpipelinetest.h>
 
-static guint create_pipeline_signal;
 static guint bus_message_signal;
 static guint reached_initial_state_signal;
 
@@ -55,6 +54,10 @@ struct _InsanityGstPipelineTestPrivateData
   unsigned int element_count;
 
   guint wait_timeout_id;
+
+  GstPipeline *(*create_pipeline) (InsanityGstPipelineTest*, gpointer);
+  gpointer create_pipeline_user_data;
+  GDestroyNotify create_pipeline_destroy_notify;
 
   gboolean done;
 };
@@ -336,8 +339,7 @@ insanity_gst_pipeline_test_setup (InsanityTest *test)
 
   printf("insanity_gst_pipeline_test_setup\n");
 
-  priv->pipeline = NULL;
-  g_signal_emit (ptest, create_pipeline_signal, 0, &priv->pipeline);
+  priv->pipeline = INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
   insanity_test_validate_step (test, "valid-pipeline", priv->pipeline != NULL, NULL);
   if (!priv->pipeline)
     return FALSE;
@@ -431,25 +433,9 @@ static GstPipeline *
 insanity_gst_pipeline_test_create_pipeline (InsanityGstPipelineTest *ptest)
 {
   GstPipeline *pipeline = NULL;
-  GValue launch_line = {0};
-  GError *error = NULL;
 
-  if (insanity_test_get_argument (INSANITY_TEST (ptest), "pipeline-launch-line", &launch_line)) {
-    pipeline = GST_PIPELINE (gst_parse_launch (g_value_get_string (&launch_line), &error));
-    g_value_unset (&launch_line);
-    if (!pipeline) {
-      insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error ? error->message : NULL);
-      if (error)
-        g_error_free (error);
-    }
-    else if (error) {
-      /* Do we get a dangling pointer here ? gst-launch.c does not unref */
-      pipeline = NULL;
-      insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error->message);
-      g_error_free (error);
-    }
+  if (ptest->priv->create_pipeline) {
+    pipeline = (ptest->priv->create_pipeline) (ptest, ptest->priv->create_pipeline_user_data);
   }
 
   return pipeline;
@@ -488,6 +474,9 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   priv->element_count = 0;
   priv->initial_state = GST_STATE_PLAYING;
   priv->wait_timeout_id = 0;
+  priv->create_pipeline = NULL;
+  priv->create_pipeline_user_data = NULL;
+  priv->create_pipeline_destroy_notify = NULL;
   priv->done = FALSE;
 
   /* Add our own items, etc */
@@ -505,6 +494,16 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   insanity_test_add_extra_info (test, "elements-used", "List of elements used");
 
   g_value_unset (&empty_string);
+}
+
+static void
+insanity_gst_pipeline_test_finalize (GObject * gobject)
+{
+  InsanityGstPipelineTest *gtest = (InsanityGstPipelineTest *) gobject;
+
+  insanity_gst_pipeline_test_set_create_pipeline_function (gtest, NULL, NULL, NULL);
+
+  G_OBJECT_CLASS (insanity_gst_pipeline_test_parent_class)->finalize (gobject);
 }
 
 void
@@ -647,15 +646,6 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
 
   g_type_class_add_private (klass, sizeof (InsanityGstPipelineTestPrivateData));
 
-  create_pipeline_signal = g_signal_new ("create-pipeline",
-      G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
-      G_STRUCT_OFFSET (InsanityGstPipelineTestClass, create_pipeline),
-  /* Setting the stop accumulator causes g_value asserts... mistake in marshall ? */
-      /*&stop_accumulator*/NULL, NULL,
-      insanity_cclosure_user_marshal_OBJECT__VOID,
-      GST_TYPE_PIPELINE /* return_type */ ,
-      0, NULL);
   bus_message_signal = g_signal_new ("bus-message",
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
@@ -712,5 +702,26 @@ void
 insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, GstState state)
 {
   test->priv->initial_state = state;
+}
+
+/**
+ * insanity_gst_pipeline_test_set_create_pipeline_function:
+ * @test: the #InsanityGstPipelineTest to change
+ * @f: the function to call to create a new pipeline
+ * @userdata: whatever data the user wants passed to the function
+ * @dnotify: (allow-none): a function to be called on the previous data when replaced
+ *
+ * Set a function to call for creating a pipeline.
+ * The function should return NULL if a pipeline fails to be created.
+ */
+void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest *test, GstPipeline *(f)(InsanityGstPipelineTest*, gpointer), gpointer userdata, GDestroyNotify dnotify)
+{
+  if (test->priv->create_pipeline) {
+    if (test->priv->create_pipeline_destroy_notify)
+      (*test->priv->create_pipeline_destroy_notify) (test->priv->create_pipeline_user_data);
+  }
+  test->priv->create_pipeline = f;
+  test->priv->create_pipeline_user_data = userdata;
+  test->priv->create_pipeline_destroy_notify = dnotify;
 }
 
