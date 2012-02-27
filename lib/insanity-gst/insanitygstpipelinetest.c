@@ -462,7 +462,6 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   InsanityTest *test = INSANITY_TEST (gsttest);
   InsanityGstPipelineTestPrivateData *priv = G_TYPE_INSTANCE_GET_PRIVATE (gsttest,
       INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTestPrivateData);
-  GValue empty_string = {0};
 
   gsttest->priv = priv;
 
@@ -480,10 +479,6 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   priv->done = FALSE;
 
   /* Add our own items, etc */
-  g_value_init (&empty_string, G_TYPE_STRING);
-  g_value_set_string (&empty_string, "");
-
-  insanity_test_add_argument (test, "pipeline-launch-line", "The launch line to parse to create the pipeline", NULL, &empty_string);
   insanity_test_add_checklist_item (test, "valid-pipeline", "The test pipeline was properly created", NULL);
   insanity_test_add_checklist_item (test, "pipeline-change-state", "The initial state_change happened succesfully", NULL);
   insanity_test_add_checklist_item (test, "reached-initial-state", "The pipeline reached the initial GstElementState", NULL);
@@ -492,8 +487,6 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   insanity_test_add_extra_info (test, "errors", "List of errors emitted by the pipeline");
   insanity_test_add_extra_info (test, "tags", "List of tags emitted by the pipeline");
   insanity_test_add_extra_info (test, "elements-used", "List of elements used");
-
-  g_value_unset (&empty_string);
 }
 
 static void

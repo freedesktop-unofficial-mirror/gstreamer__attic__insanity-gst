@@ -32,7 +32,7 @@ blank_gst_test_test (InsanityTest * test)
 static GstPipeline*
 blank_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 {
-  GstPipeline *pipeline;
+  GstPipeline *pipeline = NULL;
   GValue launch_line = {0};
   GError *error = NULL;
 
@@ -62,13 +62,19 @@ main (int argc, char **argv)
 {
   InsanityTest *test;
   gboolean ret;
-  GValue def = {0};
+  GValue empty_string = {0};
+
 
   g_type_init ();
 
   test =
       INSANITY_TEST (insanity_gst_pipeline_test_new ("blank-c-gst-test",
           "Sample GStreamer test that does nothing", NULL));
+
+  g_value_init (&empty_string, G_TYPE_STRING);
+  g_value_set_string (&empty_string, "");
+  insanity_test_add_argument (test, "pipeline-launch-line", "The launch line to parse to create the pipeline", NULL, TRUE, &empty_string);
+  g_value_unset (&empty_string);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (INSANITY_GST_PIPELINE_TEST (test),
       &blank_gst_test_create_pipeline, NULL, NULL);
