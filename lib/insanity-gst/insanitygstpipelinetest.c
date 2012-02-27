@@ -59,6 +59,8 @@ struct _InsanityGstPipelineTestPrivateData
   gpointer create_pipeline_user_data;
   GDestroyNotify create_pipeline_destroy_notify;
 
+  GMainLoop *loop;
+
   gboolean done;
 };
 
@@ -252,21 +254,21 @@ send_tag (const GstTagList * list, const gchar * tag, gpointer data)
 static gboolean
 waiting_for_state_change (InsanityGstPipelineTest *ptest)
 {
-  ptest->priv->done = TRUE;
+  g_main_loop_quit (ptest->priv->loop);
 
   /* one shot */
   return FALSE;
 }
 
-static void
+static gboolean
 handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
 {
-  gboolean ret = FALSE;
+  gboolean ret = FALSE, done = FALSE;
 
   /* Allow the test code to handle the message instead */
   g_signal_emit (ptest, bus_message_signal, 0, message, &ret);
   if (!ret)
-    return;
+    return FALSE;
 
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR: {
@@ -277,7 +279,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
       send_error (ptest, error, debug);
       g_error_free (error);
       g_free (debug);
-      ptest->priv->done = TRUE;
+      done = TRUE;
       break;
     }
     case GST_MESSAGE_STATE_CHANGED:
@@ -293,7 +295,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
           /* Tell the test we reached our initial state */
           g_signal_emit (ptest, reached_initial_state_signal, 0, &ret);
           if (!ret) {
-            ptest->priv->done = TRUE;
+            done = TRUE;
           }
         }
       }
@@ -313,7 +315,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
            # arriving on the bus.
          */
         if (ptest->priv->reached_initial_state) {
-          ptest->priv->done = TRUE;
+          done = TRUE;
         }
         else {
           /* If we've not seen the state change to initial state yet, we give
@@ -326,6 +328,17 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
     default:
       break;
   }
+
+  return done;
+}
+
+static gboolean
+on_message (GstBus *bus, GstMessage *msg, gpointer userdata)
+{
+  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (userdata);
+  if (handle_message (ptest, msg))
+    g_main_loop_quit (ptest->priv->loop);
+  return TRUE;
 }
 
 static gboolean
@@ -418,14 +431,16 @@ static void
 insanity_gst_pipeline_test_test (InsanityThreadedTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
+  guint id;
 
-  while (!ptest->priv->done) {
-    GstMessage *msg = gst_bus_pop (ptest->priv->bus);
-    if (msg) {
-      handle_message (ptest, msg);
-      gst_message_unref (msg);
-    }
-  }
+  ptest->priv->loop = g_main_loop_new (NULL, FALSE);
+  gst_bus_add_signal_watch (ptest->priv->bus);
+  id = g_signal_connect (G_OBJECT (ptest->priv->bus), "message", (GCallback) &on_message, ptest);
+  g_main_loop_run (ptest->priv->loop);
+  g_signal_handler_disconnect (G_OBJECT (ptest->priv->bus), id);
+  g_main_loop_unref (ptest->priv->loop);
+  ptest->priv->loop = NULL;
+
   insanity_test_done (INSANITY_TEST (ptest));
 }
 
@@ -445,7 +460,6 @@ static gboolean
 insanity_gst_pipeline_test_bus_message (InsanityGstPipelineTest *ptest, GstMessage *msg)
 {
   /* By default, we do not ignore the message */
-  printf("Got message %s\n", GST_MESSAGE_TYPE_NAME (msg));
   return TRUE;
 }
 
