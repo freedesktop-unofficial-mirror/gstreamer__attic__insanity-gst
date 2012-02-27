@@ -157,9 +157,15 @@ insanity_gst_test_class_init (InsanityGstTestClass * klass)
 InsanityGstTest *
 insanity_gst_test_new (const char *name, const char *description, const char *full_description)
 {
-  InsanityGstTest *test = g_object_new (insanity_gst_test_get_type (),
-      "name", name, "description", description, NULL);
-  if (full_description)
-    g_object_set (test, "full-description", full_description, NULL);
+  InsanityGstTest *test;
+
+  if (full_description) {
+    test = g_object_new (insanity_gst_test_get_type (),
+        "name", name, "description", description, "full-description", full_description, NULL);
+  }
+  else {
+    test = g_object_new (insanity_gst_test_get_type (),
+        "name", name, "description", description, NULL);
+  }
   return test;
 }

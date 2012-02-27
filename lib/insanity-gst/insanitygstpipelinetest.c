@@ -687,10 +687,16 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
 InsanityGstPipelineTest *
 insanity_gst_pipeline_test_new (const char *name, const char *description, const char *full_description)
 {
-  InsanityGstPipelineTest *test = g_object_new (insanity_gst_pipeline_test_get_type (),
+  InsanityGstPipelineTest *test;
+
+  if (full_description) {
+    test  = g_object_new (insanity_gst_pipeline_test_get_type (),
+      "name", name, "description", description, "full-description", full_description, NULL);
+  }
+  else {
+    test  = g_object_new (insanity_gst_pipeline_test_get_type (),
       "name", name, "description", description, NULL);
-  if (full_description)
-    g_object_set (test, "full-description", full_description, NULL);
+  }
   return test;
 }
 
