@@ -39,7 +39,7 @@ if test -r Makefile.am; then
   if test -z $AM_NEEDED; then
     echo -n "checking for automake... "
     AUTOMAKE=automake
-    ACLOCAL=aclocal
+    ACLOCAL="aclocal -I m4"
     if ($AUTOMAKE --version < /dev/null > /dev/null 2>&1); then
       echo "yes"
     else
@@ -71,14 +71,14 @@ if test -r Makefile.am; then
       maj=`echo $ver | $VERSIONMKMAJ`
       min=`echo $ver | $VERSIONMKMIN`
       if test $maj -eq $majneeded -a $min -ge $minneeded; then
-        ACLOCAL=$ac
+        ACLOCAL="$ac -I m4"
         echo $ACLOCAL
         break
       fi
     done
-    test -z $ACLOCAL && echo "no"
+    test -z "$ACLOCAL" && echo "no"
   fi
-  test -z $AUTOMAKE || test -z $ACLOCAL && {
+  test -z $AUTOMAKE || test -z "$ACLOCAL" && {
         echo
         echo "You must have automake installed to compile $package."
         echo "Download the appropriate package for your distribution,"
