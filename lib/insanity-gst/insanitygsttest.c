@@ -61,7 +61,7 @@ static gboolean
 insanity_gst_test_setup (InsanityTest *test)
 {
   InsanityGstTestPrivateData *priv = INSANITY_GST_TEST (test)->priv;
-  const char *debuglog;
+  const char *debuglog, *registry;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
@@ -72,6 +72,11 @@ insanity_gst_test_setup (InsanityTest *test)
   debuglog = insanity_test_get_output_filename (test, "gst-debug-log");
   printf("Got GST debug log file: %s\n", debuglog);
   g_setenv ("GST_DEBUG_FILE", debuglog, TRUE);
+
+  /* Set GST_REGISTRY to the target filename */
+  registry = insanity_test_get_output_filename (test, "gst-registry");
+  printf("Got GST registry file: %s\n", registry);
+  g_setenv ("GST_REGISTRY", registry, TRUE);
 
   /* We don't want the tests to update the registry because:
    * it will make the tests start up faster
@@ -128,6 +133,7 @@ insanity_gst_test_init (InsanityGstTest * gsttest)
 
   /* Add our own items, etc */
   insanity_test_add_output_file (test, "gst-debug-log", "The GStreamer debug log");
+  insanity_test_add_output_file (test, "gst-registry", "The GStreamer registry file");
 }
 
 static void
