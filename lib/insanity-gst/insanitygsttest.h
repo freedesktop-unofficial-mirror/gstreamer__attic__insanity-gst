@@ -69,8 +69,8 @@ InsanityGstTest *insanity_gst_test_new(const char *name, const char *description
 #define INSANITY_TYPE_GST_TEST                (insanity_gst_test_get_type ())
 #define INSANITY_GST_TEST(obj)                (G_TYPE_CHECK_INSTANCE_CAST ((obj), INSANITY_TYPE_GST_TEST, InsanityGstTest))
 #define INSANITY_GST_TEST_CLASS(c)            (G_TYPE_CHECK_CLASS_CAST ((c), INSANITY_TYPE_GST_TEST, InsanityGstTestClass))
-#define IS_INSANITY_GST_TEST(obj)             (G_TYPE_CHECK_TYPE ((obj), INSANITY_TYPE_GST_TEST))
-#define IS_INSANITY_GST_TEST_CLASS(c)         (G_TYPE_CHECK_CLASS_TYPE ((c), INSANITY_TYPE_GST_TEST))
+#define INSANITY_IS_GST_TEST(obj)             (G_TYPE_CHECK_TYPE ((obj), INSANITY_TYPE_GST_TEST))
+#define INSANITY_IS_GST_TEST_CLASS(c)         (G_TYPE_CHECK_CLASS_TYPE ((c), INSANITY_TYPE_GST_TEST))
 #define INSANITY_GST_TEST_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), INSANITY_TYPE_GST_TEST, InsanityGstTestClass))
 
 GType insanity_gst_test_get_type (void);

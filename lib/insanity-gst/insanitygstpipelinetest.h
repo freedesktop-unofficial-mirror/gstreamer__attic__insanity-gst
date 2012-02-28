@@ -79,8 +79,8 @@ void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelin
 #define INSANITY_TYPE_GST_PIPELINE_TEST                (insanity_gst_pipeline_test_get_type ())
 #define INSANITY_GST_PIPELINE_TEST(obj)                (G_TYPE_CHECK_INSTANCE_CAST ((obj), INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTest))
 #define INSANITY_GST_PIPELINE_TEST_CLASS(c)            (G_TYPE_CHECK_CLASS_CAST ((c), INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTestClass))
-#define IS_INSANITY_GST_PIPELINE_TEST(obj)             (G_TYPE_CHECK_TYPE ((obj), INSANITY_TYPE_GST_PIPELINE_TEST))
-#define IS_INSANITY_GST_PIPELINE_TEST_CLASS(c)         (G_TYPE_CHECK_CLASS_TYPE ((c), INSANITY_TYPE_GST_PIPELINE_TEST))
+#define INSANITY_IS_GST_PIPELINE_TEST(obj)             (G_TYPE_CHECK_TYPE ((obj), INSANITY_TYPE_GST_PIPELINE_TEST))
+#define INSANITY_IS_GST_PIPELINE_TEST_CLASS(c)         (G_TYPE_CHECK_CLASS_TYPE ((c), INSANITY_TYPE_GST_PIPELINE_TEST))
 #define INSANITY_GST_PIPELINE_TEST_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTestClass))
 
 GType insanity_gst_pipeline_test_get_type (void);
