@@ -51,7 +51,7 @@ init_gstreamer ()
   char **argv;
 
   argv = g_malloc (2 * sizeof (char*));
-  argv[0] = "foo";
+  argv[0] = g_get_prgname ();
   argv[1] = NULL;
   gst_init (&argc, &argv);
   g_free (argv);
