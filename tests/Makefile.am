@@ -7,6 +7,8 @@ LIBTOOLFLAGS=--silent
 
 AM_CPPFLAGS=-I $(top_srcdir)/lib
 
+testdir=$(libexecdir)/insanity-gst/tests
+
 common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(DBUS_CFLAGS)
 common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS) $(DBUS_LIBS)
 
@@ -14,7 +16,7 @@ insanity_test_gst_blank_SOURCES=insanity-test-gst-blank.c
 insanity_test_gst_blank_CFLAGS=$(common_cflags)
 insanity_test_gst_blank_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
 
-noinst_PROGRAMS=insanity-test-gst-blank
+test_PROGRAMS=insanity-test-gst-blank
 
 TESTS=run-insanity-test-gst-blank
 
