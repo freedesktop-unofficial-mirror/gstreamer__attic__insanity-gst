@@ -132,8 +132,8 @@ insanity_gst_test_init (InsanityGstTest * gsttest)
   gsttest->priv = priv;
 
   /* Add our own items, etc */
-  insanity_test_add_output_file (test, "gst-debug-log", "The GStreamer debug log");
-  insanity_test_add_output_file (test, "gst-registry", "The GStreamer registry file");
+  insanity_test_add_output_file (test, "gst-debug-log", "The GStreamer debug log", TRUE);
+  insanity_test_add_output_file (test, "gst-registry", "The GStreamer registry file", TRUE);
 }
 
 static void
