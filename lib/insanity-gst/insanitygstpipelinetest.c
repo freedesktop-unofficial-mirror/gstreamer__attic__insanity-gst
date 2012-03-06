@@ -286,7 +286,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
       if (GST_MESSAGE_SRC (message) == GST_OBJECT (ptest->priv->pipeline)) {
         GstState oldstate, newstate, pending;
         gst_message_parse_state_changed (message, &oldstate, &newstate, &pending);
-        if (newstate == ptest->priv->initial_state && pending == GST_STATE_VOID_PENDING) {
+        if (newstate == ptest->priv->initial_state && pending == GST_STATE_VOID_PENDING && !ptest->priv->reached_initial_state) {
           gboolean ret = TRUE;
 
           ptest->priv->reached_initial_state = TRUE;
