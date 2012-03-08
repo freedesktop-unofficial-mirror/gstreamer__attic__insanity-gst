@@ -16,7 +16,11 @@ insanity_test_gst_blank_SOURCES=insanity-test-gst-blank.c
 insanity_test_gst_blank_CFLAGS=$(common_cflags)
 insanity_test_gst_blank_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
 
-test_PROGRAMS=insanity-test-gst-blank
+insanity_test_gst_seek_SOURCES=insanity-test-gst-seek.c
+insanity_test_gst_seek_CFLAGS=$(common_cflags)
+insanity_test_gst_seek_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
+
+test_PROGRAMS=insanity-test-gst-blank insanity-test-gst-seek
 
 TESTS=run-insanity-test-gst-blank
 
