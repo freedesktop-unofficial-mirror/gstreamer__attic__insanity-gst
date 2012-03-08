@@ -38,6 +38,7 @@
 
 static guint bus_message_signal;
 static guint reached_initial_state_signal;
+static guint duration_signal;
 
 G_DEFINE_TYPE (InsanityGstPipelineTest, insanity_gst_pipeline_test,
     INSANITY_TYPE_GST_TEST);
@@ -260,6 +261,22 @@ waiting_for_state_change (InsanityGstPipelineTest *ptest)
   return FALSE;
 }
 
+GstClockTime
+insanity_gst_pipeline_test_query_duration(InsanityGstPipelineTest *ptest)
+{
+  GstQuery *query = gst_query_new_duration (GST_FORMAT_TIME);
+  gboolean res = gst_element_query (GST_ELEMENT (ptest->priv->pipeline), query);
+  GstClockTime duration = GST_CLOCK_TIME_NONE;
+  if (res) {
+    gst_query_parse_duration (query, NULL, &duration);
+    if (GST_CLOCK_TIME_IS_VALID (duration)) {
+      g_signal_emit (ptest, duration_signal, 0, duration, NULL);
+    }
+  }
+  gst_query_unref (query);
+  return duration;
+}
+
 static gboolean
 handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
 {
@@ -307,6 +324,9 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
       gst_tag_list_free (tags);
       break;
     }
+    case GST_MESSAGE_DURATION:
+      insanity_gst_pipeline_test_query_duration (ptest);
+      break;
     case GST_MESSAGE_EOS:
       if (GST_MESSAGE_SRC (message) == GST_OBJECT (ptest->priv->pipeline)) {
         /* Warning from the original Python source:
@@ -669,6 +689,14 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       insanity_cclosure_marshal_BOOLEAN__VOID,
       G_TYPE_BOOLEAN /* return_type */ ,
       0, NULL);
+  duration_signal = g_signal_new ("duration",
+      G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
+      0,
+      NULL, NULL,
+      NULL,
+      G_TYPE_NONE /* return_type */ ,
+      1, G_TYPE_UINT64, NULL);
 }
 
 /**
