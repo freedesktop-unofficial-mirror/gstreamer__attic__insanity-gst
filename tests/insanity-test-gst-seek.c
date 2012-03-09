@@ -73,7 +73,7 @@ static gulong global_probes[2] = {0, 0};
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
 static gboolean global_expecting_eos = FALSE;
 static gboolean global_need_flush = FALSE;
-static GDateTime *global_seek_start_time = NULL;
+static gint64 global_seek_start_time = 0;
 static GstClockTime global_max_seek_time;
 
 static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
@@ -132,7 +132,7 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline,
   insanity_test_ping (INSANITY_TEST (ptest));
   event = gst_event_new_seek (1.0, GST_FORMAT_TIME, flags,
       GST_SEEK_TYPE_SET, t0, GST_CLOCK_TIME_IS_VALID (t1) ? GST_SEEK_TYPE_SET : GST_SEEK_TYPE_NONE, t1);
-  global_seek_start_time = g_date_time_new_now_utc ();
+  global_seek_start_time = g_get_monotonic_time();
   SEEK_TEST_UNLOCK();
 
   res = gst_element_send_event (pipeline, event);
@@ -151,22 +151,16 @@ static gboolean
 do_next_seek (gpointer data)
 {
   InsanityGstPipelineTest *ptest = data;
-  GDateTime *now;
   gboolean next;
 
   SEEK_TEST_LOCK();
 
   if (global_seek_start_time) {
-    GTimeSpan span;
-    GstClockTime seek_time;
-    now = g_date_time_new_now_utc ();
-    span = g_date_time_difference (now, global_seek_start_time);
-    g_date_time_unref (now);
-    g_date_time_unref (global_seek_start_time);
-    global_seek_start_time = NULL;
-    seek_time = gst_util_uint64_scale(span, GST_SECOND, 1000000);
+    GstClockTime seek_time = gst_util_uint64_scale(g_get_monotonic_time() - global_seek_start_time,
+        GST_SECOND, 1000000);
     if (seek_time > global_max_seek_time)
       global_max_seek_time = seek_time;
+    global_seek_start_time = 0;
   }
 
   /* Switch to next target, or next method if we've done them all */
