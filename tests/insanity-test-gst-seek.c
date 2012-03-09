@@ -366,8 +366,14 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
       for (n=0; n<global_nsinks; ++n) {
         if (pad == global_sinks[n] && global_waiting[n] == WAIT_STATE_SEGMENT) {
           gint64 start;
+          gboolean update;
 
-          gst_event_parse_new_segment (event, NULL, NULL, NULL, &start, NULL, NULL);
+          gst_event_parse_new_segment (event, &update, NULL, NULL, &start, NULL, NULL);
+
+          /* ignore segment updates */
+          if (update)
+            break;
+
           insanity_test_printf (INSANITY_TEST (ptest),
              "[%d] Got segment starting at %"GST_TIME_FORMAT", waiting for buffer\n",
              n, GST_TIME_ARGS (start));
