@@ -62,6 +62,8 @@ struct _InsanityGstPipelineTestPrivateData
 
   GMainLoop *loop;
 
+  GHashTable *elements_used;
+
   gboolean done;
 };
 
@@ -70,9 +72,17 @@ add_element_used (InsanityGstPipelineTest *ptest, GstElement *element)
 {
   GstElementFactory *factory;
   const char *factory_name;
-  char label[32];
+  char label[32], *element_name;
   GValue string_value = {0};
   GstElement *parent;
+
+  /* Only add once */
+  element_name = gst_element_get_name (element);
+  if (g_hash_table_lookup_extended (ptest->priv->elements_used, element_name, NULL, NULL)) {
+    g_free (element_name);
+    return;
+  }
+  g_hash_table_insert (ptest->priv->elements_used, g_strdup (element_name), NULL);
 
   ptest->priv->element_count++;
   g_value_init (&string_value, G_TYPE_STRING);
@@ -80,7 +90,7 @@ add_element_used (InsanityGstPipelineTest *ptest, GstElement *element)
   factory = gst_element_get_factory (element);
   factory_name = factory ? gst_element_factory_get_longname (factory) : "(no factory)";
 
-  g_value_take_string (&string_value, gst_element_get_name (element));
+  g_value_take_string (&string_value, element_name);
   snprintf (label, sizeof (label), "elements-used.%u.name", ptest->priv->element_count);
   insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
   g_value_reset (&string_value);
@@ -405,6 +415,8 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
   priv->wait_timeout_id = 0;
   priv->done = FALSE;
 
+  priv->elements_used = g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
+
   printf("insanity_gst_pipeline_test_start\n");
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
 
@@ -433,6 +445,9 @@ insanity_gst_pipeline_test_stop (InsanityTest *test)
     gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_NULL);
     gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state, &pending, GST_CLOCK_TIME_NONE);
   }
+
+  g_hash_table_destroy (ptest->priv->elements_used);
+  ptest->priv->elements_used = NULL;
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
 }
