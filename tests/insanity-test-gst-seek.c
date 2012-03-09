@@ -38,12 +38,15 @@
 
 typedef enum {
   SEEK_TEST_STATE_FIRST,
-  SEEK_TEST_STATE_FLUSHING = SEEK_TEST_STATE_FIRST,
-  SEEK_TEST_STATE_SEGMENT,
+  SEEK_TEST_STATE_SEGMENT = SEEK_TEST_STATE_FIRST,
   SEEK_TEST_STATE_ZERO,
   SEEK_TEST_STATE_KEY,
   SEEK_TEST_STATE_ACCURATE,
   SEEK_TEST_STATE_KEY_ACCURATE,
+  SEEK_TEST_STATE_FLUSHING,
+  SEEK_TEST_STATE_FLUSHING_KEY,
+  SEEK_TEST_STATE_FLUSHING_ACCURATE,
+  SEEK_TEST_STATE_FLUSHING_KEY_ACCURATE,
   SEEK_TEST_NUM_STATES
 } SeekTestState;
 
@@ -98,16 +101,13 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
   memset(global_waiting, WAIT_STATE_SEGMENT, global_nsinks);
 
   switch (global_state) {
-    case SEEK_TEST_STATE_ZERO:
-      flags = 0;
-      break;
     case SEEK_TEST_STATE_SEGMENT:
       flags = GST_SEEK_FLAG_SEGMENT;
       /* Select a random end time for the segment, after t0 */
       t1 = t0 + (global_duration - t0) * g_random_double ();
       break;
-    case SEEK_TEST_STATE_FLUSHING:
-      flags = GST_SEEK_FLAG_FLUSH;
+    case SEEK_TEST_STATE_ZERO:
+      flags = 0;
       break;
     case SEEK_TEST_STATE_KEY:
       flags = GST_SEEK_FLAG_KEY_UNIT;
@@ -117,6 +117,18 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
       break;
     case SEEK_TEST_STATE_KEY_ACCURATE:
       flags = GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_ACCURATE;
+      break;
+    case SEEK_TEST_STATE_FLUSHING:
+      flags = GST_SEEK_FLAG_FLUSH;
+      break;
+    case SEEK_TEST_STATE_FLUSHING_KEY:
+      flags = GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT;
+      break;
+    case SEEK_TEST_STATE_FLUSHING_ACCURATE:
+      flags =  GST_SEEK_FLAG_FLUSH |GST_SEEK_FLAG_ACCURATE;
+      break;
+    case SEEK_TEST_STATE_FLUSHING_KEY_ACCURATE:
+      flags = GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_ACCURATE;
       break;
     default:
       g_assert(0);
