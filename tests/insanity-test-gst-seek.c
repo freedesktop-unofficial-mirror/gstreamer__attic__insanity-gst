@@ -48,9 +48,10 @@ typedef enum {
   SEEK_TEST_NUM_STATES
 } SeekTestState;
 
-/* interesting places to seek to, in percent of the stream duration */
-static const int seek_targets[] = {
-  0, 20, 50, 99, 100, 150
+/* interesting places to seek to, in percent of the stream duration,
+   with negative values being placeholders for randomly chosen locations. */
+static int seek_targets[] = {
+  0, 20, 50, 99, 100, 150, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 };
 
 /* Our state. Growing fast. Possibly not locked well enough. */
@@ -482,6 +483,42 @@ connect_sinks (InsanityGstPipelineTest *ptest)
 }
 
 static gboolean
+seek_test_setup(InsanityTest *test)
+{
+  GValue v = {0};
+  unsigned n;
+  guint32 seed;
+  GRand *prg;
+
+  /* Retrieve seed */
+  insanity_test_get_argument (test, "seed", &v);
+  seed = g_value_get_uint(&v);
+  g_value_unset (&v);
+
+  /* Generate one if zero */
+  seed = g_random_int();
+  if (seed == 0) /* we don't really care for bias, we just don't want 0 */
+    seed = 1;
+
+  /* save that seed as extra-info */
+  g_value_init (&v, G_TYPE_UINT);
+  g_value_set_uint (&v, seed);
+  insanity_test_set_extra_info (test, "seed", &v);
+  g_value_unset (&v);
+
+  /* Generate random seek targets from that seed */
+  prg = g_rand_new_with_seed(seed);
+  for (n=0; n<sizeof(seek_targets)/sizeof(seek_targets[0]); n++) {
+    if (seek_targets[n] < 0) {
+      seek_targets[n] = g_rand_int_range(prg, 0, 100);
+    }
+  }
+  g_rand_free (prg);
+
+  return TRUE;
+}
+
+static gboolean
 seek_test_start(InsanityTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
@@ -603,7 +640,7 @@ main (int argc, char **argv)
   InsanityGstPipelineTest *ptest;
   InsanityTest *test;
   gboolean ret;
-  GValue empty_string = {0};
+  GValue vdef = {0};
 
   g_type_init ();
 
@@ -611,10 +648,15 @@ main (int argc, char **argv)
       "Tests various seeking methods", NULL);
   test = INSANITY_TEST (ptest);
 
-  g_value_init (&empty_string, G_TYPE_STRING);
-  g_value_set_string (&empty_string, "");
-  insanity_test_add_argument (test, "uri", "The file to test seeking on", NULL, FALSE, &empty_string);
-  g_value_unset (&empty_string);
+  g_value_init (&vdef, G_TYPE_STRING);
+  g_value_set_string (&vdef, "");
+  insanity_test_add_argument (test, "uri", "The file to test seeking on", NULL, FALSE, &vdef);
+  g_value_unset (&vdef);
+
+  g_value_init (&vdef, G_TYPE_UINT);
+  g_value_set_uint (&vdef, 0);
+  insanity_test_add_argument (test, "seed", "A random seed to generate random seek targets", "0 means a randomly chosen seed; the seed will be saved as extra-info", TRUE, &vdef);
+  g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "install-probes", "Probes were installed on the sinks", NULL);
   insanity_test_add_checklist_item (test, "duration-known", "Stream duration could be determined", NULL);
@@ -624,11 +666,13 @@ main (int argc, char **argv)
 
   insanity_test_add_extra_info (test, "max-seek-error", "The maximum timestamp difference between a seek target and the buffer received after the seek (absolute value in nanoseconds)");
   insanity_test_add_extra_info (test, "max-seek-time", "The maximum amount of time taken to perform a seek (in nanoseconds)");
+  insanity_test_add_extra_info (test, "seed", "The seed used to generate random seek targets");
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &seek_test_create_pipeline, NULL, NULL);
   insanity_gst_pipeline_test_set_initial_state (ptest, GST_STATE_READY);
   g_signal_connect_after (test, "bus-message", G_CALLBACK (&seek_test_bus_message), 0);
+  g_signal_connect_after (test, "setup", G_CALLBACK (&seek_test_setup), 0);
   g_signal_connect_after (test, "start", G_CALLBACK (&seek_test_start), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&seek_test_stop), 0);
   g_signal_connect_after (ptest, "duration", G_CALLBACK (&seek_test_duration), 0);
