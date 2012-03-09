@@ -387,6 +387,8 @@ insanity_gst_pipeline_test_setup (InsanityTest *test)
 
   printf("insanity_gst_pipeline_test_setup\n");
 
+  priv->elements_used = g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
+
   priv->pipeline = INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
   insanity_test_validate_step (test, "valid-pipeline", priv->pipeline != NULL, NULL);
   if (!priv->pipeline)
@@ -414,8 +416,6 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
   priv->element_count = 0;
   priv->wait_timeout_id = 0;
   priv->done = FALSE;
-
-  priv->elements_used = g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
 
   printf("insanity_gst_pipeline_test_start\n");
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
@@ -446,16 +446,14 @@ insanity_gst_pipeline_test_stop (InsanityTest *test)
     gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state, &pending, GST_CLOCK_TIME_NONE);
   }
 
-  g_hash_table_destroy (ptest->priv->elements_used);
-  ptest->priv->elements_used = NULL;
-
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
 }
 
 static void
 insanity_gst_pipeline_test_teardown (InsanityTest *test)
 {
-  InsanityGstPipelineTestPrivateData *priv = INSANITY_GST_PIPELINE_TEST (test)->priv;
+  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
+  InsanityGstPipelineTestPrivateData *priv = ptest->priv;
 
   printf("insanity_gst_pipeline_test_teardown\n");
 
@@ -469,6 +467,9 @@ insanity_gst_pipeline_test_teardown (InsanityTest *test)
     gst_object_unref (priv->pipeline);
     priv->pipeline = NULL;
   }
+
+  g_hash_table_destroy (ptest->priv->elements_used);
+  ptest->priv->elements_used = NULL;
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->teardown (test);
 }
