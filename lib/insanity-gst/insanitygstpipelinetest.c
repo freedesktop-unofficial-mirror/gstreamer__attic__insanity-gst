@@ -255,6 +255,7 @@ send_tag (const GstTagList * list, const gchar * tag, gpointer data)
 static gboolean
 waiting_for_state_change (InsanityGstPipelineTest *ptest)
 {
+  insanity_test_printf (INSANITY_TEST (ptest), "State change did not happen, quitting anyway\n");
   g_main_loop_quit (ptest->priv->loop);
 
   /* one shot */
@@ -294,6 +295,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
 
       gst_message_parse_error (message, &error, &debug);
       send_error (ptest, error, debug);
+      insanity_test_printf (INSANITY_TEST (ptest), "Error (%s, %s), quitting\n", error->message, debug);
       g_error_free (error);
       g_free (debug);
       done = TRUE;
@@ -312,6 +314,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
           /* Tell the test we reached our initial state */
           g_signal_emit (ptest, reached_initial_state_signal, 0, &ret);
           if (!ret) {
+            insanity_test_printf (INSANITY_TEST (ptest), "Reached initial state, and asked to quit, quitting\n");
             done = TRUE;
           }
         }
@@ -335,11 +338,13 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
            # arriving on the bus.
          */
         if (ptest->priv->reached_initial_state) {
+          insanity_test_printf (INSANITY_TEST (ptest), "Got EOS from pipeline, and we reached initial state, quitting\n");
           done = TRUE;
         }
         else {
           /* If we've not seen the state change to initial state yet, we give
              an extra 3 seconds for it to complete */
+          insanity_test_printf (INSANITY_TEST (ptest), "Got EOS from pipeline, and we did not reach initial state, delaying quit\n");
           ptest->priv->wait_timeout_id = g_timeout_add (3000,
               (GSourceFunc )&waiting_for_state_change, ptest);
         }
