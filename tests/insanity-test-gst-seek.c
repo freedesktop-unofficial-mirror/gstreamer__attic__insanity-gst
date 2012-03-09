@@ -38,8 +38,7 @@
 
 typedef enum {
   SEEK_TEST_STATE_FIRST,
-  SEEK_TEST_STATE_SEGMENT = SEEK_TEST_STATE_FIRST,
-  SEEK_TEST_STATE_ZERO,
+  SEEK_TEST_STATE_ZERO = SEEK_TEST_STATE_FIRST,
   SEEK_TEST_STATE_KEY,
   SEEK_TEST_STATE_ACCURATE,
   SEEK_TEST_STATE_KEY_ACCURATE,
@@ -93,7 +92,6 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
   GstEvent *event;
   gboolean res;
   GstSeekFlags flags = 0;
-  GstClockTime t1 = GST_CLOCK_TIME_NONE;
 
   SEEK_TEST_LOCK();
 
@@ -101,11 +99,6 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
   memset(global_waiting, WAIT_STATE_SEGMENT, global_nsinks);
 
   switch (global_state) {
-    case SEEK_TEST_STATE_SEGMENT:
-      flags = GST_SEEK_FLAG_SEGMENT;
-      /* Select a random end time for the segment, after t0 */
-      t1 = t0 + (global_duration - t0) * g_random_double ();
-      break;
     case SEEK_TEST_STATE_ZERO:
       flags = 0;
       break;
@@ -145,7 +138,7 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
   GST_WARNING("New seek to %"GST_TIME_FORMAT" with method %d\n", GST_TIME_ARGS (t0), global_state);
   insanity_test_ping (INSANITY_TEST (ptest));
   event = gst_event_new_seek (1.0, GST_FORMAT_TIME, flags,
-      GST_SEEK_TYPE_SET, t0, GST_CLOCK_TIME_IS_VALID (t1) ? GST_SEEK_TYPE_SET : GST_SEEK_TYPE_NONE, t1);
+      GST_SEEK_TYPE_SET, t0, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
   global_seek_start_time = g_get_monotonic_time();
   SEEK_TEST_UNLOCK();
 
@@ -182,11 +175,6 @@ do_next_seek (gpointer data)
   global_seek_target_index++;
   next = FALSE;
   if (global_seek_target_index == sizeof(seek_targets)/sizeof(seek_targets[0]))
-    next = TRUE;
-  /* Don't try to seek past the end with a segment seek, as these
-     will not give us buffers nor EOS events, only async SEGMENT_DONE
-     messages, so we can't really check this is happening correctly. */
-  if (global_state == SEEK_TEST_STATE_SEGMENT && seek_targets[global_seek_target_index] >= 100)
     next = TRUE;
 
   if (next) {
