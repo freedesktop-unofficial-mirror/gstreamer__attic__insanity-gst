@@ -392,12 +392,18 @@ static gboolean
 insanity_gst_pipeline_test_start (InsanityTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
+  InsanityGstPipelineTestPrivateData *priv = ptest->priv;
   GstStateChangeReturn sret;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start (test))
     return FALSE;
 
-  ptest->priv->done = FALSE;
+  priv->reached_initial_state = FALSE;
+  priv->error_count = 0;
+  priv->tag_count = 0;
+  priv->element_count = 0;
+  priv->wait_timeout_id = 0;
+  priv->done = FALSE;
 
   printf("insanity_gst_pipeline_test_start\n");
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
