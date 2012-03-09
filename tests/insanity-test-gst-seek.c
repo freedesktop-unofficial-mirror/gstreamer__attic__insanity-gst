@@ -517,9 +517,11 @@ seek_test_setup(InsanityTest *test)
   g_value_unset (&v);
 
   /* Generate one if zero */
-  seed = g_random_int();
-  if (seed == 0) /* we don't really care for bias, we just don't want 0 */
-    seed = 1;
+  if (seed == 0) {
+    seed = g_random_int();
+    if (seed == 0) /* we don't really care for bias, we just don't want 0 */
+      seed = 1;
+  }
 
   /* save that seed as extra-info */
   g_value_init (&v, G_TYPE_UINT);
