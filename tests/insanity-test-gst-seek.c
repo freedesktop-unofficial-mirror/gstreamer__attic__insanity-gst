@@ -77,6 +77,7 @@ static gboolean global_expecting_eos = FALSE;
 static gboolean global_need_flush = FALSE;
 static gint64 global_seek_start_time = 0;
 static GstClockTime global_max_seek_time;
+static guint global_duration_timeout = 0;
 
 static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define SEEK_TEST_LOCK() g_static_mutex_lock (&global_mutex)
@@ -530,6 +531,17 @@ seek_test_setup(InsanityTest *test)
 }
 
 static gboolean
+duration_timeout (gpointer data)
+{
+  InsanityTest *test = data;
+
+  insanity_test_validate_step (test, "duration-known", FALSE,
+      "No duration, even after playing for a bit");
+  insanity_test_done (test);
+  return G_SOURCE_REMOVE;
+}
+
+static gboolean
 seek_test_start(InsanityTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
@@ -572,8 +584,29 @@ seek_test_start(InsanityTest *test)
   /* If we don't have duration yet, ask for it, it will call our signal
      if it can be determined */
   if (!GST_CLOCK_TIME_IS_VALID (insanity_gst_pipeline_test_query_duration (ptest))) {
-    insanity_test_validate_step (test, "duration-known", FALSE, NULL);
-    return FALSE;
+    /* Belt and braces code from gst-discoverer adapted here, but async
+       so we can let insanity test continue initializing properly. */
+    GstStateChangeReturn sret;
+
+    /* Some parsers may not even return a rough estimate right away, e.g.
+     * because they've only processed a single frame so far, so if we
+     * didn't get a duration the first time, spin a bit and try again.
+     * Ugly, but still better than making parsers or other elements return
+     * completely bogus values. We need some API extensions to solve this
+     * better. */
+    insanity_test_printf (test, "No duration yet, try a bit harder\n");
+    sret = gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
+    if (sret == GST_STATE_CHANGE_FAILURE) {
+      insanity_test_validate_step (test, "duration-known", FALSE,
+          "No duration, and failed to switch to PLAYING in hope we might get it then");
+      return FALSE;
+    }
+
+    /* Start off, claim we're ready, but do not start seeking yet,
+       we'll do that when we get a duration callback, or fail on timeout */
+    global_duration_timeout = g_timeout_add(1000, (GSourceFunc)&duration_timeout, ptest);
+    started = TRUE;
+    return TRUE;
   }
 
   /* Start first seek to start */
@@ -637,10 +670,26 @@ seek_test_stop(InsanityTest *test)
 static void
 seek_test_duration (InsanityGstPipelineTest *ptest, GstClockTime duration)
 {
+  gboolean seek = FALSE;
+
+  /* If we were waiting on it to start up, do it now */
+  if (global_duration_timeout) {
+    g_source_remove (global_duration_timeout);
+    global_duration_timeout = 0;
+    seek = TRUE;
+  }
+
   insanity_test_printf (INSANITY_TEST (ptest),
       "Just got notified duration is %"GST_TIME_FORMAT"\n", GST_TIME_ARGS (duration));
   global_duration = duration;
   insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", TRUE, NULL);
+
+  /* Do first test now if we were waiting to do it */
+  if (seek) {
+    insanity_test_printf (INSANITY_TEST (ptest),
+        "We can now start seeking, since we have duration\n");
+    do_seek(ptest, global_pipeline, 0);
+  }
 }
 
 int
