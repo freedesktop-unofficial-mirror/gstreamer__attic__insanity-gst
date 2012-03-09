@@ -38,7 +38,8 @@
 
 typedef enum {
   SEEK_TEST_STATE_FIRST,
-  SEEK_TEST_STATE_FLUSHING = SEEK_TEST_STATE_FIRST,
+  SEEK_TEST_STATE_PLAYBACK = SEEK_TEST_STATE_FIRST,
+  SEEK_TEST_STATE_FLUSHING,
   SEEK_TEST_STATE_SEGMENT,
   SEEK_TEST_STATE_ZERO,
   SEEK_TEST_STATE_KEY,
@@ -171,6 +172,9 @@ do_next_seek (gpointer data)
   /* Switch to next target, or next method if we've done them all */
   global_seek_target_index++;
   next = FALSE;
+  /* Only one single subset in the PLAYBACK test */
+  if (global_state == SEEK_TEST_STATE_PLAYBACK)
+    next = TRUE;
   if (global_seek_target_index == sizeof(seek_targets)/sizeof(seek_targets[0]))
     next = TRUE;
   /* Don't try to seek past the end with a segment seek, as these
@@ -524,9 +528,11 @@ seek_test_start(InsanityTest *test)
     return FALSE;
   }
 
-  /* Start first seek to start */
+  /* First test is to play throughout, we'll start seeking
+     when we have reached EOS on all sinks */
+  memset(global_waiting, WAIT_STATE_SEGMENT, global_nsinks);
+  global_expecting_eos = TRUE;
   gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
-  do_seek(ptest, global_pipeline, 0, GST_CLOCK_TIME_NONE);
 
   started = TRUE;
 
