@@ -151,7 +151,8 @@ static gboolean
 do_next_seek (gpointer data)
 {
   InsanityGstPipelineTest *ptest = data;
-  gboolean next;
+  GValue v = {0};
+  gboolean next, bounce;
 
   SEEK_TEST_LOCK();
 
@@ -184,6 +185,11 @@ do_next_seek (gpointer data)
       return G_SOURCE_REMOVE;
     }
     global_seek_target_index = 0;
+
+    insanity_test_get_argument (INSANITY_TEST (ptest), "all-modes-from-ready", &v);
+    bounce = g_value_get_boolean(&v);
+    g_value_unset (&v);
+
     insanity_test_printf (INSANITY_TEST (ptest), "Switching to seek method %d\n", global_state);
   }
   global_target = gst_util_uint64_scale (global_duration, seek_targets[global_seek_target_index], 100);
@@ -191,10 +197,21 @@ do_next_seek (gpointer data)
      actually get any buffer for short streams. So we accept EOS for that case
      as well as the >= 100% cases. */
   global_expecting_eos = (seek_targets[global_seek_target_index] >= 99);
-  insanity_test_printf (INSANITY_TEST (ptest), "Next seek is to %d%%, time %"GST_TIME_FORMAT"%s\n",
+  insanity_test_printf (INSANITY_TEST (ptest),
+      "Next seek is to %d%%, time %"GST_TIME_FORMAT", method %d, step %d/%u%s\n",
       seek_targets[global_seek_target_index], GST_TIME_ARGS (global_target),
+      global_state, global_seek_target_index+1, (unsigned) (sizeof(seek_targets)/sizeof(seek_targets[0])),
       global_expecting_eos ? ", expecting EOS" : "");
   SEEK_TEST_UNLOCK();
+
+  if (bounce) {
+    insanity_test_printf(INSANITY_TEST (ptest), "Bouncing through READY\n");
+    gst_element_set_state (global_pipeline, GST_STATE_READY);
+    gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
+    gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
+    gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
+  }
+
   do_seek(ptest, global_pipeline, global_target, GST_CLOCK_TIME_NONE);
   return G_SOURCE_REMOVE;
 }
@@ -644,6 +661,11 @@ main (int argc, char **argv)
   g_value_init (&vdef, G_TYPE_UINT);
   g_value_set_uint (&vdef, 0);
   insanity_test_add_argument (test, "seed", "A random seed to generate random seek targets", "0 means a randomly chosen seed; the seed will be saved as extra-info", TRUE, &vdef);
+  g_value_unset (&vdef);
+
+  g_value_init (&vdef, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&vdef, TRUE);
+  insanity_test_add_argument (test, "all-modes-from-ready", "Whether to bring the pipeline back to READY before testing each new seek mode", NULL, TRUE, &vdef);
   g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "install-probes", "Probes were installed on the sinks", NULL);
