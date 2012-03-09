@@ -85,12 +85,12 @@ static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define WAIT_STATE_READY 0
 
 static gboolean
-do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline,
-    GstClockTime t0, GstClockTime t1)
+do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
 {
   GstEvent *event;
   gboolean res;
   GstSeekFlags flags = 0;
+  GstClockTime t1 = GST_CLOCK_TIME_NONE;
 
   SEEK_TEST_LOCK();
 
@@ -103,6 +103,8 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline,
       break;
     case SEEK_TEST_STATE_SEGMENT:
       flags = GST_SEEK_FLAG_SEGMENT;
+      /* Select a random end time for the segment, after t0 */
+      t1 = t0 + (global_duration - t0) * g_random_double ();
       break;
     case SEEK_TEST_STATE_FLUSHING:
       flags = GST_SEEK_FLAG_FLUSH;
@@ -212,7 +214,7 @@ do_next_seek (gpointer data)
     gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
   }
 
-  do_seek(ptest, global_pipeline, global_target, GST_CLOCK_TIME_NONE);
+  do_seek(ptest, global_pipeline, global_target);
   return G_SOURCE_REMOVE;
 }
 
@@ -574,7 +576,7 @@ seek_test_start(InsanityTest *test)
 
   /* Start first seek to start */
   gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
-  do_seek(ptest, global_pipeline, 0, GST_CLOCK_TIME_NONE);
+  do_seek(ptest, global_pipeline, 0);
 
   started = TRUE;
 
