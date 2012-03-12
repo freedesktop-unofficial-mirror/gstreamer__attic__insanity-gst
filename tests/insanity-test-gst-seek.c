@@ -185,7 +185,7 @@ do_next_seek (gpointer data)
       insanity_test_printf (INSANITY_TEST (ptest), "All seek methods tested, done\n");
       SEEK_TEST_UNLOCK();
       insanity_test_done (INSANITY_TEST (ptest));
-      return G_SOURCE_REMOVE;
+      return FALSE;
     }
     global_seek_target_index = 0;
 
@@ -216,7 +216,7 @@ do_next_seek (gpointer data)
   }
 
   do_seek(ptest, global_pipeline, global_target);
-  return G_SOURCE_REMOVE;
+  return FALSE;
 }
 
 static gboolean
@@ -544,7 +544,7 @@ duration_timeout (gpointer data)
   insanity_test_validate_step (test, "duration-known", FALSE,
       "No duration, even after playing for a bit");
   insanity_test_done (test);
-  return G_SOURCE_REMOVE;
+  return FALSE;
 }
 
 static gboolean
