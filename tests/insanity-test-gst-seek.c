@@ -160,7 +160,7 @@ do_next_seek (gpointer data)
 {
   InsanityGstPipelineTest *ptest = data;
   GValue v = {0};
-  gboolean next, bounce;
+  gboolean next, bounce = FALSE;
 
   SEEK_TEST_LOCK();
 
