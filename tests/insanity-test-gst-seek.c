@@ -278,25 +278,26 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
 
   SEEK_TEST_LOCK();
 
+  int index = -1;
+  for (n=0; n<global_nsinks; n++) {
+    if (global_sinks[n] == pad) {
+      index = n;
+      break;
+    }
+  }
+
+  /* Only care about A/V for now */
+  if (index < 0) {
+    SEEK_TEST_UNLOCK();
+    return TRUE;
+  }
+
   if (GST_IS_BUFFER (object)) {
     GstBuffer *buffer = GST_BUFFER (object);
 
     /* Should work in both 0.10 and 0.11 */
     GstClockTime ts = GST_BUFFER_TIMESTAMP (buffer);
     const GstStructure *s = gst_caps_get_structure (GST_BUFFER_CAPS (buffer), 0);
-    int index = -1;
-    for (n=0; n<global_nsinks; n++) {
-      if (global_sinks[n] == pad) {
-        index = n;
-        break;
-      }
-    }
-
-    /* Only care about A/V for now */
-    if (index < 0) {
-      SEEK_TEST_UNLOCK();
-      return TRUE;
-    }
 
     insanity_test_printf (INSANITY_TEST (ptest),
         "[%d] Got %s buffer at %"GST_TIME_FORMAT", %u bytes, %s, target %"GST_TIME_FORMAT"\n",
@@ -361,64 +362,65 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
   }
   else {
     GstEvent *event = GST_EVENT (object);
+
+    insanity_test_printf(INSANITY_TEST (ptest), "[%d] %s event\n", index, GST_EVENT_TYPE_NAME (event));
     if (GST_EVENT_TYPE (event) == GST_EVENT_NEWSEGMENT) {
-      unsigned n;
-      for (n=0; n<global_nsinks; ++n) {
-        if (pad == global_sinks[n] && global_waiting[n] == WAIT_STATE_SEGMENT) {
-          gint64 start;
-          gboolean update;
+      gint64 start;
+      gboolean update;
 
-          gst_event_parse_new_segment (event, &update, NULL, NULL, &start, NULL, NULL);
+      gst_event_parse_new_segment (event, &update, NULL, NULL, &start, NULL, NULL);
 
-          /* ignore segment updates */
-          if (update)
-            break;
+      /* ignore segment updates */
+      if (update)
+        goto ignore_segment;
 
-          insanity_test_printf (INSANITY_TEST (ptest),
-             "[%d] Got segment starting at %"GST_TIME_FORMAT", waiting for buffer\n",
-             n, GST_TIME_ARGS (start));
+      if (global_waiting[index] != WAIT_STATE_SEGMENT) {
+        insanity_test_printf (INSANITY_TEST (ptest),
+           "[%d] Got segment starting at %"GST_TIME_FORMAT", but we are not waiting for segment\n",
+           index, GST_TIME_ARGS (start));
+        goto ignore_segment;
+      }
 
-          /* Only check segment start time against target if we're not expecting EOS,
-             as segments will be pushed back in range when seeking off the existing
-             range, and that's expected behavior. */
-          if (!global_expecting_eos) {
-            GstClockTimeDiff diff = GST_CLOCK_DIFF (start, global_target);
-            if (diff < 0)
-              diff = -diff;
+      insanity_test_printf (INSANITY_TEST (ptest),
+         "[%d] Got segment starting at %"GST_TIME_FORMAT", %s\n",
+         index, GST_TIME_ARGS (start), get_waiting_string (global_waiting[index]));
 
-            if (diff > SEEK_THRESHOLD) {
-              char *msg = g_strdup_printf ("Got segment start %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
-                  ", off by %"GST_TIME_FORMAT", method %d",
-                  GST_TIME_ARGS (start), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
-              insanity_test_validate_step (INSANITY_TEST (ptest), "segment-seek-time-correct", FALSE, msg);
-              g_free (msg);
-              global_bad_segment_start = TRUE;
-            }
-          }
+      /* Only check segment start time against target if we're not expecting EOS,
+         as segments will be pushed back in range when seeking off the existing
+         range, and that's expected behavior. */
+      if (!global_expecting_eos) {
+        GstClockTimeDiff diff = GST_CLOCK_DIFF (start, global_target);
+        if (diff < 0)
+          diff = -diff;
 
-          global_waiting[n] = WAIT_STATE_BUFFER;
+        if (diff > SEEK_THRESHOLD) {
+          char *msg = g_strdup_printf ("Got segment start %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
+              ", off by %"GST_TIME_FORMAT", method %d",
+              GST_TIME_ARGS (start), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
+          insanity_test_validate_step (INSANITY_TEST (ptest), "segment-seek-time-correct", FALSE, msg);
+          g_free (msg);
+          global_bad_segment_start = TRUE;
         }
       }
+
+      global_waiting[index] = WAIT_STATE_BUFFER;
     }
     else if (GST_EVENT_TYPE (event) == GST_EVENT_EOS) {
-      unsigned n;
-      for (n=0; n<global_nsinks; ++n) {
-        if (pad == global_sinks[n]) {
-          insanity_test_printf (INSANITY_TEST (ptest), "[%d] Got EOS on sink, we are %s and are %s EOS\n",
-              n, get_waiting_string (global_waiting[n]),
-              global_expecting_eos ? "expecting" : "NOT expecting");
-          if (global_waiting[n] != WAIT_STATE_READY) {
-            insanity_test_printf (INSANITY_TEST (ptest),
-                "[%d] Got expected EOS, now ready and marking flush needed\n", n);
-            global_waiting[n] = WAIT_STATE_READY;
-            changed = TRUE;
-            /* We're at EOS, so we'll need to unwedge next time */
-            global_need_flush = TRUE;
-          }
-        }
+      insanity_test_printf (INSANITY_TEST (ptest), "[%d] Got EOS on sink, we are %s and are %s EOS\n",
+          index, get_waiting_string (global_waiting[index]),
+          global_expecting_eos ? "expecting" : "NOT expecting");
+      if (global_waiting[index] != WAIT_STATE_READY) {
+        insanity_test_printf (INSANITY_TEST (ptest),
+            "[%d] Got expected EOS, now ready and marking flush needed\n", index);
+        global_waiting[index] = WAIT_STATE_READY;
+        changed = TRUE;
+        /* We're at EOS, so we'll need to unwedge next time */
+        global_need_flush = TRUE;
       }
     }
   }
+
+ignore_segment:
 
   /* Seek again when we got a buffer or EOS for all our sinks */
   ready = FALSE;
