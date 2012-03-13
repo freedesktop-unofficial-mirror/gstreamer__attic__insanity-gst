@@ -26,7 +26,7 @@ insanity_test_gst_seek_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la
 
 insanity_test_gst_dvd_SOURCES=insanity-test-gst-dvd.c
 insanity_test_gst_dvd_CFLAGS=$(common_cflags)
-insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
+insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la -lgstinterfaces-@GST_TARGET@ $(common_ldadd)
 
 test_PROGRAMS=\
     insanity-test-gst-blank \
