@@ -24,7 +24,15 @@ insanity_test_gst_seek_SOURCES=insanity-test-gst-seek.c
 insanity_test_gst_seek_CFLAGS=$(common_cflags)
 insanity_test_gst_seek_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
 
-test_PROGRAMS=insanity-test-gst-blank insanity-test-gst-play insanity-test-gst-seek
+insanity_test_gst_dvd_SOURCES=insanity-test-gst-dvd.c
+insanity_test_gst_dvd_CFLAGS=$(common_cflags)
+insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
+
+test_PROGRAMS=\
+    insanity-test-gst-blank \
+    insanity-test-gst-play \
+    insanity-test-gst-seek \
+    insanity-test-gst-dvd
 
 TESTS=run-insanity-test-gst-blank
 
