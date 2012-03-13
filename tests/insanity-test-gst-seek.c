@@ -36,6 +36,10 @@
    frame's worth for low framerate video. */
 #define SEEK_THRESHOLD (GST_SECOND * 3 / 4)
 
+/* How much time we allow without receiving any buffer or event
+   before deciding the pipeline is wedged. Second precision. */
+#define IDLE_TIMEOUT (GST_SECOND*3)
+
 typedef enum {
   SEEK_TEST_STATE_FIRST,
   SEEK_TEST_STATE_ZERO = SEEK_TEST_STATE_FIRST,
@@ -78,6 +82,8 @@ static gboolean global_need_flush = FALSE;
 static gint64 global_seek_start_time = 0;
 static GstClockTime global_max_seek_time;
 static guint global_duration_timeout = 0;
+static guint global_idle_timeout = 0;
+static gint64 global_last_probe = 0;
 
 static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define SEEK_TEST_LOCK() g_static_mutex_lock (&global_mutex)
@@ -152,6 +158,7 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
   if (flags & GST_SEEK_FLAG_FLUSH) {
     gst_element_get_state (pipeline, NULL, NULL, SEEK_TIMEOUT);
   }
+  global_last_probe = g_get_monotonic_time();
   return TRUE;
 }
 
@@ -291,6 +298,8 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
     SEEK_TEST_UNLOCK();
     return TRUE;
   }
+
+  global_last_probe = g_get_monotonic_time ();
 
   if (GST_IS_BUFFER (object)) {
     GstBuffer *buffer = GST_BUFFER (object);
@@ -438,6 +447,7 @@ ignore_segment:
   SEEK_TEST_UNLOCK();
 
   if (ready) {
+    global_last_probe = 0;
     insanity_test_printf (INSANITY_TEST (ptest), "All sinks accounted for, preparing next seek\n");
     g_idle_add((GSourceFunc)&do_next_seek, ptest);
   }
@@ -550,6 +560,25 @@ duration_timeout (gpointer data)
 }
 
 static gboolean
+check_wedged (gpointer data)
+{
+  InsanityTest *test = data;
+  gint64 idle;
+
+  SEEK_TEST_LOCK ();
+  idle = (global_last_probe <= 0) ? 0 : 1000 * (g_get_monotonic_time() - global_last_probe);
+  if (idle >= IDLE_TIMEOUT) {
+    insanity_test_printf(test, "Wedged, kicking\n");
+    insanity_test_validate_step (test, "buffer-seek-time-correct", FALSE,
+        "No buffers or events were seen for a while");
+    g_idle_add((GSourceFunc)&do_next_seek, test);
+  }
+  SEEK_TEST_UNLOCK ();
+
+  return TRUE;
+}
+
+static gboolean
 seek_test_start(InsanityTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
@@ -620,6 +649,10 @@ seek_test_start(InsanityTest *test)
   /* Start first seek to start */
   gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
   do_seek(ptest, global_pipeline, 0);
+
+  /* and install wedged timeout */
+  global_idle_timeout = g_timeout_add (1000, (GSourceFunc)&check_wedged,
+      (gpointer)ptest);
 
   started = TRUE;
 
