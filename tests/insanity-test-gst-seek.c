@@ -610,6 +610,14 @@ seek_test_start(InsanityTest *test)
   global_need_flush = FALSE;
   global_max_seek_time = 0;
 
+  return TRUE;
+}
+
+static void
+seek_test_pipeline_test (InsanityThreadedTest *ttest)
+{
+  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (ttest);
+
   /* Set to PAUSED so we get everything autoplugged */
   gst_element_set_state (global_pipeline, GST_STATE_PAUSED);
   gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
@@ -631,19 +639,19 @@ seek_test_start(InsanityTest *test)
      * Ugly, but still better than making parsers or other elements return
      * completely bogus values. We need some API extensions to solve this
      * better. */
-    insanity_test_printf (test, "No duration yet, try a bit harder\n");
+    insanity_test_printf (INSANITY_TEST (ptest), "No duration yet, try a bit harder\n");
     sret = gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     if (sret == GST_STATE_CHANGE_FAILURE) {
-      insanity_test_validate_step (test, "duration-known", FALSE,
+      insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", FALSE,
           "No duration, and failed to switch to PLAYING in hope we might get it then");
-      return FALSE;
+      return;
     }
 
     /* Start off, claim we're ready, but do not start seeking yet,
        we'll do that when we get a duration callback, or fail on timeout */
     global_duration_timeout = g_timeout_add(1000, (GSourceFunc)&duration_timeout, ptest);
     started = TRUE;
-    return TRUE;
+    return;
   }
 
   /* Start first seek to start */
@@ -655,8 +663,6 @@ seek_test_start(InsanityTest *test)
       (gpointer)ptest);
 
   started = TRUE;
-
-  return TRUE;
 }
 
 static gboolean
@@ -774,10 +780,10 @@ main (int argc, char **argv)
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &seek_test_create_pipeline, NULL, NULL);
-  insanity_gst_pipeline_test_set_initial_state (ptest, GST_STATE_READY);
   g_signal_connect_after (test, "bus-message", G_CALLBACK (&seek_test_bus_message), 0);
   g_signal_connect_after (test, "setup", G_CALLBACK (&seek_test_setup), 0);
   g_signal_connect_after (test, "start", G_CALLBACK (&seek_test_start), 0);
+  g_signal_connect_after (test, "pipeline-test", G_CALLBACK (&seek_test_pipeline_test), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&seek_test_stop), 0);
   g_signal_connect_after (ptest, "duration", G_CALLBACK (&seek_test_duration), 0);
 

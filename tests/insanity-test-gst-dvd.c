@@ -476,22 +476,28 @@ dvd_test_start(InsanityTest *test)
   }
   insanity_test_validate_step (test, "uri-is-dvd", TRUE, NULL);
 
+  g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
+  g_value_unset (&uri);
+
   global_state = 0;
   global_next_state = 0;
   global_random_command_counter = 0;
   global_waiting_on_playing = TRUE;
 
-  g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
-  g_value_unset (&uri);
+  return TRUE;
+}
 
+static void
+dvd_test_pipeline_test (InsanityGstPipelineTest *ptest)
+{
   if (gst_element_set_state (global_pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-    return FALSE;
+    insanity_test_done (INSANITY_TEST (ptest));
+    return;
   }
   if (gst_element_get_state (global_pipeline, NULL, NULL, GST_SECOND) == GST_STATE_CHANGE_FAILURE) {
-    return FALSE;
+    insanity_test_done (INSANITY_TEST (ptest));
+    return;
   }
-
-  return TRUE;
 }
 
 int
@@ -533,10 +539,10 @@ main (int argc, char **argv)
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &dvd_test_create_pipeline, NULL, NULL);
-  insanity_gst_pipeline_test_set_initial_state (ptest, GST_STATE_READY);
   g_signal_connect_after (test, "setup", G_CALLBACK (&dvd_test_setup), 0);
   g_signal_connect_after (test, "bus-message", G_CALLBACK (&dvd_test_bus_message), 0);
   g_signal_connect_after (test, "start", G_CALLBACK (&dvd_test_start), 0);
+  g_signal_connect_after (test, "pipeline-test", G_CALLBACK (&dvd_test_pipeline_test), 0);
   g_signal_connect_after (test, "teardown", G_CALLBACK (&dvd_test_teardown), 0);
 
   ret = insanity_test_run (test, &argc, &argv);

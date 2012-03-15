@@ -71,8 +71,6 @@ play_test_start(InsanityTest *test)
   g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
   g_value_unset (&uri);
 
-  gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
-
   return TRUE;
 }
 
@@ -94,7 +92,6 @@ main (int argc, char **argv)
 
   insanity_gst_pipeline_test_set_create_pipeline_function (INSANITY_GST_PIPELINE_TEST (test),
       &play_gst_test_create_pipeline, NULL, NULL);
-  insanity_gst_pipeline_test_set_initial_state (INSANITY_GST_PIPELINE_TEST (test), GST_STATE_READY);
   g_signal_connect_after (test, "start", G_CALLBACK (play_test_start), test);
 
   ret = insanity_test_run (test, &argc, &argv);

@@ -39,6 +39,7 @@
 static guint bus_message_signal;
 static guint reached_initial_state_signal;
 static guint duration_signal;
+static guint pipeline_test_signal;
 
 G_DEFINE_TYPE (InsanityGstPipelineTest, insanity_gst_pipeline_test,
     INSANITY_TYPE_GST_TEST);
@@ -420,11 +421,6 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
   printf("insanity_gst_pipeline_test_start\n");
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
 
-  sret = gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), ptest->priv->initial_state);
-  insanity_test_validate_step (test, "pipeline-change-state", (sret != GST_STATE_CHANGE_FAILURE), NULL);
-  if (sret == GST_STATE_CHANGE_FAILURE)
-    return FALSE;
-
   return TRUE;
 }
 
@@ -479,10 +475,20 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   guint id;
+  GstStateChangeReturn sret;
+
+  sret = gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), ptest->priv->initial_state);
+  insanity_test_validate_step (INSANITY_TEST (test), "pipeline-change-state",
+      (sret != GST_STATE_CHANGE_FAILURE), NULL);
+  if (sret == GST_STATE_CHANGE_FAILURE) {
+    insanity_test_done (INSANITY_TEST (ptest));
+    return;
+  }
 
   ptest->priv->loop = g_main_loop_new (NULL, FALSE);
   gst_bus_add_signal_watch (ptest->priv->bus);
   id = g_signal_connect (G_OBJECT (ptest->priv->bus), "message", (GCallback) &on_message, ptest);
+  g_signal_emit (ptest, pipeline_test_signal, 0, NULL);
   g_main_loop_run (ptest->priv->loop);
   g_signal_handler_disconnect (G_OBJECT (ptest->priv->bus), id);
   g_main_loop_unref (ptest->priv->loop);
@@ -724,6 +730,14 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       NULL,
       G_TYPE_NONE /* return_type */ ,
       1, G_TYPE_UINT64, NULL);
+  pipeline_test_signal = g_signal_new ("pipeline-test",
+      G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
+      0,
+      NULL, NULL,
+      NULL,
+      G_TYPE_NONE /* return_type */ ,
+      0, NULL);
 }
 
 /**
