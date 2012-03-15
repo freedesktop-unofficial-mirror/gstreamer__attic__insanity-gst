@@ -36,6 +36,7 @@ typedef enum {
 } NextStepTrigger;
 
 static GstElement *global_pipeline = NULL;
+static GstNavigation *global_nav = NULL;
 static unsigned int global_state = 0;
 static unsigned int global_next_state = 0;
 static gboolean global_waiting_on_playing = FALSE;
@@ -53,7 +54,7 @@ static GstPipeline*
 dvd_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL, *playbin2 = NULL;
-  const char *launch_line = "playbin2 name=foo audio-sink=fakesink";
+  const char *launch_line = "playbin2 name=foo audio-sink=fakesink video-sink=fakesink";
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);
@@ -81,7 +82,7 @@ dvd_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 static NextStepTrigger
 send_dvd_command(InsanityGstPipelineTest *ptest, const char *step, guintptr data)
 {
-  gst_navigation_send_command (GST_NAVIGATION (global_pipeline), data);
+  gst_navigation_send_command (global_nav, data);
   return NEXT_STEP_ON_PLAYING;
 }
 
@@ -98,7 +99,7 @@ retrieve_commands(InsanityGstPipelineTest *ptest, const char *step, guintptr dat
   global_n_allowed_commands = 0;
 
   q = gst_navigation_query_new_commands ();
-  res = gst_element_query (global_pipeline, q);
+  res = gst_element_query (GST_ELEMENT (global_nav), q);
   if (res) {
     guint current, count;
     res = gst_navigation_query_parse_commands_length (q, &n_commands);
@@ -167,7 +168,7 @@ retrieve_angles(InsanityGstPipelineTest *ptest, const char *step, guintptr data)
   const char *extra_data_prefix = (const char*)data;
 
   q = gst_navigation_query_new_angles ();
-  res = gst_element_query (global_pipeline, q);
+  res = gst_element_query (GST_ELEMENT (global_nav), q);
   if (res) {
     guint current, count;
     res = gst_navigation_query_parse_angles (q, &current, &count);
@@ -218,12 +219,12 @@ cycle_angles(InsanityGstPipelineTest *ptest, const char *step, guintptr data)
 
   /* Then loop through each */
   for (n=global_n_angles; n>0; --n) {
-    gst_navigation_send_command (GST_NAVIGATION (global_pipeline), GST_NAVIGATION_COMMAND_NEXT_ANGLE);
+    gst_navigation_send_command (global_nav, GST_NAVIGATION_COMMAND_NEXT_ANGLE);
   }
 
   /* Again, other direction */
   for (n=global_n_angles; n>0; --n) {
-    gst_navigation_send_command (GST_NAVIGATION (global_pipeline), GST_NAVIGATION_COMMAND_PREV_ANGLE);
+    gst_navigation_send_command (global_nav, GST_NAVIGATION_COMMAND_PREV_ANGLE);
   }
 
   /* Do we end up where we were ? Or do the next/prev stop at 0 and N-1 ? Samples have only 1 angle */
@@ -253,7 +254,7 @@ cycle_unused_commands(InsanityGstPipelineTest *ptest, const char *step, guintptr
     }
 
     if (!found) {
-      gst_navigation_send_command (GST_NAVIGATION (global_pipeline), cmd);
+      gst_navigation_send_command (global_nav, cmd);
     }
   }
 
@@ -285,7 +286,7 @@ send_random_commands(InsanityGstPipelineTest *ptest, const char *step, guintptr 
   /* Then select one random command in the list, and send it */
   cmd = global_allowed_commands[g_rand_int_range (global_prg, 0, global_n_allowed_commands - 1)];
   insanity_test_printf (test, "Sending random command %u (%u/%u)\n", cmd, 1+*counter, MAX_RANDOM_COMMANDS);
-  gst_navigation_send_command (GST_NAVIGATION (global_pipeline), cmd);
+  gst_navigation_send_command (global_nav, cmd);
 
   /* Now, we can't know in advance whether a command will trigger a state change
      or not. Things like UP, DOWN, will not, but only some MENU* will be active,
@@ -488,6 +489,15 @@ dvd_test_start(InsanityTest *test)
 }
 
 static void
+dvd_test_stop(InsanityTest *test)
+{
+  if (global_nav) {
+    gst_object_unref (global_nav);
+    global_nav = NULL;
+  }
+}
+
+static void
 dvd_test_pipeline_test (InsanityGstPipelineTest *ptest)
 {
   if (gst_element_set_state (global_pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
@@ -498,6 +508,8 @@ dvd_test_pipeline_test (InsanityGstPipelineTest *ptest)
     insanity_test_done (INSANITY_TEST (ptest));
     return;
   }
+
+  global_nav = GST_NAVIGATION (gst_object_ref (global_pipeline));
 }
 
 int
@@ -542,6 +554,7 @@ main (int argc, char **argv)
   g_signal_connect_after (test, "setup", G_CALLBACK (&dvd_test_setup), 0);
   g_signal_connect_after (test, "bus-message", G_CALLBACK (&dvd_test_bus_message), 0);
   g_signal_connect_after (test, "start", G_CALLBACK (&dvd_test_start), 0);
+  g_signal_connect_after (test, "stop", G_CALLBACK (&dvd_test_stop), 0);
   g_signal_connect_after (test, "pipeline-test", G_CALLBACK (&dvd_test_pipeline_test), 0);
   g_signal_connect_after (test, "teardown", G_CALLBACK (&dvd_test_teardown), 0);
 
