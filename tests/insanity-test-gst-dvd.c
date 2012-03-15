@@ -29,6 +29,8 @@
 /* Number of random commands to send to move between menus */
 #define MAX_RANDOM_COMMANDS 256
 
+#define SEEK_TIMEOUT GST_SECOND
+
 typedef enum {
   NEXT_STEP_NOW,
   NEXT_STEP_ON_PLAYING,
@@ -47,6 +49,7 @@ static GstNavigationCommand global_allowed_commands[256];
 static guint global_random_command_counter = 0;
 static GRand *global_prg = NULL;
 static guint global_state_change_timeout = 0;
+static int global_longest_title = -1;
 
 static void on_ready_for_next_state (InsanityGstPipelineTest *ptest, gboolean timeout);
 
@@ -274,6 +277,37 @@ state_change_timeout (gpointer data)
 }
 
 static NextStepTrigger
+seek_to_main_title(InsanityGstPipelineTest *ptest, const char *step, guintptr data)
+{
+  InsanityTest *test = INSANITY_TEST (ptest);
+  GstEvent *event;
+  guint title;
+  gboolean res;
+  GstFormat title_format = gst_format_get_by_nick("title");
+
+  if (global_longest_title < 0) {
+    insanity_test_printf (test, "Longest title not known, not seeking\n");
+    return NEXT_STEP_NOW;
+  }
+  title = global_longest_title;
+
+  /* Seek to the longest one */
+  insanity_test_printf (test, "Seeking to title %u\n", title);
+  event = gst_event_new_seek (1.0, title_format, GST_SEEK_FLAG_FLUSH,
+      GST_SEEK_TYPE_SET, title, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+  res = gst_element_send_event (global_pipeline, event);
+  if (!res) {
+    insanity_test_validate_step (INSANITY_TEST (ptest), step, FALSE, "Failed to send seek event");
+    return NEXT_STEP_NOW;
+  }
+  gst_element_get_state (global_pipeline, NULL, NULL, SEEK_TIMEOUT);
+
+  global_state_change_timeout = g_timeout_add (1000, (GSourceFunc)&state_change_timeout, ptest);
+  insanity_test_validate_step (test, step, TRUE, NULL);
+  return NEXT_STEP_ON_PLAYING;
+}
+
+static NextStepTrigger
 send_random_commands(InsanityGstPipelineTest *ptest, const char *step, guintptr data)
 {
   InsanityTest *test = INSANITY_TEST (ptest);
@@ -330,6 +364,7 @@ static const struct {
   { "select-first-menu", &send_dvd_command, GST_NAVIGATION_COMMAND_MENU1},
   { "retrieve-commands", &retrieve_commands, (guintptr)"first-menu"},
   { "retrieve-angles", &retrieve_angles, (guintptr)"first-menu"},
+  { "seek-to-main-title", &seek_to_main_title, 0},
   { "cycle-angles", &cycle_angles, 0},
   { "cycle-unused-commands", &cycle_unused_commands, 0},
   { "select-root-menu", &send_dvd_command, GST_NAVIGATION_COMMAND_DVD_ROOT_MENU},
@@ -404,6 +439,49 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
 
         if (newstate == GST_STATE_PLAYING && pending == GST_STATE_VOID_PENDING && global_waiting_on_playing) {
           on_ready_for_next_state (ptest, FALSE);
+        }
+      }
+      break;
+    case GST_MESSAGE_ELEMENT:
+      {
+        const GstStructure *s = msg->structure;
+        const char *str;
+        gint n, ntitles;
+        char name[64];
+        GstClockTime duration, longest_duration = 0;
+        const GValue *value, *array;
+        int longest_title = -1;
+
+        str = gst_structure_get_name (s);
+        if (!str || strcmp (str, "application/x-gst-dvd"))
+          break;
+        str = gst_structure_get_string (s, "event");
+        if (!str || strcmp (str, "dvd-title-info"))
+          break;
+        array = gst_structure_get_value (s, "title-durations");
+        if (!array || !GST_VALUE_HOLDS_ARRAY (array))
+          break;
+
+        ntitles = gst_value_array_get_size (array);
+        for (n = 0; n < ntitles; n++) {
+          value = gst_value_array_get_value (array, n);
+          if (value && G_VALUE_HOLDS_UINT64 (value)) {
+            duration = g_value_get_uint64 (value);
+            insanity_test_printf (INSANITY_TEST (ptest), "Title %d has duration %"GST_TIME_FORMAT"\n",
+                n, GST_TIME_ARGS (duration));
+            if (GST_CLOCK_TIME_IS_VALID (duration) && duration >= longest_duration) {
+              longest_duration = duration;
+              longest_title = n;
+            }
+          }
+        }
+        global_longest_title = longest_title;
+        if (longest_title >= 0) {
+          GValue v = {0};
+          g_value_init (&v, G_TYPE_UINT64);
+          g_value_set_uint64 (&v, longest_duration);
+          insanity_test_set_extra_info (INSANITY_TEST (ptest), "longest-title-duration", &v);
+          g_value_unset (&v);
         }
       }
       break;
@@ -483,6 +561,7 @@ dvd_test_start(InsanityTest *test)
   global_state = 0;
   global_next_state = 0;
   global_random_command_counter = 0;
+  global_longest_title = -1;
   global_waiting_on_playing = TRUE;
 
   return TRUE;
@@ -541,6 +620,7 @@ main (int argc, char **argv)
   insanity_test_add_checklist_item (test, "select-first-menu", "First menu selection succeded", NULL);
   insanity_test_add_checklist_item (test, "retrieve-angles", "The DVD gave a list of supported angles", NULL);
   insanity_test_add_checklist_item (test, "retrieve-commands", "The DVD gave a list of supported commands", NULL);
+  insanity_test_add_checklist_item (test, "seek-to-main-title", "Seek in title format to the main title", NULL);
   insanity_test_add_checklist_item (test, "cycle-angles", "Cycle through each angle of the selected title in turn", NULL);
   insanity_test_add_checklist_item (test, "cycle-unused-commands", "Cycle through a list of unused commands, which should have no effect", NULL);
   insanity_test_add_checklist_item (test, "send-random-commands", "Send random valid commands, going through menus at random", NULL);
@@ -548,6 +628,7 @@ main (int argc, char **argv)
   insanity_test_add_extra_info (test, "seed", "The seed used to generate random commands");
   insanity_test_add_extra_info (test, "angles", "Angle information for the selected title");
   insanity_test_add_extra_info (test, "commands", "Available commands information for the current title");
+  insanity_test_add_extra_info (test, "longest-title-duration", "Duration of the longest title");
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &dvd_test_create_pipeline, NULL, NULL);
