@@ -68,7 +68,7 @@ main (int argc, char **argv)
   g_type_init ();
 
   test =
-      INSANITY_TEST (insanity_gst_pipeline_test_new ("blank-c-gst-test",
+      INSANITY_TEST (insanity_gst_pipeline_test_new ("gst-generic-pipeline-test",
           "Sample GStreamer test that does nothing", NULL));
 
   g_value_init (&empty_string, G_TYPE_STRING);
