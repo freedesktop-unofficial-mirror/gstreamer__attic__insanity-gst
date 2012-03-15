@@ -54,7 +54,7 @@ static GstPipeline*
 dvd_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL, *playbin2 = NULL;
-  const char *launch_line = "playbin2 name=foo audio-sink=fakesink video-sink=fakesink";
+  const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);
