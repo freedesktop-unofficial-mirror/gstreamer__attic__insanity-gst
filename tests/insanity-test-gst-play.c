@@ -85,7 +85,7 @@ main (int argc, char **argv)
 
   g_type_init ();
 
-  test = INSANITY_TEST (insanity_gst_pipeline_test_new ("playback-test", "Plays a stream throughout", NULL));
+  test = INSANITY_TEST (insanity_gst_pipeline_test_new ("play-test", "Plays a stream throughout", NULL));
 
   g_value_init (&vdef, G_TYPE_STRING);
   g_value_set_string (&vdef, "");
