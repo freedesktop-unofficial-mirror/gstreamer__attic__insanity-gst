@@ -74,8 +74,8 @@ static int global_seek_target_index = 0;
 static unsigned int global_seek_step = 0;
 static GstClockTime global_last_ts[2] = {GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE};
 static gboolean global_probes_failed = FALSE;
-static GstPad *global_sinks[2] = {NULL, NULL};
-static gulong global_probes[2] = {0, 0};
+static GstPad **global_sinks = NULL;
+static gulong *global_probes = NULL;
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
 static gboolean global_expecting_eos = FALSE;
 static gboolean global_need_flush = FALSE;
@@ -455,61 +455,6 @@ ignore_segment:
   return TRUE;
 }
 
-static void
-connect_sinks (InsanityGstPipelineTest *ptest)
-{
-  GstIterator *it;
-  gboolean done = FALSE;
-  gpointer data;
-  GstElement *e;
-  char *name;
-  unsigned nsinks = 0;
-
-  it = gst_bin_iterate_recurse (GST_BIN (global_pipeline));
-  while (!done) {
-    switch (gst_iterator_next (it, &data)) {
-      case GST_ITERATOR_OK:
-        e = GST_ELEMENT_CAST (data);
-        name = gst_element_get_name (e);
-        if (g_str_has_prefix (name, "fakesink")) {
-          GstPad *pad = gst_element_get_pad (e, "sink");
-          if (pad) {
-            global_probes[nsinks] = gst_pad_add_data_probe (pad, (GCallback) &probe, ptest);
-            if (global_probes[nsinks] != 0) {
-              global_sinks[nsinks] = pad;
-              nsinks++;
-            }
-            else {
-              insanity_test_validate_step (INSANITY_TEST (ptest), "install-probes", FALSE,
-                  "sink pad not found on fakesink");
-              global_probes_failed = TRUE;
-              gst_object_unref (pad);
-            }
-          }
-          else {
-            insanity_test_validate_step (INSANITY_TEST (ptest), "install-probes", FALSE,
-                "sink pad not found on fakesink");
-            global_probes_failed = TRUE;
-          }
-        }
-        g_free (name);
-        gst_object_unref (e);
-        break;
-      case GST_ITERATOR_RESYNC:
-        gst_iterator_resync (it);
-        break;
-      case GST_ITERATOR_DONE:
-      default:
-        done = TRUE;
-        break;
-    }
-  }
-  gst_iterator_free (it);
-
-  global_nsinks = nsinks;
-  insanity_test_printf (INSANITY_TEST (ptest), "%d sinks setup\n", global_nsinks);
-}
-
 static gboolean
 seek_test_setup(InsanityTest *test)
 {
@@ -603,9 +548,8 @@ seek_test_start(InsanityTest *test)
   global_state = SEEK_TEST_STATE_FIRST;
   global_seek_target_index = 0;
   global_last_ts[0] = global_last_ts[1] = GST_CLOCK_TIME_NONE;
-  global_probes_failed = FALSE;
-  global_probes[0] = global_probes[1] = 0;
-  global_sinks[0] = global_sinks[1] = NULL;
+  global_probes = NULL;
+  global_sinks = NULL;
   global_duration = GST_CLOCK_TIME_NONE;
   global_need_flush = FALSE;
   global_max_seek_time = 0;
@@ -622,8 +566,15 @@ seek_test_pipeline_test (InsanityThreadedTest *ttest)
   gst_element_set_state (global_pipeline, GST_STATE_PAUSED);
   gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
 
-  /* Look for sinks and connect to handoff signal */
-  connect_sinks (ptest);
+  /* Look for sinks and add probes */
+  global_nsinks = insanity_gst_test_add_fakesink_probe (INSANITY_GST_TEST (ptest),
+      GST_BIN (global_pipeline), &probe, &global_sinks, &global_probes);
+  insanity_test_validate_step (INSANITY_TEST (ttest), "install-probes", global_nsinks > 0, NULL);
+  if (global_nsinks == 0) {
+    insanity_test_done (INSANITY_TEST (ttest));
+    return;
+  }
+
   memset(global_waiting, WAIT_STATE_READY, global_nsinks);
 
   /* If we don't have duration yet, ask for it, it will call our signal
@@ -672,17 +623,10 @@ seek_test_stop(InsanityTest *test)
   unsigned n;
 
   SEEK_TEST_LOCK();
-  for (n=0; n<global_nsinks; n++) {
-    GstPad *pad = global_sinks[n];
-    if (pad) {
-      if (global_probes[n] != 0) {
-        gst_pad_remove_data_probe (pad, global_probes[n]);
-        global_probes[n] = 0;
-      }
-      gst_object_unref (global_sinks[n]);
-      global_sinks[n] = NULL;
-    }
-  }
+  insanity_gst_test_remove_fakesink_probe (INSANITY_GST_TEST (test), global_nsinks, global_sinks, global_probes);
+  global_sinks = NULL;
+  global_probes = NULL;
+  global_nsinks = 0;
 
   g_value_init (&v, G_TYPE_INT64);
   g_value_set_int64 (&v, global_max_diff);
@@ -703,9 +647,6 @@ seek_test_stop(InsanityTest *test)
   }
   if (!global_bad_segment_start) {
     insanity_test_validate_step (test, "segment-seek-time-correct", TRUE, NULL);
-  }
-  if (!global_probes_failed) {
-    insanity_test_validate_step (test, "install-probes", TRUE, NULL);
   }
 
   started = FALSE;

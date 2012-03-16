@@ -25,6 +25,7 @@
 
 #include <glib.h>
 #include <glib-object.h>
+#include <gst/gst.h>
 
 #include <insanity/insanitydefs.h>
 #include <insanity/insanitythreadedtest.h>
@@ -72,6 +73,12 @@ InsanityGstTest *insanity_gst_test_new(const char *name, const char *description
 #define INSANITY_IS_GST_TEST(obj)             (G_TYPE_CHECK_TYPE ((obj), INSANITY_TYPE_GST_TEST))
 #define INSANITY_IS_GST_TEST_CLASS(c)         (G_TYPE_CHECK_CLASS_TYPE ((c), INSANITY_TYPE_GST_TEST))
 #define INSANITY_GST_TEST_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), INSANITY_TYPE_GST_TEST, InsanityGstTestClass))
+
+unsigned int insanity_gst_test_add_fakesink_probe (InsanityGstTest *test, GstBin *bin,
+    gboolean (*probe) (GstPad *, GstMiniObject *, gpointer),
+    GstPad ***pads, gulong **probes);
+void insanity_gst_test_remove_fakesink_probe (InsanityGstTest *test, unsigned int nprobes,
+    GstPad **pads, gulong *probes);
 
 GType insanity_gst_test_get_type (void);
 
