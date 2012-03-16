@@ -56,6 +56,7 @@ AC_SUBST(ACLOCAL_AMFLAGS, "-I m4")
 # headers
 
 AC_HEADER_STDC
+AC_CHECK_HEADERS([ifaddrs.h])
 
 AC_CHECK_PROG(HAVE_PKG_CONFIG,pkg-config,yes)
 
@@ -67,6 +68,10 @@ PKG_CHECK_MODULES(GST_BASE, gstreamer-base-${GST_TARGET})
 PKG_CHECK_MODULES(GST_INTERFACES, gstreamer-interfaces-${GST_TARGET})
 PKG_CHECK_MODULES(GST_VIDEO, gstreamer-video-${GST_TARGET})
 PKG_CHECK_MODULES(INSANITY, insanity-1.0)
+
+dnl optional packages
+PKG_CHECK_MODULES(SOUP, libsoup-2.4, HAVE_SOUP=yes, HAVE_SOUP=no)
+AM_CONDITIONAL(HAVE_SOUP,test "$HAVE_SOUP" = "yes")
 
 dnl check for gobject-introspection
 GOBJECT_INTROSPECTION_CHECK([1.31.1])
