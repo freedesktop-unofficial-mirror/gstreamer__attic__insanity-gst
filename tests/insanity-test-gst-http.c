@@ -421,7 +421,7 @@ start_server (InsanityTest *test, const char *ssl_cert_file, const char *ssl_key
 
     if (!ssl_server) {
       char *message = g_strdup_printf ("Unable to bind to SSL server port %u", ssl_port);
-      insanity_test_validate_step (test, "server-started", FALSE, message);
+      insanity_test_validate_step (test, "ssl-server-started", FALSE, message);
       g_free (message);
       g_object_unref (global_server);
       global_server = NULL;
@@ -453,10 +453,13 @@ start_server (InsanityTest *test, const char *ssl_cert_file, const char *ssl_key
     g_object_unref (bind_address);
 
   soup_server_run_async (server);
-  if (ssl_server)
-    soup_server_run_async (ssl_server);
-
   insanity_test_validate_step (test, "server-started", TRUE, NULL);
+
+  if (ssl_server) {
+    soup_server_run_async (ssl_server);
+    insanity_test_validate_step (test, "server-started", TRUE, NULL);
+  }
+
   return 0;
 }
 
@@ -595,6 +598,7 @@ main (int argc, char **argv)
 
   insanity_test_add_checklist_item (test, "uri-is-file", "The URI is a file URI", NULL);
   insanity_test_add_checklist_item (test, "server-started", "The internal HTTP server was started", NULL);
+  insanity_test_add_checklist_item (test, "ssl-server-started", "The SSL internal HTTP server was started", NULL);
   insanity_test_add_checklist_item (test, "seek", "A seek succeeded", NULL);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
