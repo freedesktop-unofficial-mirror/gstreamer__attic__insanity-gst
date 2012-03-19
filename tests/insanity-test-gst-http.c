@@ -583,7 +583,7 @@ main (int argc, char **argv)
 
   g_value_init (&vdef, G_TYPE_STRING);
   g_value_set_string (&vdef, "");
-  insanity_test_add_argument (test, "uri", "The uri to test on (http only)", NULL, FALSE, &vdef);
+  insanity_test_add_argument (test, "uri", "The uri to test on (file only)", NULL, FALSE, &vdef);
   g_value_unset (&vdef);
 
   g_value_init (&vdef, G_TYPE_STRING);
