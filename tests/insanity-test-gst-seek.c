@@ -332,8 +332,8 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
 
       if (!gst_segment_clip (&global_segment[index], global_segment[index].format, ts, ts_end, &cstart, &cstop)) {
         char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT" -- %"GST_TIME_FORMAT
-            ", outside configured segment %"GST_SEGMENT_FORMAT", method %d",
-            GST_TIME_ARGS (ts), GST_TIME_ARGS (ts_end), GST_TIME_ARGS (diff), &global_segment[index], global_state);
+            ", outside configured segment (%"GST_SEGMENT_FORMAT"), method %d",
+            GST_TIME_ARGS (ts), GST_TIME_ARGS (ts_end), &global_segment[index], global_state);
         insanity_test_validate_step (INSANITY_TEST (ptest), "segment-clipping", FALSE, msg);
         g_free (msg);
         global_bad_segment_clipping = TRUE;
