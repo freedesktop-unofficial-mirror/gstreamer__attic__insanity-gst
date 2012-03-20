@@ -28,7 +28,7 @@
 /* Various bits and pieces taken/adapted from -base/tests/examples/seek/seek.c */
 
 /* timeout for gst_element_get_state() after a seek */
-#define SEEK_TIMEOUT (40 * GST_MSECOND)
+#define SEEK_TIMEOUT (10 * GST_SECOND)
 
 /* How far we allow a timestamp to be to match our target */
 /* 3 quarters of a second for now. Seeking precision isn't
@@ -38,7 +38,7 @@
 
 /* How much time we allow without receiving any buffer or event
    before deciding the pipeline is wedged. Second precision. */
-#define IDLE_TIMEOUT (GST_SECOND*3)
+#define IDLE_TIMEOUT (GST_SECOND*60)
 
 typedef enum {
   SEEK_TEST_STATE_FIRST,
