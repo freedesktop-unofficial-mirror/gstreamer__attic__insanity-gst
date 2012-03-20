@@ -42,11 +42,7 @@
 
 typedef enum {
   SEEK_TEST_STATE_FIRST,
-  SEEK_TEST_STATE_ZERO = SEEK_TEST_STATE_FIRST,
-  SEEK_TEST_STATE_KEY,
-  SEEK_TEST_STATE_ACCURATE,
-  SEEK_TEST_STATE_KEY_ACCURATE,
-  SEEK_TEST_STATE_FLUSHING,
+  SEEK_TEST_STATE_FLUSHING = SEEK_TEST_STATE_FIRST,
   SEEK_TEST_STATE_FLUSHING_KEY,
   SEEK_TEST_STATE_FLUSHING_ACCURATE,
   SEEK_TEST_STATE_FLUSHING_KEY_ACCURATE,
@@ -78,7 +74,6 @@ static GstPad **global_sinks = NULL;
 static gulong *global_probes = NULL;
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
 static gboolean global_expecting_eos = FALSE;
-static gboolean global_need_flush = FALSE;
 static gint64 global_seek_start_time = 0;
 static GstClockTime global_max_seek_time;
 static guint global_duration_timeout = 0;
@@ -106,18 +101,6 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
   memset(global_waiting, WAIT_STATE_SEGMENT, global_nsinks);
 
   switch (global_state) {
-    case SEEK_TEST_STATE_ZERO:
-      flags = 0;
-      break;
-    case SEEK_TEST_STATE_KEY:
-      flags = GST_SEEK_FLAG_KEY_UNIT;
-      break;
-    case SEEK_TEST_STATE_ACCURATE:
-      flags = GST_SEEK_FLAG_ACCURATE;
-      break;
-    case SEEK_TEST_STATE_KEY_ACCURATE:
-      flags = GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_ACCURATE;
-      break;
     case SEEK_TEST_STATE_FLUSHING:
       flags = GST_SEEK_FLAG_FLUSH;
       break;
@@ -132,12 +115,6 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
       break;
     default:
       g_assert(0);
-  }
-
-  if (global_need_flush) {
-    insanity_test_printf (INSANITY_TEST (ptest), "Special flush!\n");
-    flags |= GST_SEEK_FLAG_FLUSH;
-    global_need_flush = FALSE;
   }
 
   insanity_test_printf (INSANITY_TEST (ptest),
@@ -233,6 +210,7 @@ seek_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
     /* ignore EOS, we'll want to not quit but continue seeking */
     return FALSE;
   }
+
   return TRUE;
 }
 
@@ -423,8 +401,6 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
             "[%d] Got expected EOS, now ready and marking flush needed\n", index);
         global_waiting[index] = WAIT_STATE_READY;
         changed = TRUE;
-        /* We're at EOS, so we'll need to unwedge next time */
-        global_need_flush = TRUE;
       }
     }
   }
@@ -551,7 +527,6 @@ seek_test_start(InsanityTest *test)
   global_probes = NULL;
   global_sinks = NULL;
   global_duration = GST_CLOCK_TIME_NONE;
-  global_need_flush = FALSE;
   global_max_seek_time = 0;
 
   return TRUE;
