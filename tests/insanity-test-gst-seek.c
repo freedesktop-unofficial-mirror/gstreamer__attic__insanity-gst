@@ -49,6 +49,11 @@ typedef enum {
   SEEK_TEST_NUM_STATES
 } SeekTestState;
 
+/* Only check timestamps/segment start for non-KEY seeks as for
+ * these the segment start will be the position of the previous
+ * keyframe. See part-seeking.txt */
+#define CHECK_CORRECT_SEGMENT(state) (state == SEEK_TEST_STATE_FLUSHING || state == SEEK_TEST_STATE_FLUSHING_ACCURATE)
+
 /* interesting places to seek to, in percent of the stream duration,
    with negative values being placeholders for randomly chosen locations. */
 static int seek_targets[] = {
@@ -336,40 +341,46 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
         return TRUE;
       }
       
-      ts = cstart;
-      stime_ts = gst_segment_to_stream_time (&global_segment[index], global_segment[index].format, ts);
-      diff = GST_CLOCK_DIFF (stime_ts, global_target);
-      if (diff < 0)
-        diff = -diff;
-      if (diff > global_max_diff)
-        global_max_diff = diff;
+      if (CHECK_CORRECT_SEGMENT (global_state)) {
+        ts = cstart;
+        stime_ts = gst_segment_to_stream_time (&global_segment[index], global_segment[index].format, ts);
+        diff = GST_CLOCK_DIFF (stime_ts, global_target);
+        if (diff < 0)
+          diff = -diff;
+        if (diff > global_max_diff)
+          global_max_diff = diff;
 
-      if (diff <= SEEK_THRESHOLD) {
-        if (global_waiting[index] == WAIT_STATE_BUFFER) {
-          insanity_test_printf (INSANITY_TEST (ptest),
-              "[%d] target %"GST_TIME_FORMAT", diff: %"GST_TIME_FORMAT" - GOOD\n",
-              index, GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff));
-          changed = TRUE;
-          global_waiting[index] = WAIT_STATE_READY;
+        if (diff <= SEEK_THRESHOLD) {
+          if (global_waiting[index] == WAIT_STATE_BUFFER) {
+            insanity_test_printf (INSANITY_TEST (ptest),
+                "[%d] target %"GST_TIME_FORMAT", diff: %"GST_TIME_FORMAT" - GOOD\n",
+                index, GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff));
+            changed = TRUE;
+            global_waiting[index] = WAIT_STATE_READY;
+          }
         }
-      }
-      else {
+        else {
+          if (global_waiting[index] == WAIT_STATE_BUFFER) {
+            char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
+                ", off by %"GST_TIME_FORMAT", method %d",
+                GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
+            insanity_test_validate_step (INSANITY_TEST (ptest), "buffer-seek-time-correct", FALSE, msg);
+            g_free (msg);
+            global_bad_ts = TRUE;
+            insanity_test_printf (INSANITY_TEST (ptest),
+                "[%d] target %"GST_TIME_FORMAT", diff: %"GST_TIME_FORMAT" - BAD\n",
+                index, GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff));
+            changed = TRUE;
+            global_waiting[index] = WAIT_STATE_READY;
+          }
+        }
+      } else {
         if (global_waiting[index] == WAIT_STATE_BUFFER) {
-          char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
-              ", off by %"GST_TIME_FORMAT", method %d",
-              GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
-          insanity_test_validate_step (INSANITY_TEST (ptest), "buffer-seek-time-correct", FALSE, msg);
-          g_free (msg);
-          global_bad_ts = TRUE;
-          insanity_test_printf (INSANITY_TEST (ptest),
-              "[%d] target %"GST_TIME_FORMAT", diff: %"GST_TIME_FORMAT" - BAD\n",
-              index, GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff));
           changed = TRUE;
           global_waiting[index] = WAIT_STATE_READY;
         }
       }
     }
-
   }
   else {
     GstEvent *event = GST_EVENT (object);
@@ -402,7 +413,7 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
       /* Only check segment start time against target if we're not expecting EOS,
          as segments will be pushed back in range when seeking off the existing
          range, and that's expected behavior. */
-      if (!global_expecting_eos) {
+      if (!global_expecting_eos && CHECK_CORRECT_SEGMENT (global_state)) {
         gint64 stime_start;
         GstClockTimeDiff diff;
 
