@@ -64,6 +64,7 @@ static unsigned global_nsinks = 0;
 static gboolean global_bad_ts = FALSE;
 static gboolean global_bad_segment_start = FALSE;
 static gboolean global_seek_failed = FALSE;
+static gboolean global_bad_segment_clipping = FALSE;
 static GstClockTimeDiff global_max_diff = 0;
 static SeekTestState global_state = SEEK_TEST_STATE_FIRST;
 static int global_seek_target_index = 0;
@@ -79,6 +80,7 @@ static GstClockTime global_max_seek_time;
 static guint global_duration_timeout = 0;
 static guint global_idle_timeout = 0;
 static gint64 global_last_probe = 0;
+static GstSegment global_segment[2];
 
 static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define SEEK_TEST_LOCK() g_static_mutex_lock (&global_mutex)
@@ -314,7 +316,29 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
     }
 
     if (GST_CLOCK_TIME_IS_VALID (ts)) {
-      GstClockTimeDiff diff = GST_CLOCK_DIFF (ts, global_target);
+      gint64 stime_ts;
+      GstClockTimeDiff diff;
+      gint64 ts_end, cstart, cstop;
+
+      /* Check if buffer is completely outside the segment */
+      ts_end = ts;
+      if (GST_BUFFER_DURATION_IS_VALID (buffer))
+        ts_end += GST_BUFFER_DURATION (buffer);
+
+      if (!gst_segment_clip (&global_segment[index], global_segment[index].format, ts, ts_end, &cstart, &cstop)) {
+        char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT" -- %"GST_TIME_FORMAT
+            ", outside configured segment %"GST_SEGMENT_FORMAT", method %d",
+            GST_TIME_ARGS (ts), GST_TIME_ARGS (ts_end), GST_TIME_ARGS (diff), &global_segment[index], global_state);
+        insanity_test_validate_step (INSANITY_TEST (ptest), "segment-clipping", FALSE, msg);
+        g_free (msg);
+        global_bad_segment_clipping = TRUE;
+        SEEK_TEST_UNLOCK();
+        return TRUE;
+      }
+      
+      ts = cstart;
+      stime_ts = gst_segment_to_stream_time (&global_segment[index], global_segment[index].format, ts);
+      diff = GST_CLOCK_DIFF (stime_ts, global_target);
       if (diff < 0)
         diff = -diff;
       if (diff > global_max_diff)
@@ -333,7 +357,7 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
         if (global_waiting[index] == WAIT_STATE_BUFFER) {
           char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
               ", off by %"GST_TIME_FORMAT", method %d",
-              GST_TIME_ARGS (ts), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
+              GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
           insanity_test_validate_step (INSANITY_TEST (ptest), "buffer-seek-time-correct", FALSE, msg);
           g_free (msg);
           global_bad_ts = TRUE;
@@ -352,10 +376,13 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
 
     insanity_test_printf(INSANITY_TEST (ptest), "[%d] %s event\n", index, GST_EVENT_TYPE_NAME (event));
     if (GST_EVENT_TYPE (event) == GST_EVENT_NEWSEGMENT) {
-      gint64 start;
+      GstFormat fmt;
+      gint64 start, stop, position;
+      gdouble rate, applied_rate;
       gboolean update;
 
-      gst_event_parse_new_segment (event, &update, NULL, NULL, &start, NULL, NULL);
+      gst_event_parse_new_segment_full (event, &update, &rate, &applied_rate, &fmt, &start, &stop, &position);
+      gst_segment_set_newsegment_full (&global_segment[index], update, rate, applied_rate, fmt, start, stop, position);
 
       /* ignore segment updates */
       if (update)
@@ -376,14 +403,19 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
          as segments will be pushed back in range when seeking off the existing
          range, and that's expected behavior. */
       if (!global_expecting_eos) {
-        GstClockTimeDiff diff = GST_CLOCK_DIFF (start, global_target);
+        gint64 stime_start;
+        GstClockTimeDiff diff;
+
+        stime_start = gst_segment_to_stream_time (&global_segment[index], global_segment[index].format, start);
+
+        diff = GST_CLOCK_DIFF (stime_start, global_target);
         if (diff < 0)
           diff = -diff;
 
         if (diff > SEEK_THRESHOLD) {
           char *msg = g_strdup_printf ("Got segment start %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
               ", off by %"GST_TIME_FORMAT", method %d",
-              GST_TIME_ARGS (start), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
+              GST_TIME_ARGS (stime_start), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
           insanity_test_validate_step (INSANITY_TEST (ptest), "segment-seek-time-correct", FALSE, msg);
           g_free (msg);
           global_bad_segment_start = TRUE;
@@ -402,6 +434,8 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
         global_waiting[index] = WAIT_STATE_READY;
         changed = TRUE;
       }
+    } else if (GST_EVENT_TYPE (event) == GST_EVENT_FLUSH_STOP) {
+      gst_segment_init (&global_segment[index], GST_FORMAT_UNDEFINED);
     }
   }
 
@@ -466,6 +500,9 @@ seek_test_setup(InsanityTest *test)
   }
   g_rand_free (prg);
 
+  gst_segment_init (&global_segment[0], GST_FORMAT_UNDEFINED);
+  gst_segment_init (&global_segment[1], GST_FORMAT_UNDEFINED);
+
   return TRUE;
 }
 
@@ -519,6 +556,7 @@ seek_test_start(InsanityTest *test)
   global_bad_ts = FALSE;
   global_bad_segment_start = FALSE;
   global_seek_failed = FALSE;
+  global_bad_segment_clipping = FALSE;
   global_max_diff = 0;
   global_target = 0;
   global_state = SEEK_TEST_STATE_FIRST;
@@ -623,6 +661,9 @@ seek_test_stop(InsanityTest *test)
   if (!global_bad_segment_start) {
     insanity_test_validate_step (test, "segment-seek-time-correct", TRUE, NULL);
   }
+  if (!global_bad_segment_clipping) {
+    insanity_test_validate_step (test, "segment-clipping", TRUE, NULL);
+  }
 
   started = FALSE;
 
@@ -689,6 +730,7 @@ main (int argc, char **argv)
   insanity_test_add_checklist_item (test, "seek", "Seek events were accepted by the pipeline", NULL);
   insanity_test_add_checklist_item (test, "buffer-seek-time-correct", "Buffers were seen after a seek at or near the expected seek target", NULL);
   insanity_test_add_checklist_item (test, "segment-seek-time-correct", "Segments were seen after a seek at or near the expected seek target", NULL);
+  insanity_test_add_checklist_item (test, "segment-clipping", "Buffers were correctly clipped to the configured segment", NULL);
 
   insanity_test_add_extra_info (test, "max-seek-error", "The maximum timestamp difference between a seek target and the buffer received after the seek (absolute value in nanoseconds)");
   insanity_test_add_extra_info (test, "max-seek-time", "The maximum amount of time taken to perform a seek (in nanoseconds)");
