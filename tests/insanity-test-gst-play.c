@@ -33,7 +33,7 @@ static GstElement *global_pipeline = NULL;
 static GstPipeline*
 play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 {
-  GstElement *pipeline, *playbin2 = NULL;
+  GstElement *pipeline;
   const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
   GError *error = NULL;
 
@@ -61,7 +61,6 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata
 static gboolean
 play_test_start(InsanityTest *test)
 {
-  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   GValue uri = {0};
 
   if (!insanity_test_get_argument (test, "uri", &uri))

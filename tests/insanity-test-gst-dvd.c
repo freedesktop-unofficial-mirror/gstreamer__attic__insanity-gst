@@ -60,7 +60,7 @@ static void on_ready_for_next_state (InsanityGstPipelineTest *ptest, gboolean ti
 static GstPipeline*
 dvd_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 {
-  GstElement *pipeline = NULL, *playbin2 = NULL;
+  GstElement *pipeline = NULL;
   const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
   GError *error = NULL;
 
@@ -108,7 +108,6 @@ retrieve_commands(InsanityGstPipelineTest *ptest, const char *step, guintptr dat
   q = gst_navigation_query_new_commands ();
   res = gst_element_query (GST_ELEMENT (global_nav), q);
   if (res) {
-    guint current, count;
     res = gst_navigation_query_parse_commands_length (q, &n_commands);
     if (res) {
       if (n_commands <= sizeof(global_allowed_commands)/sizeof(global_allowed_commands[0])) {
@@ -218,7 +217,6 @@ retrieve_angles(InsanityGstPipelineTest *ptest, const char *step, guintptr data)
 static NextStepTrigger
 cycle_angles(InsanityGstPipelineTest *ptest, const char *step, guintptr data)
 {
-  InsanityTest *test = INSANITY_TEST (ptest);
   guint n;
 
   /* First retrieve amount of angles, will be saved globally */
@@ -451,7 +449,6 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
         const GstStructure *s = msg->structure;
         const char *str;
         gint n, ntitles;
-        char name[64];
         GstClockTime duration, longest_duration = 0;
         const GValue *value, *array;
         int longest_title = -1;
@@ -489,6 +486,8 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
         }
       }
       break;
+      default:
+        break;
   }
 
   return TRUE;
@@ -534,7 +533,6 @@ dvd_test_teardown (InsanityTest *test)
 static gboolean
 dvd_test_start(InsanityTest *test)
 {
-  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   GValue uri = {0};
   const char *protocol;
 

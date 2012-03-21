@@ -77,9 +77,7 @@ static gboolean global_bad_segment_clipping = FALSE;
 static GstClockTimeDiff global_max_diff = 0;
 static SeekTestState global_state = SEEK_TEST_STATE_FIRST;
 static int global_seek_target_index = 0;
-static unsigned int global_seek_step = 0;
 static GstClockTime global_last_ts[2] = {GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE};
-static gboolean global_probes_failed = FALSE;
 static GstPad **global_sinks = NULL;
 static gulong *global_probes = NULL;
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
@@ -228,7 +226,7 @@ seek_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
 static GstPipeline*
 seek_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 {
-  GstElement *pipeline = NULL, *playbin2 = NULL;
+  GstElement *pipeline = NULL;
   const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
   GError *error = NULL;
 
@@ -271,10 +269,10 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
   InsanityGstPipelineTest *ptest = userdata;
   gboolean changed = FALSE, ready = FALSE;
   unsigned n;
+  int index = -1;
 
   SEEK_TEST_LOCK();
 
-  int index = -1;
   for (n=0; n<global_nsinks; n++) {
     if (global_sinks[n] == pad) {
       index = n;
@@ -295,7 +293,6 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
 
     /* Should work in both 0.10 and 0.11 */
     GstClockTime ts = GST_BUFFER_TIMESTAMP (buffer);
-    const GstStructure *s = gst_caps_get_structure (GST_BUFFER_CAPS (buffer), 0);
 
     insanity_test_printf (INSANITY_TEST (ptest),
         "[%d] Got %s buffer at %"GST_TIME_FORMAT", %u bytes, %s, target %"GST_TIME_FORMAT"\n",
@@ -336,8 +333,10 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
 
       if (!gst_segment_clip (&global_segment[index], global_segment[index].format, ts, ts_end, &cstart, &cstop)) {
         char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT" -- %"GST_TIME_FORMAT
-            ", outside configured segment (%"GST_SEGMENT_FORMAT"), method %d",
-            GST_TIME_ARGS (ts), GST_TIME_ARGS (ts_end), &global_segment[index], global_state);
+            ", outside configured segment (%"GST_TIME_FORMAT" -- %" GST_TIME_FORMAT"), method %d",
+            GST_TIME_ARGS (ts), GST_TIME_ARGS (ts_end),
+            GST_TIME_ARGS (global_segment[index].start), GST_TIME_ARGS (global_segment[index].stop),
+            global_state);
         insanity_test_validate_step (INSANITY_TEST (ptest), "segment-clipping", FALSE, msg);
         g_free (msg);
         global_bad_segment_clipping = TRUE;
@@ -554,7 +553,6 @@ check_wedged (gpointer data)
 static gboolean
 seek_test_start(InsanityTest *test)
 {
-  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   GValue uri = {0};
 
   if (!insanity_test_get_argument (test, "uri", &uri))
@@ -648,7 +646,6 @@ static gboolean
 seek_test_stop(InsanityTest *test)
 {
   GValue v = {0};
-  unsigned n;
 
   SEEK_TEST_LOCK();
   insanity_gst_test_remove_fakesink_probe (INSANITY_GST_TEST (test), global_nsinks, global_sinks, global_probes);

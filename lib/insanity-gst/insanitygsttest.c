@@ -45,7 +45,7 @@ struct _InsanityGstTestPrivateData
 };
 
 static void
-init_gstreamer ()
+init_gstreamer (void)
 {
   int argc = 1;
   char **argv;
@@ -60,7 +60,6 @@ init_gstreamer ()
 static gboolean
 insanity_gst_test_setup (InsanityTest *test)
 {
-  InsanityGstTestPrivateData *priv = INSANITY_GST_TEST (test)->priv;
   const char *debuglog, *registry;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
@@ -113,8 +112,6 @@ insanity_gst_test_stop (InsanityTest *test)
 static void
 insanity_gst_test_teardown (InsanityTest *test)
 {
-  InsanityGstTestPrivateData *priv = INSANITY_GST_TEST (test)->priv;
-
   printf("insanity_gst_test_teardown\n");
 
   gst_deinit ();
@@ -139,7 +136,6 @@ insanity_gst_test_init (InsanityGstTest * gsttest)
 static void
 insanity_gst_test_class_init (InsanityGstTestClass * klass)
 {
-  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   InsanityTestClass *test_class = INSANITY_TEST_CLASS (klass);
 
   test_class->setup = &insanity_gst_test_setup;
@@ -200,7 +196,6 @@ insanity_gst_test_add_fakesink_probe (InsanityGstTest *test, GstBin *bin,
   GstElement *e;
   char *name;
   unsigned nsinks = 0;
-  gboolean probe_failed = FALSE;
 
   *pads = NULL;
   *probes = NULL;

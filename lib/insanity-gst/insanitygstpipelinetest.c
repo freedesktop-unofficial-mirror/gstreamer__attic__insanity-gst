@@ -278,7 +278,8 @@ insanity_gst_pipeline_test_query_duration(InsanityGstPipelineTest *ptest)
 {
   GstQuery *query = gst_query_new_duration (GST_FORMAT_TIME);
   gboolean res = gst_element_query (GST_ELEMENT (ptest->priv->pipeline), query);
-  GstClockTime duration = GST_CLOCK_TIME_NONE;
+  gint64 duration = GST_CLOCK_TIME_NONE;
+
   if (res) {
     gst_query_parse_duration (query, NULL, &duration);
     if (GST_CLOCK_TIME_IS_VALID (duration)) {
@@ -406,7 +407,6 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
-  GstStateChangeReturn sret;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start (test))
     return FALSE;
@@ -566,44 +566,8 @@ insanity_gst_pipeline_test_finalize (GObject * gobject)
   G_OBJECT_CLASS (insanity_gst_pipeline_test_parent_class)->finalize (gobject);
 }
 
-void
-insanity_cclosure_user_marshal_OBJECT__VOID (GClosure     *closure,
-                                      GValue       *return_value G_GNUC_UNUSED,
-                                      guint         n_param_values,
-                                      const GValue *param_values,
-                                      gpointer      invocation_hint G_GNUC_UNUSED,
-                                      gpointer      marshal_data)
-{
-  typedef GObject* (*GMarshalFunc_OBJECT__VOID) (gpointer     data1,
-                                                 gpointer     data2);
-  register GMarshalFunc_OBJECT__VOID callback;
-  register GCClosure *cc = (GCClosure*) closure;
-  register gpointer data1, data2;
-  GObject* v_return;
-
-  g_return_if_fail (return_value != NULL);
-  g_return_if_fail (n_param_values == 1);
-
-  if (G_CCLOSURE_SWAP_DATA (closure))
-    {
-      data1 = closure->data;
-      data2 = g_value_peek_pointer (param_values + 0);
-    }
-  else
-    {
-      data1 = g_value_peek_pointer (param_values + 0);
-      data2 = closure->data;
-    }
-  callback = (GMarshalFunc_OBJECT__VOID) (marshal_data ? marshal_data : cc->callback);
-
-  v_return = callback (data1,
-                       data2);
-
-  g_value_take_object (return_value, v_return);
-}
-
 #define g_marshal_value_peek_object(v)   g_value_get_object (v)
-void
+static void
 insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT (GClosure     *closure,
                                          GValue       *return_value G_GNUC_UNUSED,
                                          guint         n_param_values,
@@ -692,6 +656,8 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   InsanityTestClass *test_class = INSANITY_TEST_CLASS (klass);
   InsanityThreadedTestClass *threaded_test_class = INSANITY_THREADED_TEST_CLASS (klass);
+
+  gobject_class->finalize = &insanity_gst_pipeline_test_finalize;
 
   test_class->setup = &insanity_gst_pipeline_test_setup;
   test_class->start = &insanity_gst_pipeline_test_start;
