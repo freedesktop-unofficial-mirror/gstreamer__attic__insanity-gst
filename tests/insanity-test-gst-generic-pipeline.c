@@ -18,16 +18,14 @@
  Boston, MA 02111-1307, USA.
 */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdio.h>
 #include <glib.h>
 #include <glib-object.h>
 #include <insanity-gst/insanity-gst.h>
-
-static void
-blank_gst_test_test (InsanityTest * test)
-{
-  printf ("blank_gst_test_test\n");
-}
 
 static GstPipeline*
 blank_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
@@ -68,7 +66,7 @@ main (int argc, char **argv)
   g_type_init ();
 
   test =
-      INSANITY_TEST (insanity_gst_pipeline_test_new ("gst-generic-pipeline-test",
+      INSANITY_TEST (insanity_gst_pipeline_test_new ("generic-pipeline-test",
           "Sample GStreamer test that does nothing", NULL));
 
   g_value_init (&empty_string, G_TYPE_STRING);
@@ -78,7 +76,6 @@ main (int argc, char **argv)
 
   insanity_gst_pipeline_test_set_create_pipeline_function (INSANITY_GST_PIPELINE_TEST (test),
       &blank_gst_test_create_pipeline, NULL, NULL);
-  //g_signal_connect_after (test, "test", G_CALLBACK (&blank_gst_test_test), 0);
 
   ret = insanity_test_run (test, &argc, &argv);
 

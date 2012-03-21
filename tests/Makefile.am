@@ -9,12 +9,12 @@ AM_CPPFLAGS=-I $(top_srcdir)/lib
 
 testdir=$(libexecdir)/insanity-gst/tests
 
-common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(DBUS_CFLAGS)
-common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS) $(DBUS_LIBS)
+common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS)
+common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
 
-insanity_test_gst_blank_SOURCES=insanity-test-gst-blank.c
-insanity_test_gst_blank_CFLAGS=$(common_cflags)
-insanity_test_gst_blank_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
+insanity_test_gst_generic_pipeline_SOURCES=insanity-test-gst-generic-pipeline.c
+insanity_test_gst_generic_pipeline_CFLAGS=$(common_cflags)
+insanity_test_gst_generic_pipeline_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
 
 insanity_test_gst_play_SOURCES=insanity-test-gst-play.c
 insanity_test_gst_play_CFLAGS=$(common_cflags)
@@ -25,15 +25,15 @@ insanity_test_gst_seek_CFLAGS=$(common_cflags)
 insanity_test_gst_seek_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
 
 insanity_test_gst_dvd_SOURCES=insanity-test-gst-dvd.c
-insanity_test_gst_dvd_CFLAGS=$(common_cflags)
-insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la -lgstinterfaces-@GST_TARGET@ $(common_ldadd)
+insanity_test_gst_dvd_CFLAGS=$(GST_INTERFACES_CFLAGS) $(common_cflags)
+insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_INTERFACES_LIBS) $(common_ldadd)
 
 test_PROGRAMS=\
-    insanity-test-gst-blank \
+    insanity-test-gst-generic-pipeline \
     insanity-test-gst-play \
     insanity-test-gst-seek \
     insanity-test-gst-dvd
 
-TESTS=run-insanity-test-gst-blank
+TESTS=run-insanity-test-gst-generic-pipeline
 
-EXTRA_DIST=run-insanity-test-gst-blank
+EXTRA_DIST=run-insanity-test-gst-generic-pipeline

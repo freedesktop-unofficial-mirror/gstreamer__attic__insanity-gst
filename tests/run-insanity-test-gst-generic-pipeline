@@ -1,0 +1,1 @@
+./insanity-test-gst-generic-pipeline --run pipeline-launch-line="fakesrc num-buffers=1 ! fakesink"
