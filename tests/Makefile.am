@@ -9,7 +9,7 @@ AM_CPPFLAGS=-I $(top_srcdir)/lib
 
 testdir=$(libexecdir)/insanity-gst/tests
 
-common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS)
+common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(WARNING_CFLAGS)
 common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
 
 insanity_test_gst_generic_pipeline_SOURCES=insanity-test-gst-generic-pipeline.c

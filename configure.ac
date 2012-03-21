@@ -40,6 +40,14 @@ AC_PROG_GREP
 
 AC_C_CONST
 
+# Check compiler warning flags
+WARNING_CFLAGS=""
+for i in -Wall -Wdeclaration-after-statement -Wvla -Wpointer-arith -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls -Wundef -Wwrite-strings -Wformat-nonliteral -Wformat-security -Wold-style-definition -Winit-self -Wmissing-include-dirs -Waddress -Waggregate-return -Wno-multichar -Wnested-externs; do
+    AS_COMPILER_FLAG($i, WARNING_CFLAGS="$WARNING_CFLAGS $i")
+done
+
+AC_SUBST(WARNING_CFLAGS)
+
 AM_PATH_PYTHON(,HAVE_PYTHON=yes, HAVE_PYTHON=no)
 AM_CONDITIONAL(HAVE_PYTHON,test "${HAVE_PYTHON}" = "yes")
 
