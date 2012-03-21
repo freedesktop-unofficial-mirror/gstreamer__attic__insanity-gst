@@ -28,11 +28,16 @@ insanity_test_gst_dvd_SOURCES=insanity-test-gst-dvd.c
 insanity_test_gst_dvd_CFLAGS=$(GST_INTERFACES_CFLAGS) $(common_cflags)
 insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_INTERFACES_LIBS) $(common_ldadd)
 
+insanity_test_gst_stream_switch_SOURCES=insanity-test-gst-stream-switch.c
+insanity_test_gst_stream_switch_CFLAGS=$(GST_VIDEO_CFLAGS) $(GST_BASE_CFLAGS) $(common_cflags)
+insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_VIDEO_LIBS) $(GST_BASE_LIBS) $(common_ldadd)
+
 test_PROGRAMS=\
     insanity-test-gst-generic-pipeline \
     insanity-test-gst-play \
     insanity-test-gst-seek \
-    insanity-test-gst-dvd
+    insanity-test-gst-dvd \
+    insanity-test-gst-stream-switch
 
 TESTS=run-insanity-test-gst-generic-pipeline
 
