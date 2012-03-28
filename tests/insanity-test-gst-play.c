@@ -29,6 +29,8 @@
 #include <insanity-gst/insanity-gst.h>
 
 static GstElement *global_pipeline = NULL;
+static guint check_position_id = 0;
+static GstClockTime last_position = GST_CLOCK_TIME_NONE;
 
 static GstPipeline*
 play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
@@ -59,6 +61,25 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata
 }
 
 static gboolean
+check_position (InsanityTest *test)
+{
+  GstFormat fmt;
+  gint64 position;
+
+  /* Check if we're changing the position and if we do
+   * the test is not dead yet */
+  fmt = GST_FORMAT_TIME;
+  if (gst_element_query_position (global_pipeline, &fmt, &position) &&
+      fmt == GST_FORMAT_TIME && position != -1) {
+    if (last_position != position) {
+      insanity_test_ping (test);
+    }
+  }
+  last_position = position;
+  return TRUE;
+}
+
+static gboolean
 play_test_start(InsanityTest *test)
 {
   GValue uri = {0};
@@ -74,6 +95,18 @@ play_test_start(InsanityTest *test)
   g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
   g_value_unset (&uri);
 
+  last_position = GST_CLOCK_TIME_NONE;
+  check_position_id = g_timeout_add (1000, (GSourceFunc) check_position, test);
+
+  return TRUE;
+}
+
+static gboolean
+play_test_stop(InsanityTest *test)
+{
+  if (check_position_id)
+    g_source_remove (check_position_id);
+  check_position_id = 0;
   return TRUE;
 }
 
@@ -96,6 +129,7 @@ main (int argc, char **argv)
   insanity_gst_pipeline_test_set_create_pipeline_function (INSANITY_GST_PIPELINE_TEST (test),
       &play_gst_test_create_pipeline, NULL, NULL);
   g_signal_connect_after (test, "start", G_CALLBACK (play_test_start), test);
+  g_signal_connect_after (test, "stop", G_CALLBACK (play_test_stop), test);
 
   ret = insanity_test_run (test, &argc, &argv);
 
