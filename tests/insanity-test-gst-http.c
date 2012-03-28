@@ -56,8 +56,14 @@ static guint global_ssl_server_port = 0;
 static char *global_source_filename = NULL;
 static const char *global_validate_on_playing = NULL;
 static gboolean global_done_http = FALSE;
+static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
+static int global_seek_target = -1;
+static GstClockTime global_wait_time = GST_CLOCK_TIME_NONE;
+static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
+static guint global_duration_timeout = 0;
+static guint global_timer_id = 0;
 
-/* SSL setup */
+/* SSL setup - auth unused for now, but here in case it's needed */
 static const char *good_user = "good_user";
 static const char *bad_user = "bad_user";
 static const char *good_pw = "good_pw";
@@ -69,7 +75,7 @@ static const char *digest_auth_path = "/digest_auth";
 static GstPipeline*
 http_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 {
-  GstElement *pipeline = NULL, *playbin2 = NULL;
+  GstElement *pipeline = NULL;
   const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
   GError *error = NULL;
 
@@ -95,15 +101,58 @@ http_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
   return GST_PIPELINE (pipeline);
 }
 
+static GstClockTime
+http_test_get_position (InsanityTest *test)
+{
+  gint64 pos = 0;
+  GstQuery *q;
+  gboolean res;
+
+  /* Return a stream time for now plus global_playback_time seconds */
+  q = gst_query_new_position (GST_FORMAT_TIME);
+  res = gst_element_query (global_pipeline, q);
+  insanity_test_validate_step (test, "position-queried", res, NULL);
+  if (res) {
+    gst_query_parse_position (q, NULL, &pos);
+  }
+  else {
+    pos = GST_CLOCK_TIME_NONE;
+  }
+  gst_query_unref (q);
+  return pos;
+}
+
+static GstClockTime
+http_test_get_wait_time (InsanityTest *test)
+{
+  gint64 pos = http_test_get_position (test);
+  if (GST_CLOCK_TIME_IS_VALID (pos)) {
+    pos += global_playback_time * GST_SECOND;
+  }
+  return pos;
+}
+
 static gboolean
-do_seek (gpointer data)
+wait_and_do_seek (gpointer data)
 {
   InsanityTest *test = data;
   GstEvent *event;
   gboolean res;
 
+  if (GST_CLOCK_TIME_IS_VALID (global_wait_time) && http_test_get_position (test) < global_wait_time)
+    return TRUE;
+
+  /* If duration did not become known yet, we cannot test */
+  if (!GST_CLOCK_TIME_IS_VALID (global_duration)) {
+    insanity_test_validate_step (test, "duration-known", FALSE, NULL);
+    insanity_test_done (test);
+    return FALSE;
+  }
+
+  /* seek to the middle of the stream */
   event = gst_event_new_seek (1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
-      GST_SEEK_TYPE_SET, 15 * GST_SECOND, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+      GST_SEEK_TYPE_SET, global_duration * global_seek_target / 100,
+      GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
   global_validate_on_playing = "seek";
   res = gst_element_send_event (global_pipeline, event);
   if (!res) {
@@ -117,10 +166,13 @@ do_seek (gpointer data)
 }
 
 static gboolean
-end_step (gpointer data)
+wait_and_end_step (gpointer data)
 {
   InsanityTest *test = data;
   char *httpsuri;
+
+  if (GST_CLOCK_TIME_IS_VALID (global_wait_time) && http_test_get_position (test) < global_wait_time)
+    return TRUE;
 
   /* If we have both a non SSL and a SSL server, test both */
   if (global_done_http || global_ssl_server == NULL) {
@@ -135,7 +187,8 @@ end_step (gpointer data)
     gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     gst_element_get_state (global_pipeline, NULL, NULL, GST_SECOND * 2);
 
-    g_timeout_add (4000, (GSourceFunc)&do_seek, test);
+    global_wait_time = http_test_get_wait_time (test);
+    global_timer_id = g_timeout_add (250, (GSourceFunc)&wait_and_do_seek, test);
   }
   return FALSE;
 }
@@ -154,9 +207,12 @@ http_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
           global_validate_on_playing = NULL;
           insanity_test_validate_step (INSANITY_TEST (ptest), validate_step, TRUE, NULL);
           /* let it run a couple seconds */
-          g_timeout_add (2000, (GSourceFunc)&end_step, INSANITY_TEST (ptest));
+          global_wait_time = http_test_get_wait_time (INSANITY_TEST (ptest));
+          global_timer_id = g_timeout_add (250, (GSourceFunc)&wait_and_end_step, INSANITY_TEST (ptest));
         }
       }
+      break;
+    default:
       break;
   }
 
@@ -244,11 +300,11 @@ do_get (InsanityGstPipelineTest *ptest, SoupServer *server, SoupMessage * msg, c
   size = g_mapped_file_get_length (f);
 
   if (msg->method == SOUP_METHOD_GET) {
-    char *buf, *length;
-    const char *contents, *ptr;
+    const char *contents;
     SoupRange *ranges = NULL;
     int nranges = 0;
     goffset start, end;
+    ChunkedTransmitter *ct;
 
     if (size == 0) {
       contents = "";
@@ -275,7 +331,7 @@ do_get (InsanityGstPipelineTest *ptest, SoupServer *server, SoupMessage * msg, c
     soup_message_headers_set_content_length (msg->response_headers, size);
 
     /* We'll send in chunks */
-    ChunkedTransmitter *ct = g_malloc (sizeof (ChunkedTransmitter));
+    ct = g_malloc (sizeof (ChunkedTransmitter));
     ct->server = g_object_ref (server);
     ct->f = g_mapped_file_ref(f);
     ct->contents = contents;
@@ -385,7 +441,7 @@ find_link_local_address (InsanityTest *test)
   return sa;
 }
 
-int
+static int
 start_server (InsanityTest *test, const char *ssl_cert_file, const char *ssl_key_file)
 {
   SoupServer *server = NULL;
@@ -510,10 +566,20 @@ http_test_teardown (InsanityTest *test)
 }
 
 static gboolean
+duration_timeout (gpointer data)
+{
+  InsanityTest *test = data;
+
+  insanity_test_validate_step (test, "duration-known", FALSE,
+      "No duration, even after playing for a bit");
+  insanity_test_done (test);
+  return FALSE;
+}
+
+static gboolean
 http_test_start(InsanityTest *test)
 {
-  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
-  GValue uri = {0};
+  GValue uri = {0}, ival = {0};
   const char *protocol;
   char *httpuri;
 
@@ -551,7 +617,44 @@ http_test_start(InsanityTest *test)
 
   global_validate_on_playing = NULL;
   global_done_http = FALSE;
+  global_duration = GST_CLOCK_TIME_NONE;
 
+  insanity_test_get_argument (test, "playback-time", &ival);
+  global_playback_time = g_value_get_int (&ival);
+  g_value_unset (&ival);
+
+  insanity_test_get_argument (test, "seek-target", &ival);
+  global_seek_target = g_value_get_int (&ival);
+  g_value_unset (&ival);
+
+  return TRUE;
+}
+
+static void
+http_test_stop(InsanityTest *test)
+{
+  if (global_timer_id) {
+    g_source_remove (global_timer_id);
+    global_timer_id = 0;
+  }
+}
+
+static gboolean
+wait_and_start (gpointer data)
+{
+  InsanityGstPipelineTest *ptest = data;
+
+  /* Try getting duration */
+  if (!GST_CLOCK_TIME_IS_VALID (global_wait_time)) {
+    insanity_gst_pipeline_test_query_duration (ptest);
+  }
+
+  /* If we have it, start; if not, we'll be called again */
+  if (GST_CLOCK_TIME_IS_VALID (global_wait_time)) {
+    global_wait_time = http_test_get_wait_time (INSANITY_TEST (ptest));
+    global_timer_id = g_timeout_add (250, (GSourceFunc)&wait_and_do_seek, ptest);
+    return FALSE;
+  }
   return TRUE;
 }
 
@@ -564,8 +667,32 @@ http_test_pipeline_test (InsanityGstPipelineTest *ptest)
   g_object_set (source, "user-id", good_user, "user-pw", good_pw, NULL);
   gst_object_unref (source);
 
-  /* So we're in PLAYING, let's wait a few seconds and seek */
-  g_timeout_add (4000, (GSourceFunc)&do_seek, ptest);
+  global_duration_timeout = g_timeout_add(5000, (GSourceFunc)&duration_timeout, ptest);
+  global_timer_id = g_timeout_add (250, (GSourceFunc)&wait_and_start, ptest);
+}
+
+static void
+http_test_duration (InsanityGstPipelineTest *ptest, GstClockTime duration)
+{
+  gboolean start = FALSE;
+
+  /* If we were waiting on it to start up, do it now */
+  if (global_duration_timeout) {
+    g_source_remove (global_duration_timeout);
+    global_duration_timeout = 0;
+    start = TRUE;
+  }
+
+  insanity_test_printf (INSANITY_TEST (ptest),
+      "Just got notified duration is %"GST_TIME_FORMAT"\n", GST_TIME_ARGS (duration));
+  global_duration = duration;
+  insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", TRUE, NULL);
+
+  if (start) {
+    /* start now if we were waiting for the duration before doing so */
+    global_wait_time = http_test_get_wait_time (INSANITY_TEST (ptest));
+    global_timer_id = g_timeout_add (250, (GSourceFunc)&wait_and_do_seek, ptest);
+  }
 }
 
 int
@@ -596,18 +723,32 @@ main (int argc, char **argv)
   insanity_test_add_argument (test, "ssl-key-file", "Key file for SSL server", NULL, TRUE, &vdef);
   g_value_unset (&vdef);
 
+  g_value_init (&vdef, G_TYPE_INT);
+  g_value_set_int (&vdef, 5);
+  insanity_test_add_argument (test, "playback-time", "Stream time to playback for before seeking, in seconds", NULL, TRUE, &vdef);
+  g_value_unset (&vdef);
+
+  g_value_init (&vdef, G_TYPE_INT);
+  g_value_set_int (&vdef, 50);
+  insanity_test_add_argument (test, "seek-target", "Seek target in percentage of the stream duration", NULL, TRUE, &vdef);
+  g_value_unset (&vdef);
+
   insanity_test_add_checklist_item (test, "uri-is-file", "The URI is a file URI", NULL);
   insanity_test_add_checklist_item (test, "server-started", "The internal HTTP server was started", NULL);
   insanity_test_add_checklist_item (test, "ssl-server-started", "The SSL internal HTTP server was started", NULL);
   insanity_test_add_checklist_item (test, "seek", "A seek succeeded", NULL);
+  insanity_test_add_checklist_item (test, "duration-known", "Stream duration could be determined", NULL);
+  insanity_test_add_checklist_item (test, "position-queried", "Stream position could be determined", NULL);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &http_test_create_pipeline, NULL, NULL);
   g_signal_connect_after (test, "setup", G_CALLBACK (&http_test_setup), 0);
   g_signal_connect_after (test, "bus-message", G_CALLBACK (&http_test_bus_message), 0);
   g_signal_connect_after (test, "start", G_CALLBACK (&http_test_start), 0);
+  g_signal_connect_after (test, "stop", G_CALLBACK (&http_test_stop), 0);
   g_signal_connect_after (test, "pipeline-test", G_CALLBACK (&http_test_pipeline_test), 0);
   g_signal_connect_after (test, "teardown", G_CALLBACK (&http_test_teardown), 0);
+  g_signal_connect_after (ptest, "duration", G_CALLBACK (&http_test_duration), 0);
 
   ret = insanity_test_run (test, &argc, &argv);
 
