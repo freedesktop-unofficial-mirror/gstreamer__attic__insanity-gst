@@ -31,6 +31,7 @@
 static GstElement *global_pipeline = NULL;
 static guint check_position_id = 0;
 static GstClockTime last_position = GST_CLOCK_TIME_NONE;
+static GstClockTime playback_duration = GST_CLOCK_TIME_NONE;
 
 static GstPipeline*
 play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
@@ -74,8 +75,15 @@ check_position (InsanityTest *test)
     if (last_position != position) {
       insanity_test_ping (test);
     }
+
+    if (GST_CLOCK_TIME_IS_VALID (playback_duration) &&
+        GST_CLOCK_TIME_IS_VALID (position) &&
+        position >= playback_duration) {
+      gst_element_send_event (global_pipeline, gst_event_new_eos ());    
+    }
   }
   last_position = position;
+
   return TRUE;
 }
 
@@ -83,6 +91,7 @@ static gboolean
 play_test_start(InsanityTest *test)
 {
   GValue uri = {0};
+  GValue duration = {0};
 
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
@@ -94,6 +103,11 @@ play_test_start(InsanityTest *test)
 
   g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
   g_value_unset (&uri);
+
+  if (!insanity_test_get_argument (test, "playback-duration", &duration))
+    return FALSE;
+  playback_duration = g_value_get_uint64 (&duration);
+  g_value_unset (&duration);
 
   last_position = GST_CLOCK_TIME_NONE;
   check_position_id = g_timeout_add (1000, (GSourceFunc) check_position, test);
@@ -124,6 +138,11 @@ main (int argc, char **argv)
   g_value_init (&vdef, G_TYPE_STRING);
   g_value_set_string (&vdef, "");
   insanity_test_add_argument (test, "uri", "The file to test seeking on", NULL, FALSE, &vdef);
+  g_value_unset (&vdef);
+
+  g_value_init (&vdef, G_TYPE_UINT64);
+  g_value_set_uint64 (&vdef, GST_CLOCK_TIME_NONE);
+  insanity_test_add_argument (test, "playback-duration", "Stop playback after this many nanoseconds", NULL, FALSE, &vdef);
   g_value_unset (&vdef);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (INSANITY_GST_PIPELINE_TEST (test),
