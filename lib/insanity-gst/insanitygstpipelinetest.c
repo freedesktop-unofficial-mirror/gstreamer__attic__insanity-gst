@@ -56,6 +56,7 @@ struct _InsanityGstPipelineTestPrivateData
   unsigned int element_count;
   gboolean is_live;
   gboolean buffering;
+  gboolean enable_buffering;
 
   guint wait_timeout_id;
 
@@ -394,7 +395,7 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
       gst_message_parse_buffering (message, &percent);
 
       /* no state management needed for live pipelines */
-      if (ptest->priv->is_live)
+      if (ptest->priv->is_live || !ptest->priv->enable_buffering)
         break;
 
       if (percent == 100) {
@@ -475,6 +476,7 @@ insanity_gst_pipeline_test_start (InsanityTest * test)
   priv->wait_timeout_id = 0;
   priv->is_live = FALSE;
   priv->buffering = FALSE;
+  priv->enable_buffering = TRUE;
   priv->done = FALSE;
 
   printf ("insanity_gst_pipeline_test_start\n");
@@ -844,3 +846,40 @@ insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest
   test->priv->create_pipeline_user_data = userdata;
   test->priv->create_pipeline_destroy_notify = dnotify;
 }
+
+/**
+ * insanity_gst_pipeline_test_set_live:
+ * @test: the #InsanityGstPipelineTest to change
+ * @live: %TRUE if the pipeline is live, %FALSE otherwise
+ *
+ * Tells the #InsanityGstPipelineTest whether the pipeline is live or not.
+ * This is used to change behavior to match live or non live pipelines
+ * (for instance, live pipelines never temporarily pause when receiving
+ * buffering messages).
+ */
+void
+insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolean live)
+{
+  test->priv->is_live = live;
+}
+
+/**
+ * insanity_gst_pipeline_test_enable_buffering:
+ * @test: the #InsanityGstPipelineTest to change
+ * @buffering: %TRUE if buffering should be enabled, %FALSE otherwise
+ *
+ * Enables buffering behavior on the #InsanityGstPipelineTest.
+ * This temporarily pauses a playing pipeline when running out of
+ * data, and starts playing again after enough data is available.
+ *
+ * Live pipelines will not do buffering, even when enabled.
+ *
+ * This behavior is likely to not work well if the test changes states
+ * itself, so disabling buffering when doing so is suggested.
+ */
+void
+insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest *test, gboolean buffering)
+{
+  test->priv->enable_buffering = buffering;
+}
+

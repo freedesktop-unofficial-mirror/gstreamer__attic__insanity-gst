@@ -73,6 +73,8 @@ struct _InsanityGstPipelineTestClass
 InsanityGstPipelineTest *insanity_gst_pipeline_test_new(const char *name, const char *description, const char *full_description);
 
 void insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, GstState state);
+void insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolean live);
+void insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest *test, gboolean buffering);
 void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest *test, GstPipeline *(f)(InsanityGstPipelineTest*, gpointer userdata), gpointer userdata, GDestroyNotify dnotify);
 GstClockTime insanity_gst_pipeline_test_query_duration(InsanityGstPipelineTest *test);
 
