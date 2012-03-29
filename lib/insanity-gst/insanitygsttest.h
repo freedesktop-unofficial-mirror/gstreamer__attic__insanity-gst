@@ -34,6 +34,8 @@ typedef struct _InsanityGstTest InsanityGstTest;
 typedef struct _InsanityGstTestClass InsanityGstTestClass;
 typedef struct _InsanityGstTestPrivateData InsanityGstTestPrivateData;
 
+typedef gboolean (*InsanityGstDataProbeFunction) (GstPad *, GstMiniObject *, gpointer);
+
 /**
  * InsanityGstTest:
  *
@@ -74,11 +76,11 @@ InsanityGstTest *insanity_gst_test_new(const char *name, const char *description
 #define INSANITY_IS_GST_TEST_CLASS(c)         (G_TYPE_CHECK_CLASS_TYPE ((c), INSANITY_TYPE_GST_TEST))
 #define INSANITY_GST_TEST_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), INSANITY_TYPE_GST_TEST, InsanityGstTestClass))
 
-unsigned int insanity_gst_test_add_fakesink_probe (InsanityGstTest *test, GstBin *bin,
-    gboolean (*probe) (GstPad *, GstMiniObject *, gpointer),
-    GstPad ***pads, gulong **probes);
-void insanity_gst_test_remove_fakesink_probe (InsanityGstTest *test, unsigned int nprobes,
-    GstPad **pads, gulong *probes);
+gboolean insanity_gst_test_add_data_probe (InsanityGstTest *test, GstBin *bin,
+    const char *element_name, const char *pad_name,
+    InsanityGstDataProbeFunction probe, GstPad **pad, gulong *probe_id);
+void insanity_gst_test_remove_data_probe (InsanityGstTest *test,
+    GstPad *pad, gulong probe);
 
 GType insanity_gst_test_get_type (void);
 

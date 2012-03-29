@@ -551,6 +551,7 @@ gst_multiple_stream_demux_init (GstMultipleStreamDemux * demux,
 /***** The actual test *****/
 #define SWITCH_TIMEOUT (15)
 #define NSWITCHES (100)
+#define MAX_STREAMS 8
 static GstElement *pipeline;
 
 static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
@@ -569,8 +570,8 @@ typedef enum
 
 static CurrentStep current_step = CURRENT_STEP_WAIT_PLAYING;
 static gint current_step_switch = 0;
-static GstPad **sinks = NULL;
-static gulong *probes = NULL;
+static GstPad *sinks[MAX_STREAMS] = {NULL};
+static gulong probes[MAX_STREAMS] = {0};
 static guint nsinks = 0;
 static gboolean stream_switch_correct = TRUE;
 static gboolean stream_switch_constant_correct = TRUE;
@@ -604,7 +605,7 @@ stream_switch_test_create_pipeline (InsanityGstPipelineTest * ptest,
     gpointer userdata)
 {
   const char *launch_line =
-      "playbin2 audio-sink=\"capsfilter caps=\\\"audio/x-raw-int\\\" ! fakesink sync=true\" video-sink=\"capsfilter caps=\\\"video/x-raw-rgb\\\" ! fakesink sync=true\" text-sink=\"capsfilter caps=\\\"text/plain\\\" ! fakesink sync=true\"";
+      "playbin2 audio-sink=\"capsfilter caps=\\\"audio/x-raw-int\\\" ! fakesink name=asink sync=true\" video-sink=\"capsfilter caps=\\\"video/x-raw-rgb\\\" ! fakesink name=vsink sync=true\" text-sink=\"capsfilter caps=\\\"text/plain\\\" ! fakesink name=tsink sync=true\"";
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);
@@ -745,15 +746,18 @@ static gboolean
 stream_switch_test_stop (InsanityTest * test)
 {
   GValue v = { 0, };
+  int n;
 
   TEST_LOCK ();
   current_step = CURRENT_STEP_WAIT_PLAYING;
   current_step_switch = 0;
 
-  insanity_gst_test_remove_fakesink_probe (INSANITY_GST_TEST (test), nsinks,
-      sinks, probes);
-  sinks = NULL;
-  probes = NULL;
+  for (n=0; n<nsinks; n++) {
+    insanity_gst_test_remove_data_probe (INSANITY_GST_TEST (test),
+        sinks[n], probes[n]);
+    sinks[n] = NULL;
+    probes[n] = 0;
+  }
   nsinks = 0;
   if (stream_switch_correct)
     insanity_test_validate_step (test, "stream-switch", TRUE, NULL);
@@ -1295,13 +1299,37 @@ stream_switch_test_pipeline_test (InsanityGstPipelineTest * test)
 static gboolean
 stream_switch_test_reached_initial_state (InsanityGstPipelineTest * test)
 {
+  GstElement *e;
+  gboolean error = FALSE;
+  size_t n;
+  static const char * const sink_names[] = {"asink", "vsink", "tsink"};
+
   TEST_LOCK ();
   /* Look for sinks and add probes */
-  nsinks =
-      insanity_gst_test_add_fakesink_probe (INSANITY_GST_TEST (test),
-      GST_BIN (pipeline), &probe, &sinks, &probes);
-  insanity_test_validate_step (INSANITY_TEST (test), "install-probes",
-      nsinks > 0, NULL);
+  nsinks = 0;
+  for (n=0; n < G_N_ELEMENTS (sink_names); n++) {
+    e = gst_bin_get_by_name (GST_BIN (pipeline), sink_names[n]);
+    if (e) {
+      gboolean ok = insanity_gst_test_add_data_probe(INSANITY_GST_TEST (test),
+          GST_BIN (pipeline), sink_names[n], "sink", &probe,
+          &sinks[nsinks], &probes[nsinks]);
+      if (ok) {
+        nsinks++;
+      }
+      else {
+        insanity_test_validate_step (INSANITY_TEST (test), "install-probes",
+            FALSE, "Failed to attach probe to fakesink");
+        error = TRUE;
+      }
+      gst_object_unref (e);
+    }
+  }
+
+  if (!error) {
+    insanity_test_validate_step (INSANITY_TEST (test), "install-probes",
+        nsinks > 0, NULL);
+  }
+
   if (nsinks == 0) {
     insanity_test_done (INSANITY_TEST (test));
     TEST_UNLOCK ();

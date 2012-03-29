@@ -82,8 +82,8 @@ static SeekTestState global_state = SEEK_TEST_STATE_FIRST;
 static int global_seek_target_index = 0;
 static GstClockTime global_last_ts[2] =
     { GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE };
-static GstPad **global_sinks = NULL;
-static gulong *global_probes = NULL;
+static GstPad *global_sinks[2] = {NULL, NULL};
+static gulong global_probes[2] = {0, 0};
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
 static gboolean global_expecting_eos = FALSE;
 static gint64 global_seek_start_time = 0;
@@ -244,7 +244,7 @@ static GstPipeline *
 seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL;
-  const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
+  const char *launch_line = "playbin2 audio-sink=\"fakesink name=asink\" video-sink=\"fakesink name=vsink\"";
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);
@@ -604,6 +604,7 @@ static gboolean
 seek_test_start (InsanityTest * test)
 {
   GValue uri = { 0 };
+  int n;
 
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
@@ -626,8 +627,10 @@ seek_test_start (InsanityTest * test)
   global_state = SEEK_TEST_STATE_FIRST;
   global_seek_target_index = 0;
   global_last_ts[0] = global_last_ts[1] = GST_CLOCK_TIME_NONE;
-  global_probes = NULL;
-  global_sinks = NULL;
+  for (n=0; n<2; ++n) {
+    global_probes[n] = 0;
+    global_sinks[n] = NULL;
+  }
   global_duration = GST_CLOCK_TIME_NONE;
   global_max_seek_time = 0;
 
@@ -638,17 +641,40 @@ static void
 seek_test_pipeline_test (InsanityThreadedTest * ttest)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (ttest);
+  GstElement *e;
+  gboolean error = FALSE;
+  size_t n;
+  static const char * const sink_names[] = {"asink", "vsink"};
 
   /* Set to PAUSED so we get everything autoplugged */
   gst_element_set_state (global_pipeline, GST_STATE_PAUSED);
   gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
 
   /* Look for sinks and add probes */
-  global_nsinks =
-      insanity_gst_test_add_fakesink_probe (INSANITY_GST_TEST (ptest),
-      GST_BIN (global_pipeline), &probe, &global_sinks, &global_probes);
-  insanity_test_validate_step (INSANITY_TEST (ttest), "install-probes",
-      global_nsinks > 0, NULL);
+  global_nsinks = 0;
+  for (n=0; n < G_N_ELEMENTS (sink_names); n++) {
+    e = gst_bin_get_by_name (GST_BIN (global_pipeline), sink_names[n]);
+    if (e) {
+      gboolean ok = insanity_gst_test_add_data_probe(INSANITY_GST_TEST (ptest),
+          GST_BIN (global_pipeline), sink_names[n], "sink", &probe,
+          &global_sinks[global_nsinks], &global_probes[global_nsinks]);
+      if (ok) {
+        global_nsinks++;
+      }
+      else {
+        insanity_test_validate_step (INSANITY_TEST (ptest), "install-probes",
+            FALSE, "Failed to attach probe to fakesink");
+        error = TRUE;
+      }
+      gst_object_unref (e);
+    }
+  }
+
+  if (!error) {
+    insanity_test_validate_step (INSANITY_TEST (ttest), "install-probes",
+        global_nsinks > 0, NULL);
+  }
+
   if (global_nsinks == 0) {
     insanity_test_done (INSANITY_TEST (ttest));
     return;
@@ -703,13 +729,16 @@ static gboolean
 seek_test_stop (InsanityTest * test)
 {
   GValue v = { 0 };
+  int n;
 
   SEEK_TEST_LOCK ();
-  insanity_gst_test_remove_fakesink_probe (INSANITY_GST_TEST (test),
-      global_nsinks, global_sinks, global_probes);
-  global_sinks = NULL;
-  global_probes = NULL;
-  global_nsinks = 0;
+  for (n=0; n<global_nsinks; n++) {
+    insanity_gst_test_remove_data_probe (INSANITY_GST_TEST (test),
+        global_sinks[n], global_probes[n]);
+    global_probes[n] = 0;
+    global_sinks[n] = NULL;
+  }
+  global_nsinks=0;
 
   g_value_init (&v, G_TYPE_INT64);
   g_value_set_int64 (&v, global_max_diff);

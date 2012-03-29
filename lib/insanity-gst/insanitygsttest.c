@@ -176,109 +176,61 @@ insanity_gst_test_new (const char *name, const char *description,
 }
 
 /**
- * insanity_gst_test_add_fakesink_probe:
+ * insanity_gst_test_add_data_probe:
  * @test: the #InsanityGstTest
  * @bin (transfer none): a bin where to look for the sinks
+ * @element_name: the name of the element on which to find the pad to add a probe to
+ * @pad_name: the name of the pad to add a probe to
  * @probe: the data probe function to call
- * @pads: a pointer to where an array of the pads to which probes were attached will be placed
- * @probes: a pointer to where an array of the probe identifiers will be placed
+ * @pad: a pointer where to place a pointer to the pad to which the probe was attached to
+ * @probe: a pointer where to place the identifier of the probe
  *
- * This function adds a data probe to every fakesink in the given bin.
- * The pads and probes array should be destroyed using insanity_gst_test_remove_fakesink_probe
+ * This function adds a data probe to a named element and pad in the given bin.
+ * The pad and probe should be passed to insanity_gst_test_remove_data_probe when done.
  *
- * Returns: the number of probes added.
+ * Returns: %TRUE if the probe was placed, %FALSE otherwise
  */
-unsigned int
-insanity_gst_test_add_fakesink_probe (InsanityGstTest * test, GstBin * bin,
-    gboolean (*probe) (GstPad *, GstMiniObject *, gpointer),
-    GstPad *** pads, gulong ** probes)
+gboolean
+insanity_gst_test_add_data_probe (InsanityGstTest * test, GstBin * bin,
+    const char *element_name, const char *pad_name,
+    InsanityGstDataProbeFunction probe, GstPad ** pad, gulong * probe_id)
 {
-  GstIterator *it;
-  gboolean done = FALSE;
-  gpointer data;
   GstElement *e;
-  const char *name;
-  unsigned nsinks = 0;
-  GstElementFactory *factory;
 
-  *pads = NULL;
-  *probes = NULL;
+  *pad = NULL;
+  *probe_id = 0;
 
-  it = gst_bin_iterate_recurse (bin);
-  while (!done) {
-    switch (gst_iterator_next (it, &data)) {
-      case GST_ITERATOR_OK:
-        e = GST_ELEMENT_CAST (data);
-        factory = gst_element_get_factory (e);
-        if (!factory) {
-          gst_object_unref (e);
-          break;
-        }
-        name = gst_plugin_feature_get_name (&factory->parent);
-        if (name && !strcmp (name, "fakesink")) {
-          GstPad *pad = gst_element_get_pad (e, "sink");
-          if (pad) {
-            gulong id = gst_pad_add_data_probe (pad, (GCallback) probe, test);
-            if (id != 0) {
-              *pads = g_realloc (*pads, (nsinks + 1) * sizeof (**pads));
-              *probes = g_realloc (*probes, (nsinks + 1) * sizeof (**probes));
-              (*pads)[nsinks] = pad;
-              (*probes)[nsinks] = id;
-              nsinks++;
-            } else {
-              gst_object_unref (pad);
-              goto error;
-            }
-          } else {
-            goto error;
-          }
-        }
-        gst_object_unref (e);
-        break;
-      case GST_ITERATOR_RESYNC:
-        gst_iterator_resync (it);
-        break;
-      case GST_ITERATOR_DONE:
-      default:
-        done = TRUE;
-        break;
-    }
+  e = gst_bin_get_by_name (bin, element_name);
+  if (!e)
+    return FALSE;
+  *pad = gst_element_get_static_pad (e, pad_name);
+  gst_object_unref (e);
+  if (!*pad)
+    return FALSE;
+  *probe_id = gst_pad_add_data_probe (*pad, (GCallback) probe, test);
+  if (*probe_id != 0) {
+    insanity_test_printf (INSANITY_TEST (test), "Probe %u connected to %s:%s\n",
+        *probe_id, element_name, pad_name);
+    return TRUE;
+  } else {
+    gst_object_unref (*pad);
+    *pad = NULL;
+    return FALSE;
   }
-  gst_iterator_free (it);
-
-  insanity_test_printf (INSANITY_TEST (test), "Probe connected to %u sinks\n",
-      nsinks);
-
-  return nsinks;
-
-error:
-  insanity_test_printf (INSANITY_TEST (test), "Failed adding probe\n");
-  insanity_gst_test_remove_fakesink_probe (test, nsinks, *pads, *probes);
-  *pads = NULL;
-  *probes = NULL;
-  return 0;
 }
 
 /**
- * insanity_gst_test_remove_fakesink_probe:
+ * insanity_gst_test_remove_data_probe:
  * @test: the #InsanityGstTest
- * @nprobes: the number of probes in thee pads and probes arrays
- * @pads: a pads array as created by insanity_gst_test_add_fakesink_probe
- * @probes: a probe identifier array as created by insanity_gst_test_add_fakesink_probe
+ * @pad: the pad as returned by insanity_gst_test_add_data_probe
+ * @probe: the probe identifier as returned by insanity_gst_test_add_data_probe
  *
- * This function removes data probes added by insanity_gst_test_add_fakesink_probe.
- * The pads and probes array will be freed.
+ * This function removes a data probe added by insanity_gst_test_add_data_probe.
  */
 void
-insanity_gst_test_remove_fakesink_probe (InsanityGstTest * test,
-    unsigned int nprobes, GstPad ** pads, gulong * probes)
+insanity_gst_test_remove_data_probe (InsanityGstTest * test,
+    GstPad * pad, gulong probe)
 {
-  unsigned int n;
-
-  for (n = 0; n < nprobes; ++n) {
-    gst_pad_remove_data_probe (pads[n], probes[n]);
-    gst_object_unref (pads[n]);
-  }
-  g_free (pads);
-  g_free (probes);
+  gst_pad_remove_data_probe (pad, probe);
+  gst_object_unref (pad);
 }
