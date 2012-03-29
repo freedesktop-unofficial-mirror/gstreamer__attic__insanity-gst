@@ -32,6 +32,7 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 #include <gst/gst.h>
 
 #include <insanity-gst/insanitygsttest.h>
@@ -196,8 +197,9 @@ insanity_gst_test_add_fakesink_probe (InsanityGstTest * test, GstBin * bin,
   gboolean done = FALSE;
   gpointer data;
   GstElement *e;
-  char *name;
+  const char *name;
   unsigned nsinks = 0;
+  GstElementFactory *factory;
 
   *pads = NULL;
   *probes = NULL;
@@ -207,8 +209,13 @@ insanity_gst_test_add_fakesink_probe (InsanityGstTest * test, GstBin * bin,
     switch (gst_iterator_next (it, &data)) {
       case GST_ITERATOR_OK:
         e = GST_ELEMENT_CAST (data);
-        name = gst_element_get_name (e);
-        if (g_str_has_prefix (name, "fakesink")) {
+        factory = gst_element_get_factory (e);
+        if (!factory) {
+          gst_object_unref (e);
+          break;
+        }
+        name = gst_plugin_feature_get_name (&factory->parent);
+        if (name && !strcmp (name, "fakesink")) {
           GstPad *pad = gst_element_get_pad (e, "sink");
           if (pad) {
             gulong id = gst_pad_add_data_probe (pad, (GCallback) probe, test);
@@ -226,7 +233,6 @@ insanity_gst_test_add_fakesink_probe (InsanityGstTest * test, GstBin * bin,
             goto error;
           }
         }
-        g_free (name);
         gst_object_unref (e);
         break;
       case GST_ITERATOR_RESYNC:
