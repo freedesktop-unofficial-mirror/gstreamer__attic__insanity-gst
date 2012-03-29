@@ -414,6 +414,10 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
         ptest->priv->buffering = TRUE;
       }
       break;
+    case GST_MESSAGE_CLOCK_LOST:
+      gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PAUSED);
+      gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PLAYING);
+      break;
     }
     default:
       break;
