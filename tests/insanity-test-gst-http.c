@@ -105,20 +105,16 @@ static GstClockTime
 http_test_get_position (InsanityTest *test)
 {
   gint64 pos = 0;
-  GstQuery *q;
   gboolean res;
+  GstFormat format = GST_FORMAT_TIME;
 
-  /* Return a stream time for now plus global_playback_time seconds */
-  q = gst_query_new_position (GST_FORMAT_TIME);
-  res = gst_element_query (global_pipeline, q);
+  res = gst_element_query_position (global_pipeline, &format, &pos);
+  if (format != GST_FORMAT_TIME)
+    res = FALSE;
   insanity_test_validate_step (test, "position-queried", res, NULL);
-  if (res) {
-    gst_query_parse_position (q, NULL, &pos);
-  }
-  else {
+  if (!res) {
     pos = GST_CLOCK_TIME_NONE;
   }
-  gst_query_unref (q);
   return pos;
 }
 
