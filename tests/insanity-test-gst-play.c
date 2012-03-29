@@ -81,7 +81,6 @@ check_position (InsanityTest *test)
       insanity_test_ping (test);
     }
 
-    g_print ("%ld %ld %ld\n", first_position, last_position, position-first_position);
     if (GST_CLOCK_TIME_IS_VALID (playback_duration) &&
         position - first_position >= playback_duration) {
       gst_element_send_event (global_pipeline, gst_event_new_eos ());    
