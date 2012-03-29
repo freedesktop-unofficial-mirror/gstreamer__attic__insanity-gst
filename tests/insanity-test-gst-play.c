@@ -30,6 +30,7 @@
 
 static GstElement *global_pipeline = NULL;
 static guint check_position_id = 0;
+static GstClockTime first_position = GST_CLOCK_TIME_NONE;
 static GstClockTime last_position = GST_CLOCK_TIME_NONE;
 static GstClockTime playback_duration = GST_CLOCK_TIME_NONE;
 
@@ -72,17 +73,20 @@ check_position (InsanityTest *test)
   fmt = GST_FORMAT_TIME;
   if (gst_element_query_position (global_pipeline, &fmt, &position) &&
       fmt == GST_FORMAT_TIME && position != -1) {
+    if (first_position == GST_CLOCK_TIME_NONE)
+      first_position = position;
+    last_position = position;
+
     if (last_position != position) {
       insanity_test_ping (test);
     }
 
+    g_print ("%ld %ld %ld\n", first_position, last_position, position-first_position);
     if (GST_CLOCK_TIME_IS_VALID (playback_duration) &&
-        GST_CLOCK_TIME_IS_VALID (position) &&
-        position >= playback_duration) {
+        position - first_position >= playback_duration) {
       gst_element_send_event (global_pipeline, gst_event_new_eos ());    
     }
   }
-  last_position = position;
 
   return TRUE;
 }
@@ -109,6 +113,7 @@ play_test_start(InsanityTest *test)
   playback_duration = g_value_get_uint64 (&duration);
   g_value_unset (&duration);
 
+  first_position = GST_CLOCK_TIME_NONE;
   last_position = GST_CLOCK_TIME_NONE;
   check_position_id = g_timeout_add (1000, (GSourceFunc) check_position, test);
 
