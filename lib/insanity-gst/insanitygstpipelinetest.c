@@ -54,6 +54,8 @@ struct _InsanityGstPipelineTestPrivateData
   unsigned int error_count;
   unsigned int tag_count;
   unsigned int element_count;
+  gboolean is_live;
+  gboolean buffering;
 
   guint wait_timeout_id;
 
@@ -386,6 +388,32 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
         }
       }
       break;
+    case GST_MESSAGE_BUFFERING:{
+      gint percent;
+
+      gst_message_parse_buffering (message, &percent);
+
+      /* no state management needed for live pipelines */
+      if (ptest->priv->is_live)
+        break;
+
+      if (percent == 100) {
+        /* a 100% message means buffering is done */
+        ptest->priv->buffering = FALSE;
+        /* if the desired state is playing, go back */
+        if (ptest->priv->initial_state == GST_STATE_PLAYING) {
+          gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PLAYING);
+        }
+      } else {
+        /* buffering busy */
+        if (ptest->priv->buffering == FALSE && ptest->priv->initial_state == GST_STATE_PLAYING) {
+          /* we were not buffering but PLAYING, PAUSE  the pipeline. */
+          gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PAUSED);
+        }
+        ptest->priv->buffering = TRUE;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -445,6 +473,8 @@ insanity_gst_pipeline_test_start (InsanityTest * test)
   priv->tag_count = 0;
   priv->element_count = 0;
   priv->wait_timeout_id = 0;
+  priv->is_live = FALSE;
+  priv->buffering = FALSE;
   priv->done = FALSE;
 
   printf ("insanity_gst_pipeline_test_start\n");
@@ -517,6 +547,9 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest * test)
   if (sret == GST_STATE_CHANGE_FAILURE) {
     insanity_test_done (INSANITY_TEST (ptest));
     return;
+  }
+  if (sret == GST_STATE_CHANGE_NO_PREROLL) {
+    ptest->priv->is_live = TRUE;
   }
 
   ptest->priv->loop = g_main_loop_new (NULL, FALSE);
