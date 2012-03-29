@@ -27,27 +27,30 @@
 #include <glib-object.h>
 #include <insanity-gst/insanity-gst.h>
 
-static GstPipeline*
-blank_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
+static GstPipeline *
+blank_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
+    gpointer userdata)
 {
   GstPipeline *pipeline = NULL;
-  GValue launch_line = {0};
+  GValue launch_line = { 0 };
   GError *error = NULL;
 
-  if (insanity_test_get_argument (INSANITY_TEST (ptest), "pipeline-launch-line", &launch_line)) {
-    pipeline = GST_PIPELINE (gst_parse_launch (g_value_get_string (&launch_line), &error));
+  if (insanity_test_get_argument (INSANITY_TEST (ptest), "pipeline-launch-line",
+          &launch_line)) {
+    pipeline =
+        GST_PIPELINE (gst_parse_launch (g_value_get_string (&launch_line),
+            &error));
     g_value_unset (&launch_line);
     if (!pipeline) {
-      insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error ? error->message : NULL);
+      insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline",
+          FALSE, error ? error->message : NULL);
       if (error)
         g_error_free (error);
-    }
-    else if (error) {
+    } else if (error) {
       /* Do we get a dangling pointer here ? gst-launch.c does not unref */
       pipeline = NULL;
-      insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error->message);
+      insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline",
+          FALSE, error->message);
       g_error_free (error);
     }
   }
@@ -60,7 +63,7 @@ main (int argc, char **argv)
 {
   InsanityTest *test;
   gboolean ret;
-  GValue empty_string = {0};
+  GValue empty_string = { 0 };
 
 
   g_type_init ();
@@ -71,11 +74,14 @@ main (int argc, char **argv)
 
   g_value_init (&empty_string, G_TYPE_STRING);
   g_value_set_string (&empty_string, "");
-  insanity_test_add_argument (test, "pipeline-launch-line", "The launch line to parse to create the pipeline", NULL, TRUE, &empty_string);
+  insanity_test_add_argument (test, "pipeline-launch-line",
+      "The launch line to parse to create the pipeline", NULL, TRUE,
+      &empty_string);
   g_value_unset (&empty_string);
 
-  insanity_gst_pipeline_test_set_create_pipeline_function (INSANITY_GST_PIPELINE_TEST (test),
-      &blank_gst_test_create_pipeline, NULL, NULL);
+  insanity_gst_pipeline_test_set_create_pipeline_function
+      (INSANITY_GST_PIPELINE_TEST (test), &blank_gst_test_create_pipeline, NULL,
+      NULL);
 
   ret = insanity_test_run (test, &argc, &argv);
 

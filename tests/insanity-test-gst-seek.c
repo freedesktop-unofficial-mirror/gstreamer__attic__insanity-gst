@@ -44,7 +44,8 @@
    before deciding the pipeline is wedged. Second precision. */
 #define IDLE_TIMEOUT (GST_SECOND*60)
 
-typedef enum {
+typedef enum
+{
   SEEK_TEST_STATE_FIRST,
   SEEK_TEST_STATE_FLUSHING = SEEK_TEST_STATE_FIRST,
   SEEK_TEST_STATE_FLUSHING_KEY,
@@ -61,14 +62,16 @@ typedef enum {
 /* interesting places to seek to, in percent of the stream duration,
    with negative values being placeholders for randomly chosen locations. */
 static int seek_targets[] = {
-  0, 20, 50, 99, 100, 150, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+  0, 20, 50, 99, 100, 150, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+  -1, -1, -1, -1, -1, -1, -1
 };
 
 /* Our state. Growing fast. Possibly not locked well enough. */
 static GstElement *global_pipeline = NULL;
 static GstClockTime global_target = 0;
 static gboolean started = FALSE;
-static char global_waiting[2] = {0, 0};
+static char global_waiting[2] = { 0, 0 };
+
 static unsigned global_nsinks = 0;
 static gboolean global_bad_ts = FALSE;
 static gboolean global_bad_segment_start = FALSE;
@@ -77,7 +80,8 @@ static gboolean global_bad_segment_clipping = FALSE;
 static GstClockTimeDiff global_max_diff = 0;
 static SeekTestState global_state = SEEK_TEST_STATE_FIRST;
 static int global_seek_target_index = 0;
-static GstClockTime global_last_ts[2] = {GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE};
+static GstClockTime global_last_ts[2] =
+    { GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE };
 static GstPad **global_sinks = NULL;
 static gulong *global_probes = NULL;
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
@@ -98,16 +102,17 @@ static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define WAIT_STATE_READY 0
 
 static gboolean
-do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
+do_seek (InsanityGstPipelineTest * ptest, GstElement * pipeline,
+    GstClockTime t0)
 {
   GstEvent *event;
   gboolean res;
   GstSeekFlags flags = 0;
 
-  SEEK_TEST_LOCK();
+  SEEK_TEST_LOCK ();
 
   /* We'll wait for all sinks to send a buffer */
-  memset(global_waiting, WAIT_STATE_SEGMENT, global_nsinks);
+  memset (global_waiting, WAIT_STATE_SEGMENT, global_nsinks);
 
   switch (global_state) {
     case SEEK_TEST_STATE_FLUSHING:
@@ -117,34 +122,38 @@ do_seek (InsanityGstPipelineTest *ptest, GstElement *pipeline, GstClockTime t0)
       flags = GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT;
       break;
     case SEEK_TEST_STATE_FLUSHING_ACCURATE:
-      flags =  GST_SEEK_FLAG_FLUSH |GST_SEEK_FLAG_ACCURATE;
+      flags = GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE;
       break;
     case SEEK_TEST_STATE_FLUSHING_KEY_ACCURATE:
-      flags = GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_ACCURATE;
+      flags =
+          GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_ACCURATE;
       break;
     default:
-      g_assert(0);
+      g_assert (0);
   }
 
   insanity_test_printf (INSANITY_TEST (ptest),
-      "New seek to %"GST_TIME_FORMAT" with method %d\n", GST_TIME_ARGS (t0), global_state);
-  GST_WARNING("New seek to %"GST_TIME_FORMAT" with method %d\n", GST_TIME_ARGS (t0), global_state);
+      "New seek to %" GST_TIME_FORMAT " with method %d\n", GST_TIME_ARGS (t0),
+      global_state);
+  GST_WARNING ("New seek to %" GST_TIME_FORMAT " with method %d\n",
+      GST_TIME_ARGS (t0), global_state);
   insanity_test_ping (INSANITY_TEST (ptest));
   event = gst_event_new_seek (1.0, GST_FORMAT_TIME, flags,
       GST_SEEK_TYPE_SET, t0, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
-  global_seek_start_time = g_get_monotonic_time();
-  SEEK_TEST_UNLOCK();
+  global_seek_start_time = g_get_monotonic_time ();
+  SEEK_TEST_UNLOCK ();
 
   res = gst_element_send_event (pipeline, event);
   if (!res) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "seek", FALSE, "Failed to send seek event");
+    insanity_test_validate_step (INSANITY_TEST (ptest), "seek", FALSE,
+        "Failed to send seek event");
     global_seek_failed = TRUE;
     return FALSE;
   }
   if (flags & GST_SEEK_FLAG_FLUSH) {
     gst_element_get_state (pipeline, NULL, NULL, SEEK_TIMEOUT);
   }
-  global_last_probe = g_get_monotonic_time();
+  global_last_probe = g_get_monotonic_time ();
   return TRUE;
 }
 
@@ -152,13 +161,14 @@ static gboolean
 do_next_seek (gpointer data)
 {
   InsanityGstPipelineTest *ptest = data;
-  GValue v = {0};
+  GValue v = { 0 };
   gboolean next, bounce = FALSE;
 
-  SEEK_TEST_LOCK();
+  SEEK_TEST_LOCK ();
 
   if (global_seek_start_time) {
-    GstClockTime seek_time = gst_util_uint64_scale(g_get_monotonic_time() - global_seek_start_time,
+    GstClockTime seek_time =
+        gst_util_uint64_scale (g_get_monotonic_time () - global_seek_start_time,
         GST_SECOND, 1000000);
     if (seek_time > global_max_seek_time)
       global_max_seek_time = seek_time;
@@ -168,52 +178,59 @@ do_next_seek (gpointer data)
   /* Switch to next target, or next method if we've done them all */
   global_seek_target_index++;
   next = FALSE;
-  if (global_seek_target_index == sizeof(seek_targets)/sizeof(seek_targets[0]))
+  if (global_seek_target_index ==
+      sizeof (seek_targets) / sizeof (seek_targets[0]))
     next = TRUE;
 
   if (next) {
     /* Switch to 0 with next seeking method */
     global_state++;
     if (global_state == SEEK_TEST_NUM_STATES) {
-      insanity_test_printf (INSANITY_TEST (ptest), "All seek methods tested, done\n");
-      SEEK_TEST_UNLOCK();
+      insanity_test_printf (INSANITY_TEST (ptest),
+          "All seek methods tested, done\n");
+      SEEK_TEST_UNLOCK ();
       insanity_test_done (INSANITY_TEST (ptest));
       return FALSE;
     }
     global_seek_target_index = 0;
 
-    insanity_test_get_argument (INSANITY_TEST (ptest), "all-modes-from-ready", &v);
-    bounce = g_value_get_boolean(&v);
+    insanity_test_get_argument (INSANITY_TEST (ptest), "all-modes-from-ready",
+        &v);
+    bounce = g_value_get_boolean (&v);
     g_value_unset (&v);
 
-    insanity_test_printf (INSANITY_TEST (ptest), "Switching to seek method %d\n", global_state);
+    insanity_test_printf (INSANITY_TEST (ptest),
+        "Switching to seek method %d\n", global_state);
   }
-  global_target = gst_util_uint64_scale (global_duration, seek_targets[global_seek_target_index], 100);
+  global_target =
+      gst_util_uint64_scale (global_duration,
+      seek_targets[global_seek_target_index], 100);
   /* Note that when seeking to 99%, we may end up just against EOS and thus not
      actually get any buffer for short streams. So we accept EOS for that case
      as well as the >= 100% cases. */
   global_expecting_eos = (seek_targets[global_seek_target_index] >= 99);
   insanity_test_printf (INSANITY_TEST (ptest),
-      "Next seek is to %d%%, time %"GST_TIME_FORMAT", method %d, step %d/%u%s\n",
-      seek_targets[global_seek_target_index], GST_TIME_ARGS (global_target),
-      global_state, global_seek_target_index+1, (unsigned) (sizeof(seek_targets)/sizeof(seek_targets[0])),
+      "Next seek is to %d%%, time %" GST_TIME_FORMAT
+      ", method %d, step %d/%u%s\n", seek_targets[global_seek_target_index],
+      GST_TIME_ARGS (global_target), global_state, global_seek_target_index + 1,
+      (unsigned) (sizeof (seek_targets) / sizeof (seek_targets[0])),
       global_expecting_eos ? ", expecting EOS" : "");
-  SEEK_TEST_UNLOCK();
+  SEEK_TEST_UNLOCK ();
 
   if (bounce) {
-    insanity_test_printf(INSANITY_TEST (ptest), "Bouncing through READY\n");
+    insanity_test_printf (INSANITY_TEST (ptest), "Bouncing through READY\n");
     gst_element_set_state (global_pipeline, GST_STATE_READY);
     gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
     gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
   }
 
-  do_seek(ptest, global_pipeline, global_target);
+  do_seek (ptest, global_pipeline, global_target);
   return FALSE;
 }
 
 static gboolean
-seek_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
+seek_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
 {
   if (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS) {
     /* ignore EOS, we'll want to not quit but continue seeking */
@@ -223,8 +240,8 @@ seek_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
   return TRUE;
 }
 
-static GstPipeline*
-seek_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
+static GstPipeline *
+seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL;
   const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
@@ -233,16 +250,15 @@ seek_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
     insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-      error ? error->message : NULL);
+        error ? error->message : NULL);
     if (error)
       g_error_free (error);
     return NULL;
-  }
-  else if (error) {
+  } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
     insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-      error->message);
+        error->message);
     g_error_free (error);
     return NULL;
   }
@@ -256,24 +272,29 @@ static const char *
 get_waiting_string (int w)
 {
   switch (w) {
-    case WAIT_STATE_SEGMENT: return "waiting for segment";
-    case WAIT_STATE_BUFFER: return "waiting for buffer";
-    case WAIT_STATE_READY: return "ready";
-    default: g_assert(0); return "UNKNOWN WAIT STATE";
+    case WAIT_STATE_SEGMENT:
+      return "waiting for segment";
+    case WAIT_STATE_BUFFER:
+      return "waiting for buffer";
+    case WAIT_STATE_READY:
+      return "ready";
+    default:
+      g_assert (0);
+      return "UNKNOWN WAIT STATE";
   }
 }
 
 static gboolean
-probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
+probe (GstPad * pad, GstMiniObject * object, gpointer userdata)
 {
   InsanityGstPipelineTest *ptest = userdata;
   gboolean changed = FALSE, ready = FALSE;
   unsigned n;
   int index = -1;
 
-  SEEK_TEST_LOCK();
+  SEEK_TEST_LOCK ();
 
-  for (n=0; n<global_nsinks; n++) {
+  for (n = 0; n < global_nsinks; n++) {
     if (global_sinks[n] == pad) {
       index = n;
       break;
@@ -282,7 +303,7 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
 
   /* Only care about A/V for now */
   if (index < 0) {
-    SEEK_TEST_UNLOCK();
+    SEEK_TEST_UNLOCK ();
     return TRUE;
   }
 
@@ -295,29 +316,32 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
     GstClockTime ts = GST_BUFFER_TIMESTAMP (buffer);
 
     insanity_test_printf (INSANITY_TEST (ptest),
-        "[%d] Got %s buffer at %"GST_TIME_FORMAT", %u bytes, %s, target %"GST_TIME_FORMAT"\n",
-        index, gst_structure_get_name(gst_caps_get_structure(GST_BUFFER_CAPS (buffer),0)),
-        GST_TIME_ARGS (ts), GST_BUFFER_SIZE (buffer),
-        get_waiting_string(global_waiting[index]), GST_TIME_ARGS (global_target));
+        "[%d] Got %s buffer at %" GST_TIME_FORMAT ", %u bytes, %s, target %"
+        GST_TIME_FORMAT "\n", index,
+        gst_structure_get_name (gst_caps_get_structure (GST_BUFFER_CAPS
+                (buffer), 0)), GST_TIME_ARGS (ts), GST_BUFFER_SIZE (buffer),
+        get_waiting_string (global_waiting[index]),
+        GST_TIME_ARGS (global_target));
 
     /* drop if we need a segment first, or if we're already done */
-    for (n=0; n<global_nsinks; ++n) {
+    for (n = 0; n < global_nsinks; ++n) {
       if (pad == global_sinks[n]) {
         if (global_waiting[n] == WAIT_STATE_READY) {
-          insanity_test_printf (INSANITY_TEST (ptest), "[%d] Pad already ready, buffer ignored\n", index);
-          SEEK_TEST_UNLOCK();
+          insanity_test_printf (INSANITY_TEST (ptest),
+              "[%d] Pad already ready, buffer ignored\n", index);
+          SEEK_TEST_UNLOCK ();
           return TRUE;
-        }
-        else if (global_waiting[n] == WAIT_STATE_SEGMENT) {
-          insanity_test_printf (INSANITY_TEST (ptest), "[%d] Need segment, buffer ignored\n", index);
-          SEEK_TEST_UNLOCK();
+        } else if (global_waiting[n] == WAIT_STATE_SEGMENT) {
+          insanity_test_printf (INSANITY_TEST (ptest),
+              "[%d] Need segment, buffer ignored\n", index);
+          SEEK_TEST_UNLOCK ();
           return TRUE;
         }
       }
     }
 
     if (!GST_CLOCK_TIME_IS_VALID (ts)) {
-      SEEK_TEST_UNLOCK();
+      SEEK_TEST_UNLOCK ();
       return TRUE;
     }
 
@@ -331,22 +355,29 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
       if (GST_BUFFER_DURATION_IS_VALID (buffer))
         ts_end += GST_BUFFER_DURATION (buffer);
 
-      if (!gst_segment_clip (&global_segment[index], global_segment[index].format, ts, ts_end, &cstart, &cstop)) {
-        char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT" -- %"GST_TIME_FORMAT
-            ", outside configured segment (%"GST_TIME_FORMAT" -- %" GST_TIME_FORMAT"), method %d",
+      if (!gst_segment_clip (&global_segment[index],
+              global_segment[index].format, ts, ts_end, &cstart, &cstop)) {
+        char *msg =
+            g_strdup_printf ("Got timestamp %" GST_TIME_FORMAT " -- %"
+            GST_TIME_FORMAT ", outside configured segment (%" GST_TIME_FORMAT
+            " -- %" GST_TIME_FORMAT "), method %d",
             GST_TIME_ARGS (ts), GST_TIME_ARGS (ts_end),
-            GST_TIME_ARGS (global_segment[index].start), GST_TIME_ARGS (global_segment[index].stop),
+            GST_TIME_ARGS (global_segment[index].start),
+            GST_TIME_ARGS (global_segment[index].stop),
             global_state);
-        insanity_test_validate_step (INSANITY_TEST (ptest), "segment-clipping", FALSE, msg);
+        insanity_test_validate_step (INSANITY_TEST (ptest), "segment-clipping",
+            FALSE, msg);
         g_free (msg);
         global_bad_segment_clipping = TRUE;
-        SEEK_TEST_UNLOCK();
+        SEEK_TEST_UNLOCK ();
         return TRUE;
       }
-      
+
       if (CHECK_CORRECT_SEGMENT (global_state)) {
         ts = cstart;
-        stime_ts = gst_segment_to_stream_time (&global_segment[index], global_segment[index].format, ts);
+        stime_ts =
+            gst_segment_to_stream_time (&global_segment[index],
+            global_segment[index].format, ts);
         diff = GST_CLOCK_DIFF (stime_ts, global_target);
         if (diff < 0)
           diff = -diff;
@@ -356,23 +387,28 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
         if (diff <= SEEK_THRESHOLD) {
           if (global_waiting[index] == WAIT_STATE_BUFFER) {
             insanity_test_printf (INSANITY_TEST (ptest),
-                "[%d] target %"GST_TIME_FORMAT", diff: %"GST_TIME_FORMAT" - GOOD\n",
-                index, GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff));
+                "[%d] target %" GST_TIME_FORMAT ", diff: %" GST_TIME_FORMAT
+                " - GOOD\n", index, GST_TIME_ARGS (global_target),
+                GST_TIME_ARGS (diff));
             changed = TRUE;
             global_waiting[index] = WAIT_STATE_READY;
           }
-        }
-        else {
+        } else {
           if (global_waiting[index] == WAIT_STATE_BUFFER) {
-            char *msg = g_strdup_printf ("Got timestamp %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
-                ", off by %"GST_TIME_FORMAT", method %d",
-                GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
-            insanity_test_validate_step (INSANITY_TEST (ptest), "buffer-seek-time-correct", FALSE, msg);
+            char *msg =
+                g_strdup_printf ("Got timestamp %" GST_TIME_FORMAT
+                ", expected around %" GST_TIME_FORMAT ", off by %"
+                GST_TIME_FORMAT ", method %d",
+                GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (global_target),
+                GST_TIME_ARGS (diff), global_state);
+            insanity_test_validate_step (INSANITY_TEST (ptest),
+                "buffer-seek-time-correct", FALSE, msg);
             g_free (msg);
             global_bad_ts = TRUE;
             insanity_test_printf (INSANITY_TEST (ptest),
-                "[%d] target %"GST_TIME_FORMAT", diff: %"GST_TIME_FORMAT" - BAD\n",
-                index, GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff));
+                "[%d] target %" GST_TIME_FORMAT ", diff: %" GST_TIME_FORMAT
+                " - BAD\n", index, GST_TIME_ARGS (global_target),
+                GST_TIME_ARGS (diff));
             changed = TRUE;
             global_waiting[index] = WAIT_STATE_READY;
           }
@@ -384,19 +420,21 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
         }
       }
     }
-  }
-  else {
+  } else {
     GstEvent *event = GST_EVENT (object);
 
-    insanity_test_printf(INSANITY_TEST (ptest), "[%d] %s event\n", index, GST_EVENT_TYPE_NAME (event));
+    insanity_test_printf (INSANITY_TEST (ptest), "[%d] %s event\n", index,
+        GST_EVENT_TYPE_NAME (event));
     if (GST_EVENT_TYPE (event) == GST_EVENT_NEWSEGMENT) {
       GstFormat fmt;
       gint64 start, stop, position;
       gdouble rate, applied_rate;
       gboolean update;
 
-      gst_event_parse_new_segment_full (event, &update, &rate, &applied_rate, &fmt, &start, &stop, &position);
-      gst_segment_set_newsegment_full (&global_segment[index], update, rate, applied_rate, fmt, start, stop, position);
+      gst_event_parse_new_segment_full (event, &update, &rate, &applied_rate,
+          &fmt, &start, &stop, &position);
+      gst_segment_set_newsegment_full (&global_segment[index], update, rate,
+          applied_rate, fmt, start, stop, position);
 
       /* ignore segment updates */
       if (update)
@@ -404,14 +442,16 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
 
       if (global_waiting[index] != WAIT_STATE_SEGMENT) {
         insanity_test_printf (INSANITY_TEST (ptest),
-           "[%d] Got segment starting at %"GST_TIME_FORMAT", but we are not waiting for segment\n",
-           index, GST_TIME_ARGS (start));
+            "[%d] Got segment starting at %" GST_TIME_FORMAT
+            ", but we are not waiting for segment\n", index,
+            GST_TIME_ARGS (start));
         goto ignore_segment;
       }
 
       insanity_test_printf (INSANITY_TEST (ptest),
-         "[%d] Got segment starting at %"GST_TIME_FORMAT", %s\n",
-         index, GST_TIME_ARGS (start), get_waiting_string (global_waiting[index]));
+          "[%d] Got segment starting at %" GST_TIME_FORMAT ", %s\n",
+          index, GST_TIME_ARGS (start),
+          get_waiting_string (global_waiting[index]));
 
       /* Only check segment start time against target if we're not expecting EOS,
          as segments will be pushed back in range when seeking off the existing
@@ -420,31 +460,38 @@ probe (GstPad *pad, GstMiniObject *object, gpointer userdata)
         gint64 stime_start;
         GstClockTimeDiff diff;
 
-        stime_start = gst_segment_to_stream_time (&global_segment[index], global_segment[index].format, start);
+        stime_start =
+            gst_segment_to_stream_time (&global_segment[index],
+            global_segment[index].format, start);
 
         diff = GST_CLOCK_DIFF (stime_start, global_target);
         if (diff < 0)
           diff = -diff;
 
         if (diff > SEEK_THRESHOLD) {
-          char *msg = g_strdup_printf ("Got segment start %"GST_TIME_FORMAT", expected around %"GST_TIME_FORMAT
-              ", off by %"GST_TIME_FORMAT", method %d",
-              GST_TIME_ARGS (stime_start), GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff), global_state);
-          insanity_test_validate_step (INSANITY_TEST (ptest), "segment-seek-time-correct", FALSE, msg);
+          char *msg =
+              g_strdup_printf ("Got segment start %" GST_TIME_FORMAT
+              ", expected around %" GST_TIME_FORMAT ", off by %" GST_TIME_FORMAT
+              ", method %d",
+              GST_TIME_ARGS (stime_start), GST_TIME_ARGS (global_target),
+              GST_TIME_ARGS (diff), global_state);
+          insanity_test_validate_step (INSANITY_TEST (ptest),
+              "segment-seek-time-correct", FALSE, msg);
           g_free (msg);
           global_bad_segment_start = TRUE;
         }
       }
 
       global_waiting[index] = WAIT_STATE_BUFFER;
-    }
-    else if (GST_EVENT_TYPE (event) == GST_EVENT_EOS) {
-      insanity_test_printf (INSANITY_TEST (ptest), "[%d] Got EOS on sink, we are %s and are %s EOS\n",
-          index, get_waiting_string (global_waiting[index]),
+    } else if (GST_EVENT_TYPE (event) == GST_EVENT_EOS) {
+      insanity_test_printf (INSANITY_TEST (ptest),
+          "[%d] Got EOS on sink, we are %s and are %s EOS\n", index,
+          get_waiting_string (global_waiting[index]),
           global_expecting_eos ? "expecting" : "NOT expecting");
       if (global_waiting[index] != WAIT_STATE_READY) {
         insanity_test_printf (INSANITY_TEST (ptest),
-            "[%d] Got expected EOS, now ready and marking flush needed\n", index);
+            "[%d] Got expected EOS, now ready and marking flush needed\n",
+            index);
         global_waiting[index] = WAIT_STATE_READY;
         changed = TRUE;
       }
@@ -460,7 +507,7 @@ ignore_segment:
   if (changed) {
     unsigned n;
     ready = TRUE;
-    for (n=0;n<global_nsinks;++n) {
+    for (n = 0; n < global_nsinks; ++n) {
       if (global_waiting[n] != WAIT_STATE_READY) {
         ready = FALSE;
         break;
@@ -468,34 +515,35 @@ ignore_segment:
     }
   }
 
-  SEEK_TEST_UNLOCK();
+  SEEK_TEST_UNLOCK ();
 
   if (ready) {
     global_last_probe = 0;
-    insanity_test_printf (INSANITY_TEST (ptest), "All sinks accounted for, preparing next seek\n");
-    g_idle_add((GSourceFunc)&do_next_seek, ptest);
+    insanity_test_printf (INSANITY_TEST (ptest),
+        "All sinks accounted for, preparing next seek\n");
+    g_idle_add ((GSourceFunc) & do_next_seek, ptest);
   }
 
   return TRUE;
 }
 
 static gboolean
-seek_test_setup(InsanityTest *test)
+seek_test_setup (InsanityTest * test)
 {
-  GValue v = {0};
+  GValue v = { 0 };
   unsigned n;
   guint32 seed;
   GRand *prg;
 
   /* Retrieve seed */
   insanity_test_get_argument (test, "seed", &v);
-  seed = g_value_get_uint(&v);
+  seed = g_value_get_uint (&v);
   g_value_unset (&v);
 
   /* Generate one if zero */
   if (seed == 0) {
-    seed = g_random_int();
-    if (seed == 0) /* we don't really care for bias, we just don't want 0 */
+    seed = g_random_int ();
+    if (seed == 0)              /* we don't really care for bias, we just don't want 0 */
       seed = 1;
   }
 
@@ -506,10 +554,10 @@ seek_test_setup(InsanityTest *test)
   g_value_unset (&v);
 
   /* Generate random seek targets from that seed */
-  prg = g_rand_new_with_seed(seed);
-  for (n=0; n<sizeof(seek_targets)/sizeof(seek_targets[0]); n++) {
+  prg = g_rand_new_with_seed (seed);
+  for (n = 0; n < sizeof (seek_targets) / sizeof (seek_targets[0]); n++) {
     if (seek_targets[n] < 0) {
-      seek_targets[n] = g_rand_int_range(prg, 0, 100);
+      seek_targets[n] = g_rand_int_range (prg, 0, 100);
     }
   }
   g_rand_free (prg);
@@ -538,12 +586,14 @@ check_wedged (gpointer data)
   gint64 idle;
 
   SEEK_TEST_LOCK ();
-  idle = (global_last_probe <= 0) ? 0 : 1000 * (g_get_monotonic_time() - global_last_probe);
+  idle =
+      (global_last_probe <=
+      0) ? 0 : 1000 * (g_get_monotonic_time () - global_last_probe);
   if (idle >= IDLE_TIMEOUT) {
-    insanity_test_printf(test, "Wedged, kicking\n");
+    insanity_test_printf (test, "Wedged, kicking\n");
     insanity_test_validate_step (test, "buffer-seek-time-correct", FALSE,
         "No buffers or events were seen for a while");
-    g_idle_add((GSourceFunc)&do_next_seek, test);
+    g_idle_add ((GSourceFunc) & do_next_seek, test);
   }
   SEEK_TEST_UNLOCK ();
 
@@ -551,14 +601,15 @@ check_wedged (gpointer data)
 }
 
 static gboolean
-seek_test_start(InsanityTest *test)
+seek_test_start (InsanityTest * test)
 {
-  GValue uri = {0};
+  GValue uri = { 0 };
 
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
   if (!strcmp (g_value_get_string (&uri), "")) {
-    insanity_test_validate_step (test, "valid-pipeline", FALSE, "No URI to test on");
+    insanity_test_validate_step (test, "valid-pipeline", FALSE,
+        "No URI to test on");
     g_value_unset (&uri);
     return FALSE;
   }
@@ -584,7 +635,7 @@ seek_test_start(InsanityTest *test)
 }
 
 static void
-seek_test_pipeline_test (InsanityThreadedTest *ttest)
+seek_test_pipeline_test (InsanityThreadedTest * ttest)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (ttest);
 
@@ -593,19 +644,22 @@ seek_test_pipeline_test (InsanityThreadedTest *ttest)
   gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
 
   /* Look for sinks and add probes */
-  global_nsinks = insanity_gst_test_add_fakesink_probe (INSANITY_GST_TEST (ptest),
+  global_nsinks =
+      insanity_gst_test_add_fakesink_probe (INSANITY_GST_TEST (ptest),
       GST_BIN (global_pipeline), &probe, &global_sinks, &global_probes);
-  insanity_test_validate_step (INSANITY_TEST (ttest), "install-probes", global_nsinks > 0, NULL);
+  insanity_test_validate_step (INSANITY_TEST (ttest), "install-probes",
+      global_nsinks > 0, NULL);
   if (global_nsinks == 0) {
     insanity_test_done (INSANITY_TEST (ttest));
     return;
   }
 
-  memset(global_waiting, WAIT_STATE_READY, global_nsinks);
+  memset (global_waiting, WAIT_STATE_READY, global_nsinks);
 
   /* If we don't have duration yet, ask for it, it will call our signal
      if it can be determined */
-  if (!GST_CLOCK_TIME_IS_VALID (insanity_gst_pipeline_test_query_duration (ptest))) {
+  if (!GST_CLOCK_TIME_IS_VALID (insanity_gst_pipeline_test_query_duration
+          (ptest))) {
     /* Belt and braces code from gst-discoverer adapted here, but async
        so we can let insanity test continue initializing properly. */
     GstStateChangeReturn sret;
@@ -616,39 +670,43 @@ seek_test_pipeline_test (InsanityThreadedTest *ttest)
      * Ugly, but still better than making parsers or other elements return
      * completely bogus values. We need some API extensions to solve this
      * better. */
-    insanity_test_printf (INSANITY_TEST (ptest), "No duration yet, try a bit harder\n");
+    insanity_test_printf (INSANITY_TEST (ptest),
+        "No duration yet, try a bit harder\n");
     sret = gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     if (sret == GST_STATE_CHANGE_FAILURE) {
-      insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", FALSE,
+      insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known",
+          FALSE,
           "No duration, and failed to switch to PLAYING in hope we might get it then");
       return;
     }
 
     /* Start off, claim we're ready, but do not start seeking yet,
        we'll do that when we get a duration callback, or fail on timeout */
-    global_duration_timeout = g_timeout_add(1000, (GSourceFunc)&duration_timeout, ptest);
+    global_duration_timeout =
+        g_timeout_add (1000, (GSourceFunc) & duration_timeout, ptest);
     started = TRUE;
     return;
   }
 
   /* Start first seek to start */
   gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
-  do_seek(ptest, global_pipeline, 0);
+  do_seek (ptest, global_pipeline, 0);
 
   /* and install wedged timeout */
-  global_idle_timeout = g_timeout_add (1000, (GSourceFunc)&check_wedged,
-      (gpointer)ptest);
+  global_idle_timeout = g_timeout_add (1000, (GSourceFunc) & check_wedged,
+      (gpointer) ptest);
 
   started = TRUE;
 }
 
 static gboolean
-seek_test_stop(InsanityTest *test)
+seek_test_stop (InsanityTest * test)
 {
-  GValue v = {0};
+  GValue v = { 0 };
 
-  SEEK_TEST_LOCK();
-  insanity_gst_test_remove_fakesink_probe (INSANITY_GST_TEST (test), global_nsinks, global_sinks, global_probes);
+  SEEK_TEST_LOCK ();
+  insanity_gst_test_remove_fakesink_probe (INSANITY_GST_TEST (test),
+      global_nsinks, global_sinks, global_probes);
   global_sinks = NULL;
   global_probes = NULL;
   global_nsinks = 0;
@@ -679,12 +737,12 @@ seek_test_stop(InsanityTest *test)
 
   started = FALSE;
 
-  SEEK_TEST_UNLOCK();
+  SEEK_TEST_UNLOCK ();
   return TRUE;
 }
 
 static void
-seek_test_duration (InsanityGstPipelineTest *ptest, GstClockTime duration)
+seek_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
 {
   gboolean seek = FALSE;
 
@@ -696,15 +754,17 @@ seek_test_duration (InsanityGstPipelineTest *ptest, GstClockTime duration)
   }
 
   insanity_test_printf (INSANITY_TEST (ptest),
-      "Just got notified duration is %"GST_TIME_FORMAT"\n", GST_TIME_ARGS (duration));
+      "Just got notified duration is %" GST_TIME_FORMAT "\n",
+      GST_TIME_ARGS (duration));
   global_duration = duration;
-  insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", TRUE, NULL);
+  insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", TRUE,
+      NULL);
 
   /* Do first test now if we were waiting to do it */
   if (seek) {
     insanity_test_printf (INSANITY_TEST (ptest),
         "We can now start seeking, since we have duration\n");
-    do_seek(ptest, global_pipeline, 0);
+    do_seek (ptest, global_pipeline, 0);
   }
 }
 
@@ -714,7 +774,7 @@ main (int argc, char **argv)
   InsanityGstPipelineTest *ptest;
   InsanityTest *test;
   gboolean ret;
-  GValue vdef = {0};
+  GValue vdef = { 0 };
 
   g_type_init ();
 
@@ -724,38 +784,58 @@ main (int argc, char **argv)
 
   g_value_init (&vdef, G_TYPE_STRING);
   g_value_set_string (&vdef, "");
-  insanity_test_add_argument (test, "uri", "The file to test seeking on", NULL, FALSE, &vdef);
+  insanity_test_add_argument (test, "uri", "The file to test seeking on", NULL,
+      FALSE, &vdef);
   g_value_unset (&vdef);
 
   g_value_init (&vdef, G_TYPE_UINT);
   g_value_set_uint (&vdef, 0);
-  insanity_test_add_argument (test, "seed", "A random seed to generate random seek targets", "0 means a randomly chosen seed; the seed will be saved as extra-info", TRUE, &vdef);
+  insanity_test_add_argument (test, "seed",
+      "A random seed to generate random seek targets",
+      "0 means a randomly chosen seed; the seed will be saved as extra-info",
+      TRUE, &vdef);
   g_value_unset (&vdef);
 
   g_value_init (&vdef, G_TYPE_BOOLEAN);
   g_value_set_boolean (&vdef, TRUE);
-  insanity_test_add_argument (test, "all-modes-from-ready", "Whether to bring the pipeline back to READY before testing each new seek mode", NULL, TRUE, &vdef);
+  insanity_test_add_argument (test, "all-modes-from-ready",
+      "Whether to bring the pipeline back to READY before testing each new seek mode",
+      NULL, TRUE, &vdef);
   g_value_unset (&vdef);
 
-  insanity_test_add_checklist_item (test, "install-probes", "Probes were installed on the sinks", NULL);
-  insanity_test_add_checklist_item (test, "duration-known", "Stream duration could be determined", NULL);
-  insanity_test_add_checklist_item (test, "seek", "Seek events were accepted by the pipeline", NULL);
-  insanity_test_add_checklist_item (test, "buffer-seek-time-correct", "Buffers were seen after a seek at or near the expected seek target", NULL);
-  insanity_test_add_checklist_item (test, "segment-seek-time-correct", "Segments were seen after a seek at or near the expected seek target", NULL);
-  insanity_test_add_checklist_item (test, "segment-clipping", "Buffers were correctly clipped to the configured segment", NULL);
+  insanity_test_add_checklist_item (test, "install-probes",
+      "Probes were installed on the sinks", NULL);
+  insanity_test_add_checklist_item (test, "duration-known",
+      "Stream duration could be determined", NULL);
+  insanity_test_add_checklist_item (test, "seek",
+      "Seek events were accepted by the pipeline", NULL);
+  insanity_test_add_checklist_item (test, "buffer-seek-time-correct",
+      "Buffers were seen after a seek at or near the expected seek target",
+      NULL);
+  insanity_test_add_checklist_item (test, "segment-seek-time-correct",
+      "Segments were seen after a seek at or near the expected seek target",
+      NULL);
+  insanity_test_add_checklist_item (test, "segment-clipping",
+      "Buffers were correctly clipped to the configured segment", NULL);
 
-  insanity_test_add_extra_info (test, "max-seek-error", "The maximum timestamp difference between a seek target and the buffer received after the seek (absolute value in nanoseconds)");
-  insanity_test_add_extra_info (test, "max-seek-time", "The maximum amount of time taken to perform a seek (in nanoseconds)");
-  insanity_test_add_extra_info (test, "seed", "The seed used to generate random seek targets");
+  insanity_test_add_extra_info (test, "max-seek-error",
+      "The maximum timestamp difference between a seek target and the buffer received after the seek (absolute value in nanoseconds)");
+  insanity_test_add_extra_info (test, "max-seek-time",
+      "The maximum amount of time taken to perform a seek (in nanoseconds)");
+  insanity_test_add_extra_info (test, "seed",
+      "The seed used to generate random seek targets");
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &seek_test_create_pipeline, NULL, NULL);
-  g_signal_connect_after (test, "bus-message", G_CALLBACK (&seek_test_bus_message), 0);
+  g_signal_connect_after (test, "bus-message",
+      G_CALLBACK (&seek_test_bus_message), 0);
   g_signal_connect_after (test, "setup", G_CALLBACK (&seek_test_setup), 0);
   g_signal_connect_after (test, "start", G_CALLBACK (&seek_test_start), 0);
-  g_signal_connect_after (test, "pipeline-test", G_CALLBACK (&seek_test_pipeline_test), 0);
+  g_signal_connect_after (test, "pipeline-test",
+      G_CALLBACK (&seek_test_pipeline_test), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&seek_test_stop), 0);
-  g_signal_connect_after (ptest, "duration", G_CALLBACK (&seek_test_duration), 0);
+  g_signal_connect_after (ptest, "duration", G_CALLBACK (&seek_test_duration),
+      0);
 
   ret = insanity_test_run (test, &argc, &argv);
 

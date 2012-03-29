@@ -34,8 +34,9 @@ static GstClockTime first_position = GST_CLOCK_TIME_NONE;
 static GstClockTime last_position = GST_CLOCK_TIME_NONE;
 static GstClockTime playback_duration = GST_CLOCK_TIME_NONE;
 
-static GstPipeline*
-play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
+static GstPipeline *
+play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
+    gpointer userdata)
 {
   GstElement *pipeline;
   const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
@@ -44,16 +45,15 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
     insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-      error ? error->message : NULL);
+        error ? error->message : NULL);
     if (error)
       g_error_free (error);
     return NULL;
-  }
-  else if (error) {
+  } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
     insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-      error->message);
+        error->message);
     g_error_free (error);
     return NULL;
   }
@@ -63,7 +63,7 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata
 }
 
 static gboolean
-check_position (InsanityTest *test)
+check_position (InsanityTest * test)
 {
   GstFormat fmt;
   gint64 position;
@@ -83,7 +83,7 @@ check_position (InsanityTest *test)
 
     if (GST_CLOCK_TIME_IS_VALID (playback_duration) &&
         position - first_position >= playback_duration) {
-      gst_element_send_event (global_pipeline, gst_event_new_eos ());    
+      gst_element_send_event (global_pipeline, gst_event_new_eos ());
     }
   }
 
@@ -91,15 +91,16 @@ check_position (InsanityTest *test)
 }
 
 static gboolean
-play_test_start(InsanityTest *test)
+play_test_start (InsanityTest * test)
 {
-  GValue uri = {0};
-  GValue duration = {0};
+  GValue uri = { 0 };
+  GValue duration = { 0 };
 
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
   if (!strcmp (g_value_get_string (&uri), "")) {
-    insanity_test_validate_step (test, "valid-pipeline", FALSE, "No URI to test on");
+    insanity_test_validate_step (test, "valid-pipeline", FALSE,
+        "No URI to test on");
     g_value_unset (&uri);
     return FALSE;
   }
@@ -120,7 +121,7 @@ play_test_start(InsanityTest *test)
 }
 
 static gboolean
-play_test_stop(InsanityTest *test)
+play_test_stop (InsanityTest * test)
 {
   if (check_position_id)
     g_source_remove (check_position_id);
@@ -133,24 +134,29 @@ main (int argc, char **argv)
 {
   InsanityTest *test;
   gboolean ret;
-  GValue vdef = {0};
+  GValue vdef = { 0 };
 
   g_type_init ();
 
-  test = INSANITY_TEST (insanity_gst_pipeline_test_new ("play-test", "Plays a stream throughout", NULL));
+  test =
+      INSANITY_TEST (insanity_gst_pipeline_test_new ("play-test",
+          "Plays a stream throughout", NULL));
 
   g_value_init (&vdef, G_TYPE_STRING);
   g_value_set_string (&vdef, "");
-  insanity_test_add_argument (test, "uri", "The file to test seeking on", NULL, FALSE, &vdef);
+  insanity_test_add_argument (test, "uri", "The file to test seeking on", NULL,
+      FALSE, &vdef);
   g_value_unset (&vdef);
 
   g_value_init (&vdef, G_TYPE_UINT64);
   g_value_set_uint64 (&vdef, GST_CLOCK_TIME_NONE);
-  insanity_test_add_argument (test, "playback-duration", "Stop playback after this many nanoseconds", NULL, FALSE, &vdef);
+  insanity_test_add_argument (test, "playback-duration",
+      "Stop playback after this many nanoseconds", NULL, FALSE, &vdef);
   g_value_unset (&vdef);
 
-  insanity_gst_pipeline_test_set_create_pipeline_function (INSANITY_GST_PIPELINE_TEST (test),
-      &play_gst_test_create_pipeline, NULL, NULL);
+  insanity_gst_pipeline_test_set_create_pipeline_function
+      (INSANITY_GST_PIPELINE_TEST (test), &play_gst_test_create_pipeline, NULL,
+      NULL);
   g_signal_connect_after (test, "start", G_CALLBACK (play_test_start), test);
   g_signal_connect_after (test, "stop", G_CALLBACK (play_test_stop), test);
 

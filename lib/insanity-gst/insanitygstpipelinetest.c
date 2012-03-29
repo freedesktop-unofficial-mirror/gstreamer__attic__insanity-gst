@@ -57,7 +57,7 @@ struct _InsanityGstPipelineTestPrivateData
 
   guint wait_timeout_id;
 
-  GstPipeline *(*create_pipeline) (InsanityGstPipelineTest*, gpointer);
+  GstPipeline *(*create_pipeline) (InsanityGstPipelineTest *, gpointer);
   gpointer create_pipeline_user_data;
   GDestroyNotify create_pipeline_destroy_notify;
 
@@ -69,42 +69,48 @@ struct _InsanityGstPipelineTestPrivateData
 };
 
 static void
-add_element_used (InsanityGstPipelineTest *ptest, GstElement *element)
+add_element_used (InsanityGstPipelineTest * ptest, GstElement * element)
 {
   GstElementFactory *factory;
   const char *factory_name;
   char label[32], *element_name;
-  GValue string_value = {0};
+  GValue string_value = { 0 };
   GstElement *parent;
 
   /* Only add once */
   element_name = gst_element_get_name (element);
-  if (g_hash_table_lookup_extended (ptest->priv->elements_used, element_name, NULL, NULL)) {
+  if (g_hash_table_lookup_extended (ptest->priv->elements_used, element_name,
+          NULL, NULL)) {
     g_free (element_name);
     return;
   }
-  g_hash_table_insert (ptest->priv->elements_used, g_strdup (element_name), NULL);
+  g_hash_table_insert (ptest->priv->elements_used, g_strdup (element_name),
+      NULL);
 
   ptest->priv->element_count++;
   g_value_init (&string_value, G_TYPE_STRING);
 
   factory = gst_element_get_factory (element);
-  factory_name = factory ? gst_element_factory_get_longname (factory) : "(no factory)";
+  factory_name =
+      factory ? gst_element_factory_get_longname (factory) : "(no factory)";
 
   g_value_take_string (&string_value, element_name);
-  snprintf (label, sizeof (label), "elements-used.%u.name", ptest->priv->element_count);
+  snprintf (label, sizeof (label), "elements-used.%u.name",
+      ptest->priv->element_count);
   insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
   g_value_reset (&string_value);
 
   g_value_set_string (&string_value, factory_name);
-  snprintf (label, sizeof (label), "elements-used.%u.factory", ptest->priv->element_count);
+  snprintf (label, sizeof (label), "elements-used.%u.factory",
+      ptest->priv->element_count);
   insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
   g_value_reset (&string_value);
 
   parent = GST_ELEMENT (gst_element_get_parent (element));
   if (parent) {
     g_value_take_string (&string_value, gst_element_get_name (parent));
-    snprintf (label, sizeof (label), "elements-used.%u.parent", ptest->priv->element_count);
+    snprintf (label, sizeof (label), "elements-used.%u.parent",
+        ptest->priv->element_count);
     insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
     g_value_reset (&string_value);
     gst_object_unref (parent);
@@ -112,36 +118,41 @@ add_element_used (InsanityGstPipelineTest *ptest, GstElement *element)
 }
 
 static void
-send_error (InsanityGstPipelineTest *ptest, const GError *error, const char *debug)
+send_error (InsanityGstPipelineTest * ptest, const GError * error,
+    const char *debug)
 {
   char label[32];
-  GValue string_value = {0};
+  GValue string_value = { 0 };
 
   ptest->priv->error_count++;
   g_value_init (&string_value, G_TYPE_STRING);
 
   g_value_set_string (&string_value, g_quark_to_string (error->domain));
-  snprintf (label, sizeof (label), "errors.%u.domain", ptest->priv->error_count);
+  snprintf (label, sizeof (label), "errors.%u.domain",
+      ptest->priv->error_count);
   insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
   g_value_reset (&string_value);
 
   g_value_set_string (&string_value, error->message);
-  snprintf (label, sizeof (label), "errors.%u.message", ptest->priv->error_count);
+  snprintf (label, sizeof (label), "errors.%u.message",
+      ptest->priv->error_count);
   insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
   g_value_reset (&string_value);
 
   if (debug) {
     g_value_set_string (&string_value, debug);
-    snprintf (label, sizeof (label), "errors.%u.debug", ptest->priv->error_count);
+    snprintf (label, sizeof (label), "errors.%u.debug",
+        ptest->priv->error_count);
     insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
     g_value_reset (&string_value);
   }
 }
 
-static void on_element_added (GstElement *bin, GstElement *element, InsanityGstPipelineTest *ptest);
+static void on_element_added (GstElement * bin, GstElement * element,
+    InsanityGstPipelineTest * ptest);
 
 static guint
-watch_container (InsanityGstPipelineTest *ptest, GstBin *bin)
+watch_container (InsanityGstPipelineTest * ptest, GstBin * bin)
 {
   GstIterator *it;
   gboolean done = FALSE;
@@ -170,11 +181,13 @@ watch_container (InsanityGstPipelineTest *ptest, GstBin *bin)
   }
   gst_iterator_free (it);
 
-  return g_signal_connect (bin, "element-added", (GCallback) on_element_added, ptest);
+  return g_signal_connect (bin, "element-added", (GCallback) on_element_added,
+      ptest);
 }
 
 static void
-on_element_added (GstElement *bin, GstElement *element, InsanityGstPipelineTest *ptest)
+on_element_added (GstElement * bin, GstElement * element,
+    InsanityGstPipelineTest * ptest)
 {
   add_element_used (ptest, element);
   if (GST_IS_BIN (element))
@@ -186,7 +199,7 @@ send_tag (const GstTagList * list, const gchar * tag, gpointer data)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (data);
   gint i, count;
-  GValue string_value = {0};
+  GValue string_value = { 0 };
   char label[48];
 
   count = gst_tag_list_get_tag_size (list, tag);
@@ -248,12 +261,14 @@ send_tag (const GstTagList * list, const gchar * tag, gpointer data)
     if (i == 0) {
       g_value_set_string (&string_value, gst_tag_get_nick (tag));
       snprintf (label, sizeof (label), "tags.%u.id", ptest->priv->tag_count);
-      insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
+      insanity_test_set_extra_info (INSANITY_TEST (ptest), label,
+          &string_value);
       g_value_reset (&string_value);
     }
     g_value_set_string (&string_value, str);
     if (count > 1)
-      snprintf (label, sizeof (label), "tags.%u.value.%u", ptest->priv->tag_count, i);
+      snprintf (label, sizeof (label), "tags.%u.value.%u",
+          ptest->priv->tag_count, i);
     else
       snprintf (label, sizeof (label), "tags.%u.value", ptest->priv->tag_count);
     insanity_test_set_extra_info (INSANITY_TEST (ptest), label, &string_value);
@@ -264,9 +279,10 @@ send_tag (const GstTagList * list, const gchar * tag, gpointer data)
 }
 
 static gboolean
-waiting_for_state_change (InsanityGstPipelineTest *ptest)
+waiting_for_state_change (InsanityGstPipelineTest * ptest)
 {
-  insanity_test_printf (INSANITY_TEST (ptest), "State change did not happen, quitting anyway\n");
+  insanity_test_printf (INSANITY_TEST (ptest),
+      "State change did not happen, quitting anyway\n");
   g_main_loop_quit (ptest->priv->loop);
 
   /* one shot */
@@ -274,7 +290,7 @@ waiting_for_state_change (InsanityGstPipelineTest *ptest)
 }
 
 GstClockTime
-insanity_gst_pipeline_test_query_duration(InsanityGstPipelineTest *ptest)
+insanity_gst_pipeline_test_query_duration (InsanityGstPipelineTest * ptest)
 {
   GstQuery *query = gst_query_new_duration (GST_FORMAT_TIME);
   gboolean res = gst_element_query (GST_ELEMENT (ptest->priv->pipeline), query);
@@ -291,7 +307,7 @@ insanity_gst_pipeline_test_query_duration(InsanityGstPipelineTest *ptest)
 }
 
 static gboolean
-handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
+handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
 {
   gboolean ret = FALSE, done = FALSE;
 
@@ -301,13 +317,14 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
     return FALSE;
 
   switch (GST_MESSAGE_TYPE (message)) {
-    case GST_MESSAGE_ERROR: {
+    case GST_MESSAGE_ERROR:{
       GError *error = NULL;
       char *debug = NULL;
 
       gst_message_parse_error (message, &error, &debug);
       send_error (ptest, error, debug);
-      insanity_test_printf (INSANITY_TEST (ptest), "Error (%s, %s), quitting\n", error->message, debug);
+      insanity_test_printf (INSANITY_TEST (ptest), "Error (%s, %s), quitting\n",
+          error->message, debug);
       g_error_free (error);
       g_free (debug);
       done = TRUE;
@@ -316,26 +333,31 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
     case GST_MESSAGE_STATE_CHANGED:
       if (GST_MESSAGE_SRC (message) == GST_OBJECT (ptest->priv->pipeline)) {
         GstState oldstate, newstate, pending;
-        gst_message_parse_state_changed (message, &oldstate, &newstate, &pending);
-        if (newstate == ptest->priv->initial_state && pending == GST_STATE_VOID_PENDING && !ptest->priv->reached_initial_state) {
+        gst_message_parse_state_changed (message, &oldstate, &newstate,
+            &pending);
+        if (newstate == ptest->priv->initial_state
+            && pending == GST_STATE_VOID_PENDING
+            && !ptest->priv->reached_initial_state) {
           gboolean ret = TRUE;
 
           ptest->priv->reached_initial_state = TRUE;
-          insanity_test_validate_step (INSANITY_TEST (ptest), "reached-initial-state", TRUE, NULL);
+          insanity_test_validate_step (INSANITY_TEST (ptest),
+              "reached-initial-state", TRUE, NULL);
 
           /* Tell the test we reached our initial state */
           g_signal_emit (ptest, reached_initial_state_signal, 0, &ret);
           if (!ret) {
-            insanity_test_printf (INSANITY_TEST (ptest), "Reached initial state, and asked to quit, quitting\n");
+            insanity_test_printf (INSANITY_TEST (ptest),
+                "Reached initial state, and asked to quit, quitting\n");
             done = TRUE;
           }
         }
       }
       break;
-    case GST_MESSAGE_TAG: {
+    case GST_MESSAGE_TAG:{
       GstTagList *tags;
       gst_message_parse_tag (message, &tags);
-      gst_tag_list_foreach (tags, &send_tag, (gpointer)ptest);
+      gst_tag_list_foreach (tags, &send_tag, (gpointer) ptest);
       gst_tag_list_free (tags);
       break;
     }
@@ -350,15 +372,17 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
            # arriving on the bus.
          */
         if (ptest->priv->reached_initial_state) {
-          insanity_test_printf (INSANITY_TEST (ptest), "Got EOS from pipeline, and we reached initial state, quitting\n");
+          insanity_test_printf (INSANITY_TEST (ptest),
+              "Got EOS from pipeline, and we reached initial state, quitting\n");
           done = TRUE;
-        }
-        else {
+        } else {
           /* If we've not seen the state change to initial state yet, we give
              an extra 3 seconds for it to complete */
-          insanity_test_printf (INSANITY_TEST (ptest), "Got EOS from pipeline, and we did not reach initial state, delaying quit\n");
-          ptest->priv->wait_timeout_id = g_timeout_add (3000,
-              (GSourceFunc )&waiting_for_state_change, ptest);
+          insanity_test_printf (INSANITY_TEST (ptest),
+              "Got EOS from pipeline, and we did not reach initial state, delaying quit\n");
+          ptest->priv->wait_timeout_id =
+              g_timeout_add (3000, (GSourceFunc) & waiting_for_state_change,
+              ptest);
         }
       }
       break;
@@ -370,7 +394,7 @@ handle_message (InsanityGstPipelineTest *ptest, GstMessage *message)
 }
 
 static gboolean
-on_message (GstBus *bus, GstMessage *msg, gpointer userdata)
+on_message (GstBus * bus, GstMessage * msg, gpointer userdata)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (userdata);
   if (handle_message (ptest, msg))
@@ -379,20 +403,24 @@ on_message (GstBus *bus, GstMessage *msg, gpointer userdata)
 }
 
 static gboolean
-insanity_gst_pipeline_test_setup (InsanityTest *test)
+insanity_gst_pipeline_test_setup (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
 
-  if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->setup (test))
+  if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->setup
+      (test))
     return FALSE;
 
-  printf("insanity_gst_pipeline_test_setup\n");
+  printf ("insanity_gst_pipeline_test_setup\n");
 
-  priv->elements_used = g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
+  priv->elements_used =
+      g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
 
-  priv->pipeline = INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
-  insanity_test_validate_step (test, "valid-pipeline", priv->pipeline != NULL, NULL);
+  priv->pipeline =
+      INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
+  insanity_test_validate_step (test, "valid-pipeline", priv->pipeline != NULL,
+      NULL);
   if (!priv->pipeline)
     return FALSE;
   watch_container (ptest, GST_BIN (priv->pipeline));
@@ -403,12 +431,13 @@ insanity_gst_pipeline_test_setup (InsanityTest *test)
 }
 
 static gboolean
-insanity_gst_pipeline_test_start (InsanityTest *test)
+insanity_gst_pipeline_test_start (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
 
-  if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start (test))
+  if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start
+      (test))
     return FALSE;
 
   priv->reached_initial_state = FALSE;
@@ -418,19 +447,19 @@ insanity_gst_pipeline_test_start (InsanityTest *test)
   priv->wait_timeout_id = 0;
   priv->done = FALSE;
 
-  printf("insanity_gst_pipeline_test_start\n");
+  printf ("insanity_gst_pipeline_test_start\n");
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
 
   return TRUE;
 }
 
 static void
-insanity_gst_pipeline_test_stop (InsanityTest *test)
+insanity_gst_pipeline_test_stop (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   GstState state, pending;
 
-  printf("insanity_gst_pipeline_test_stop\n");
+  printf ("insanity_gst_pipeline_test_stop\n");
 
   if (ptest->priv->wait_timeout_id) {
     g_source_remove (ptest->priv->wait_timeout_id);
@@ -439,21 +468,23 @@ insanity_gst_pipeline_test_stop (InsanityTest *test)
 
   if (ptest->priv->pipeline) {
     gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_NULL);
-    gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state, &pending, GST_CLOCK_TIME_NONE);
+    gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state,
+        &pending, GST_CLOCK_TIME_NONE);
   }
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
 }
 
 static void
-insanity_gst_pipeline_test_teardown (InsanityTest *test)
+insanity_gst_pipeline_test_teardown (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
 
-  printf("insanity_gst_pipeline_test_teardown\n");
+  printf ("insanity_gst_pipeline_test_teardown\n");
 
-  insanity_test_validate_step (test, "no-errors-seen", priv->error_count == 0, NULL);
+  insanity_test_validate_step (test, "no-errors-seen", priv->error_count == 0,
+      NULL);
 
   if (priv->bus) {
     gst_object_unref (priv->bus);
@@ -467,17 +498,20 @@ insanity_gst_pipeline_test_teardown (InsanityTest *test)
   g_hash_table_destroy (ptest->priv->elements_used);
   ptest->priv->elements_used = NULL;
 
-  INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->teardown (test);
+  INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->teardown
+      (test);
 }
 
 static void
-insanity_gst_pipeline_test_test (InsanityThreadedTest *test)
+insanity_gst_pipeline_test_test (InsanityThreadedTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   guint id;
   GstStateChangeReturn sret;
 
-  sret = gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), ptest->priv->initial_state);
+  sret =
+      gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline),
+      ptest->priv->initial_state);
   insanity_test_validate_step (INSANITY_TEST (test), "pipeline-change-state",
       (sret != GST_STATE_CHANGE_FAILURE), NULL);
   if (sret == GST_STATE_CHANGE_FAILURE) {
@@ -487,7 +521,8 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest *test)
 
   ptest->priv->loop = g_main_loop_new (NULL, FALSE);
   gst_bus_add_signal_watch (ptest->priv->bus);
-  id = g_signal_connect (G_OBJECT (ptest->priv->bus), "message", (GCallback) &on_message, ptest);
+  id = g_signal_connect (G_OBJECT (ptest->priv->bus), "message",
+      (GCallback) & on_message, ptest);
   g_signal_emit (ptest, pipeline_test_signal, 0, NULL);
   g_main_loop_run (ptest->priv->loop);
   g_signal_handler_disconnect (G_OBJECT (ptest->priv->bus), id);
@@ -498,26 +533,30 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest *test)
 }
 
 static GstPipeline *
-insanity_gst_pipeline_test_create_pipeline (InsanityGstPipelineTest *ptest)
+insanity_gst_pipeline_test_create_pipeline (InsanityGstPipelineTest * ptest)
 {
   GstPipeline *pipeline = NULL;
 
   if (ptest->priv->create_pipeline) {
-    pipeline = (ptest->priv->create_pipeline) (ptest, ptest->priv->create_pipeline_user_data);
+    pipeline =
+        (ptest->priv->create_pipeline) (ptest,
+        ptest->priv->create_pipeline_user_data);
   }
 
   return pipeline;
 }
 
 static gboolean
-insanity_gst_pipeline_test_bus_message (InsanityGstPipelineTest *ptest, GstMessage *msg)
+insanity_gst_pipeline_test_bus_message (InsanityGstPipelineTest * ptest,
+    GstMessage * msg)
 {
   /* By default, we do not ignore the message */
   return TRUE;
 }
 
 static gboolean
-insanity_gst_pipeline_test_reached_initial_state (InsanityGstPipelineTest *ptest)
+insanity_gst_pipeline_test_reached_initial_state (InsanityGstPipelineTest *
+    ptest)
 {
   /* By default, we quit */
   return TRUE;
@@ -527,7 +566,8 @@ static void
 insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
 {
   InsanityTest *test = INSANITY_TEST (gsttest);
-  InsanityGstPipelineTestPrivateData *priv = G_TYPE_INSTANCE_GET_PRIVATE (gsttest,
+  InsanityGstPipelineTestPrivateData *priv =
+      G_TYPE_INSTANCE_GET_PRIVATE (gsttest,
       INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTestPrivateData);
 
   gsttest->priv = priv;
@@ -546,13 +586,19 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
   priv->done = FALSE;
 
   /* Add our own items, etc */
-  insanity_test_add_checklist_item (test, "valid-pipeline", "The test pipeline was properly created", NULL);
-  insanity_test_add_checklist_item (test, "pipeline-change-state", "The initial state_change happened succesfully", NULL);
-  insanity_test_add_checklist_item (test, "reached-initial-state", "The pipeline reached the initial GstElementState", NULL);
-  insanity_test_add_checklist_item (test, "no-errors-seen", "No errors were emitted from the pipeline", NULL);
+  insanity_test_add_checklist_item (test, "valid-pipeline",
+      "The test pipeline was properly created", NULL);
+  insanity_test_add_checklist_item (test, "pipeline-change-state",
+      "The initial state_change happened succesfully", NULL);
+  insanity_test_add_checklist_item (test, "reached-initial-state",
+      "The pipeline reached the initial GstElementState", NULL);
+  insanity_test_add_checklist_item (test, "no-errors-seen",
+      "No errors were emitted from the pipeline", NULL);
 
-  insanity_test_add_extra_info (test, "errors", "List of errors emitted by the pipeline");
-  insanity_test_add_extra_info (test, "tags", "List of tags emitted by the pipeline");
+  insanity_test_add_extra_info (test, "errors",
+      "List of errors emitted by the pipeline");
+  insanity_test_add_extra_info (test, "tags",
+      "List of tags emitted by the pipeline");
   insanity_test_add_extra_info (test, "elements-used", "List of elements used");
 }
 
@@ -561,46 +607,43 @@ insanity_gst_pipeline_test_finalize (GObject * gobject)
 {
   InsanityGstPipelineTest *gtest = (InsanityGstPipelineTest *) gobject;
 
-  insanity_gst_pipeline_test_set_create_pipeline_function (gtest, NULL, NULL, NULL);
+  insanity_gst_pipeline_test_set_create_pipeline_function (gtest, NULL, NULL,
+      NULL);
 
   G_OBJECT_CLASS (insanity_gst_pipeline_test_parent_class)->finalize (gobject);
 }
 
 #define g_marshal_value_peek_object(v)   g_value_get_object (v)
 static void
-insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT (GClosure     *closure,
-                                         GValue       *return_value G_GNUC_UNUSED,
-                                         guint         n_param_values,
-                                         const GValue *param_values,
-                                         gpointer      invocation_hint G_GNUC_UNUSED,
-                                         gpointer      marshal_data)
+insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT (GClosure * closure,
+    GValue * return_value G_GNUC_UNUSED,
+    guint n_param_values,
+    const GValue * param_values,
+    gpointer invocation_hint G_GNUC_UNUSED, gpointer marshal_data)
 {
-  typedef gboolean (*GMarshalFunc_BOOLEAN__MINIOBJECT) (gpointer     data1,
-                                                    gpointer     arg_1,
-                                                    gpointer     data2);
+  typedef gboolean (*GMarshalFunc_BOOLEAN__MINIOBJECT) (gpointer data1,
+      gpointer arg_1, gpointer data2);
   register GMarshalFunc_BOOLEAN__MINIOBJECT callback;
-  register GCClosure *cc = (GCClosure*) closure;
+  register GCClosure *cc = (GCClosure *) closure;
   register gpointer data1, data2;
   gboolean v_return;
 
   g_return_if_fail (return_value != NULL);
   g_return_if_fail (n_param_values == 2);
 
-  if (G_CCLOSURE_SWAP_DATA (closure))
-    {
-      data1 = closure->data;
-      data2 = g_value_peek_pointer (param_values + 0);
-    }
-  else
-    {
-      data1 = g_value_peek_pointer (param_values + 0);
-      data2 = closure->data;
-    }
-  callback = (GMarshalFunc_BOOLEAN__MINIOBJECT) (marshal_data ? marshal_data : cc->callback);
+  if (G_CCLOSURE_SWAP_DATA (closure)) {
+    data1 = closure->data;
+    data2 = g_value_peek_pointer (param_values + 0);
+  } else {
+    data1 = g_value_peek_pointer (param_values + 0);
+    data2 = closure->data;
+  }
+  callback =
+      (GMarshalFunc_BOOLEAN__MINIOBJECT) (marshal_data ? marshal_data :
+      cc->callback);
 
   v_return = callback (data1,
-                       gst_value_get_mini_object (param_values + 1),
-                       data2);
+      gst_value_get_mini_object (param_values + 1), data2);
 
   g_value_set_boolean (return_value, v_return);
 }
@@ -655,7 +698,8 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   InsanityTestClass *test_class = INSANITY_TEST_CLASS (klass);
-  InsanityThreadedTestClass *threaded_test_class = INSANITY_THREADED_TEST_CLASS (klass);
+  InsanityThreadedTestClass *threaded_test_class =
+      INSANITY_THREADED_TEST_CLASS (klass);
 
   gobject_class->finalize = &insanity_gst_pipeline_test_finalize;
 
@@ -668,7 +712,8 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
 
   klass->create_pipeline = &insanity_gst_pipeline_test_create_pipeline;
   klass->bus_message = &insanity_gst_pipeline_test_bus_message;
-  klass->reached_initial_state = &insanity_gst_pipeline_test_reached_initial_state;
+  klass->reached_initial_state =
+      &insanity_gst_pipeline_test_reached_initial_state;
 
   g_type_class_add_private (klass, sizeof (InsanityGstPipelineTestPrivateData));
 
@@ -691,18 +736,12 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
   duration_signal = g_signal_new ("duration",
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
-      0,
-      NULL, NULL,
-      NULL,
-      G_TYPE_NONE /* return_type */ ,
+      0, NULL, NULL, NULL, G_TYPE_NONE /* return_type */ ,
       1, G_TYPE_UINT64, NULL);
   pipeline_test_signal = g_signal_new ("pipeline-test",
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
-      0,
-      NULL, NULL,
-      NULL,
-      G_TYPE_NONE /* return_type */ ,
+      0, NULL, NULL, NULL, G_TYPE_NONE /* return_type */ ,
       0, NULL);
 }
 
@@ -717,17 +756,18 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
  * Returns: (transfer full): a new #InsanityGstPipelineTest instance.
  */
 InsanityGstPipelineTest *
-insanity_gst_pipeline_test_new (const char *name, const char *description, const char *full_description)
+insanity_gst_pipeline_test_new (const char *name, const char *description,
+    const char *full_description)
 {
   InsanityGstPipelineTest *test;
 
   if (full_description) {
-    test  = g_object_new (insanity_gst_pipeline_test_get_type (),
-      "name", name, "description", description, "full-description", full_description, NULL);
-  }
-  else {
-    test  = g_object_new (insanity_gst_pipeline_test_get_type (),
-      "name", name, "description", description, NULL);
+    test = g_object_new (insanity_gst_pipeline_test_get_type (),
+        "name", name, "description", description, "full-description",
+        full_description, NULL);
+  } else {
+    test = g_object_new (insanity_gst_pipeline_test_get_type (),
+        "name", name, "description", description, NULL);
   }
   return test;
 }
@@ -741,7 +781,8 @@ insanity_gst_pipeline_test_new (const char *name, const char *description, const
  * start. By default, it is GST_STATE_PLAYING.
  */
 void
-insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, GstState state)
+insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest * test,
+    GstState state)
 {
   test->priv->initial_state = state;
 }
@@ -756,14 +797,17 @@ insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, Gst
  * Set a function to call for creating a pipeline.
  * The function should return NULL if a pipeline fails to be created.
  */
-void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest *test, GstPipeline *(f)(InsanityGstPipelineTest*, gpointer), gpointer userdata, GDestroyNotify dnotify)
+void
+insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest
+    * test, GstPipeline * (f) (InsanityGstPipelineTest *, gpointer),
+    gpointer userdata, GDestroyNotify dnotify)
 {
   if (test->priv->create_pipeline) {
     if (test->priv->create_pipeline_destroy_notify)
-      (*test->priv->create_pipeline_destroy_notify) (test->priv->create_pipeline_user_data);
+      (*test->priv->create_pipeline_destroy_notify) (test->
+          priv->create_pipeline_user_data);
   }
   test->priv->create_pipeline = f;
   test->priv->create_pipeline_user_data = userdata;
   test->priv->create_pipeline_destroy_notify = dnotify;
 }
-

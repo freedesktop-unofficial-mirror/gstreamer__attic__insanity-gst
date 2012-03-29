@@ -36,8 +36,7 @@
 
 #include <insanity-gst/insanitygsttest.h>
 
-G_DEFINE_TYPE (InsanityGstTest, insanity_gst_test,
-    INSANITY_TYPE_THREADED_TEST);
+G_DEFINE_TYPE (InsanityGstTest, insanity_gst_test, INSANITY_TYPE_THREADED_TEST);
 
 struct _InsanityGstTestPrivateData
 {
@@ -50,7 +49,7 @@ init_gstreamer (void)
   int argc = 1;
   char **argv;
 
-  argv = g_malloc (2 * sizeof (char*));
+  argv = g_malloc (2 * sizeof (char *));
   argv[0] = g_get_prgname ();
   argv[1] = NULL;
   gst_init (&argc, &argv);
@@ -58,23 +57,23 @@ init_gstreamer (void)
 }
 
 static gboolean
-insanity_gst_test_setup (InsanityTest *test)
+insanity_gst_test_setup (InsanityTest * test)
 {
   const char *debuglog, *registry;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
 
-  printf("insanity_gst_test_setup\n");
+  printf ("insanity_gst_test_setup\n");
 
   /* Set GST_DEBUG_FILE to the target filename */
   debuglog = insanity_test_get_output_filename (test, "gst-debug-log");
-  printf("Got GST debug log file: %s\n", debuglog);
+  printf ("Got GST debug log file: %s\n", debuglog);
   g_setenv ("GST_DEBUG_FILE", debuglog, TRUE);
 
   /* Set GST_REGISTRY to the target filename */
   registry = insanity_test_get_output_filename (test, "gst-registry");
-  printf("Got GST registry file: %s\n", registry);
+  printf ("Got GST registry file: %s\n", registry);
   g_setenv ("GST_REGISTRY", registry, TRUE);
 
   /* We don't want the tests to update the registry because:
@@ -91,28 +90,28 @@ insanity_gst_test_setup (InsanityTest *test)
 }
 
 static gboolean
-insanity_gst_test_start (InsanityTest *test)
+insanity_gst_test_start (InsanityTest * test)
 {
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->start (test))
     return FALSE;
 
-  printf("insanity_gst_test_start\n");
+  printf ("insanity_gst_test_start\n");
 
   return TRUE;
 }
 
 static void
-insanity_gst_test_stop (InsanityTest *test)
+insanity_gst_test_stop (InsanityTest * test)
 {
-  printf("insanity_gst_test_stop\n");
+  printf ("insanity_gst_test_stop\n");
 
   INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->stop (test);
 }
 
 static void
-insanity_gst_test_teardown (InsanityTest *test)
+insanity_gst_test_teardown (InsanityTest * test)
 {
-  printf("insanity_gst_test_teardown\n");
+  printf ("insanity_gst_test_teardown\n");
 
   gst_deinit ();
 
@@ -129,8 +128,10 @@ insanity_gst_test_init (InsanityGstTest * gsttest)
   gsttest->priv = priv;
 
   /* Add our own items, etc */
-  insanity_test_add_output_file (test, "gst-debug-log", "The GStreamer debug log", TRUE);
-  insanity_test_add_output_file (test, "gst-registry", "The GStreamer registry file", TRUE);
+  insanity_test_add_output_file (test, "gst-debug-log",
+      "The GStreamer debug log", TRUE);
+  insanity_test_add_output_file (test, "gst-registry",
+      "The GStreamer registry file", TRUE);
 }
 
 static void
@@ -157,15 +158,16 @@ insanity_gst_test_class_init (InsanityGstTestClass * klass)
  * Returns: (transfer full): a new #InsanityGstTest instance.
  */
 InsanityGstTest *
-insanity_gst_test_new (const char *name, const char *description, const char *full_description)
+insanity_gst_test_new (const char *name, const char *description,
+    const char *full_description)
 {
   InsanityGstTest *test;
 
   if (full_description) {
     test = g_object_new (insanity_gst_test_get_type (),
-        "name", name, "description", description, "full-description", full_description, NULL);
-  }
-  else {
+        "name", name, "description", description, "full-description",
+        full_description, NULL);
+  } else {
     test = g_object_new (insanity_gst_test_get_type (),
         "name", name, "description", description, NULL);
   }
@@ -186,9 +188,9 @@ insanity_gst_test_new (const char *name, const char *description, const char *fu
  * Returns: the number of probes added.
  */
 unsigned int
-insanity_gst_test_add_fakesink_probe (InsanityGstTest *test, GstBin *bin,
+insanity_gst_test_add_fakesink_probe (InsanityGstTest * test, GstBin * bin,
     gboolean (*probe) (GstPad *, GstMiniObject *, gpointer),
-    GstPad ***pads, gulong **probes)
+    GstPad *** pads, gulong ** probes)
 {
   GstIterator *it;
   gboolean done = FALSE;
@@ -211,18 +213,16 @@ insanity_gst_test_add_fakesink_probe (InsanityGstTest *test, GstBin *bin,
           if (pad) {
             gulong id = gst_pad_add_data_probe (pad, (GCallback) probe, test);
             if (id != 0) {
-              *pads = g_realloc (*pads, (nsinks+1) * sizeof (**pads));
-              *probes = g_realloc (*probes, (nsinks+1) * sizeof (**probes));
+              *pads = g_realloc (*pads, (nsinks + 1) * sizeof (**pads));
+              *probes = g_realloc (*probes, (nsinks + 1) * sizeof (**probes));
               (*pads)[nsinks] = pad;
               (*probes)[nsinks] = id;
               nsinks++;
-            }
-            else {
+            } else {
               gst_object_unref (pad);
               goto error;
             }
-          }
-          else {
+          } else {
             goto error;
           }
         }
@@ -240,7 +240,8 @@ insanity_gst_test_add_fakesink_probe (InsanityGstTest *test, GstBin *bin,
   }
   gst_iterator_free (it);
 
-  insanity_test_printf (INSANITY_TEST (test), "Probe connected to %u sinks\n", nsinks);
+  insanity_test_printf (INSANITY_TEST (test), "Probe connected to %u sinks\n",
+      nsinks);
 
   return nsinks;
 
@@ -263,16 +264,15 @@ error:
  * The pads and probes array will be freed.
  */
 void
-insanity_gst_test_remove_fakesink_probe (InsanityGstTest *test, unsigned int nprobes,
-    GstPad **pads, gulong *probes)
+insanity_gst_test_remove_fakesink_probe (InsanityGstTest * test,
+    unsigned int nprobes, GstPad ** pads, gulong * probes)
 {
   unsigned int n;
 
-  for (n=0; n<nprobes; ++n) {
+  for (n = 0; n < nprobes; ++n) {
     gst_pad_remove_data_probe (pads[n], probes[n]);
     gst_object_unref (pads[n]);
   }
   g_free (pads);
   g_free (probes);
 }
-
