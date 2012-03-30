@@ -344,6 +344,44 @@ rtsp_test_play (InsanityGstPipelineTest * ptest, const char *step, guintptr data
   return NEXT_STEP_ON_PLAYING;
 }
 
+static NextStepTrigger
+rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+{
+  GstEvent *event;
+  GstClockTime t = GST_SECOND * 10;
+  gboolean res;
+
+  event = gst_event_new_seek (1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
+      GST_SEEK_TYPE_SET, t, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+
+  res = gst_element_send_event (global_pipeline, event);
+  if (!res) {
+    insanity_test_validate_step (INSANITY_TEST (ptest), step,
+        FALSE, "Failed to send seek event");
+    return NEXT_STEP_NOW;
+  }
+  global_state_change_timeout =
+      g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
+  return NEXT_STEP_ON_PLAYING;
+}
+
+static NextStepTrigger
+rtsp_test_set_protocols (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+{
+  guint protocols = data;
+  GstElement *source;
+
+  gst_element_set_state(global_pipeline, GST_STATE_READY);
+  g_object_get (global_pipeline, "source", &source, NULL);
+  g_object_set (source, "protocols", protocols, NULL);
+  gst_object_unref (source);
+  gst_element_set_state(global_pipeline, GST_STATE_PLAYING);
+
+  global_state_change_timeout =
+      g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
+  return NEXT_STEP_ON_PLAYING;
+}
+
 /*
   This is an ordered list of steps to perform.
   A test function needs the passed step if needed, and validate it UNLESS it returns
@@ -361,6 +399,11 @@ static const struct
 } steps[] = {
   { "pause", &rtsp_test_pause, 0 },
   { "play", &rtsp_test_play, 0 },
+  /*{ "seek", &rtsp_test_seek, 0 },*/
+  { "protocol-udp-unicast", &rtsp_test_set_protocols, 1 },
+  { "protocol-udp-multicast", &rtsp_test_set_protocols, 2 },
+  { "protocol-tcp", &rtsp_test_set_protocols, 4 },
+  { "protocol-http", &rtsp_test_set_protocols, 0x10 },
 };
 
 static gboolean
@@ -484,6 +527,11 @@ main (int argc, char **argv)
   insanity_test_add_checklist_item (test, "server-created", "The RTSP server was created succesfully", NULL);
   insanity_test_add_checklist_item (test, "pause", "The pipeline could be paused", NULL);
   insanity_test_add_checklist_item (test, "play", "The pipeline could be played", NULL);
+  insanity_test_add_checklist_item (test, "seek", "The pipeline could seek", NULL);
+  insanity_test_add_checklist_item (test, "protocol-udp-unicast", "The RTP transport could be set to UDP unicast", NULL);
+  insanity_test_add_checklist_item (test, "protocol-udp-multicast", "The RTP transport could be set to UDP multicast", NULL);
+  insanity_test_add_checklist_item (test, "protocol-tcp", "The RTP transport could be set to TCP", NULL);
+  insanity_test_add_checklist_item (test, "protocol-http", "The RTP transport could be set to HTTP", NULL);
 
   insanity_test_add_extra_info (test, "launch-line", "The launch line gst-rtsp-server was configued with");
 
