@@ -39,13 +39,21 @@ insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la
 http_test=insanity-test-gst-http
 endif
 
+if HAVE_GST_RTSP_SERVER
+insanity_test_gst_rtsp_SOURCES=insanity-test-gst-rtsp.c
+insanity_test_gst_rtsp_CFLAGS=$(GST_RTSP_SERVER_CFLAGS) $(common_cflags)
+insanity_test_gst_rtsp_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_RTSP_SERVER_LIBS) $(common_ldadd)
+rtsp_test=insanity-test-gst-rtsp
+endif
+
 test_PROGRAMS=\
     insanity-test-gst-generic-pipeline \
     insanity-test-gst-play \
     insanity-test-gst-seek \
     insanity-test-gst-dvd \
     insanity-test-gst-stream-switch \
-    $(http_test)
+    $(http_test) \
+    $(rtsp_test)
 
 TESTS=run-insanity-test-gst-generic-pipeline
 
