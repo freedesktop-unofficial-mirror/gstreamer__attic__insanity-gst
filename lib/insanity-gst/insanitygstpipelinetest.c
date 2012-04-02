@@ -445,8 +445,6 @@ insanity_gst_pipeline_test_setup (InsanityTest * test)
       (test))
     return FALSE;
 
-  printf ("insanity_gst_pipeline_test_setup\n");
-
   priv->elements_used =
       g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
 
@@ -483,7 +481,6 @@ insanity_gst_pipeline_test_start (InsanityTest * test)
   priv->enable_buffering = TRUE;
   priv->done = FALSE;
 
-  printf ("insanity_gst_pipeline_test_start\n");
   add_element_used (ptest, GST_ELEMENT (ptest->priv->pipeline));
 
   return TRUE;
@@ -494,8 +491,6 @@ insanity_gst_pipeline_test_stop (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   GstState state, pending;
-
-  printf ("insanity_gst_pipeline_test_stop\n");
 
   if (ptest->priv->wait_timeout_id) {
     g_source_remove (ptest->priv->wait_timeout_id);
@@ -516,8 +511,6 @@ insanity_gst_pipeline_test_teardown (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
-
-  printf ("insanity_gst_pipeline_test_teardown\n");
 
   insanity_test_validate_step (test, "no-errors-seen", priv->error_count == 0,
       NULL);

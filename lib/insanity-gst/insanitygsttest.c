@@ -65,16 +65,12 @@ insanity_gst_test_setup (InsanityTest * test)
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
 
-  printf ("insanity_gst_test_setup\n");
-
   /* Set GST_DEBUG_FILE to the target filename */
   debuglog = insanity_test_get_output_filename (test, "gst-debug-log");
-  printf ("Got GST debug log file: %s\n", debuglog);
   g_setenv ("GST_DEBUG_FILE", debuglog, TRUE);
 
   /* Set GST_REGISTRY to the target filename */
   registry = insanity_test_get_output_filename (test, "gst-registry");
-  printf ("Got GST registry file: %s\n", registry);
   g_setenv ("GST_REGISTRY", registry, TRUE);
 
   /* We don't want the tests to update the registry because:
@@ -96,24 +92,18 @@ insanity_gst_test_start (InsanityTest * test)
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->start (test))
     return FALSE;
 
-  printf ("insanity_gst_test_start\n");
-
   return TRUE;
 }
 
 static void
 insanity_gst_test_stop (InsanityTest * test)
 {
-  printf ("insanity_gst_test_stop\n");
-
   INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->stop (test);
 }
 
 static void
 insanity_gst_test_teardown (InsanityTest * test)
 {
-  printf ("insanity_gst_test_teardown\n");
-
   gst_deinit ();
 
   INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->teardown (test);
