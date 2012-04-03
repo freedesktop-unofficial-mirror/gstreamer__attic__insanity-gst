@@ -429,18 +429,34 @@ state_change_timeout (gpointer data)
 static NextStepTrigger
 rtsp_test_pause (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 {
+  GstStateChangeReturn sret;
+
   global_state_change_timeout =
-      g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
-  gst_element_set_state(global_pipeline, GST_STATE_PAUSED);
+      g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
+  sret = gst_element_set_state(global_pipeline, GST_STATE_PAUSED);
+  if (sret == GST_STATE_CHANGE_SUCCESS) {
+    /* If this was done already, we can switch now */
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE, NULL);
+    return NEXT_STEP_NOW;
+  }
+
   return NEXT_STEP_ON_PAUSED;
 }
 
 static NextStepTrigger
 rtsp_test_play (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 {
+  GstStateChangeReturn sret;
+
   global_state_change_timeout =
-      g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
-  gst_element_set_state(global_pipeline, GST_STATE_PLAYING);
+      g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
+  sret = gst_element_set_state(global_pipeline, GST_STATE_PLAYING);
+  if (sret == GST_STATE_CHANGE_SUCCESS) {
+    /* If this was done already, we can switch now */
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE, NULL);
+    return NEXT_STEP_NOW;
+  }
+
   return NEXT_STEP_ON_PLAYING;
 }
 
@@ -487,7 +503,7 @@ rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data
     return NEXT_STEP_NOW;
   }
   global_state_change_timeout =
-      g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
+      g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
   return NEXT_STEP_ON_PLAYING;
 }
 
@@ -506,7 +522,7 @@ rtsp_test_set_protocols (InsanityGstPipelineTest * ptest, const char *step, guin
   gst_element_set_state(global_pipeline, GST_STATE_PLAYING);
 
   global_state_change_timeout =
-      g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
+      g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
   return NEXT_STEP_ON_PLAYING;
 }
 
