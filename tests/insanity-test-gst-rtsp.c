@@ -42,6 +42,7 @@ static unsigned int global_next_state = 0;
 static GstState global_waiting_on_state = GST_STATE_VOID_PENDING;
 static GstClockTime global_wait_time = GST_CLOCK_TIME_NONE;
 static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
+static guint global_timer_id = 0;
 
 static GstClockTime
 rtsp_test_get_position (InsanityTest *test)
@@ -405,6 +406,10 @@ done:
 static void
 rtsp_test_stop (InsanityTest *test)
 {
+  if (global_timer_id) {
+    g_source_remove (global_timer_id);
+    global_timer_id = 0;
+  }
   rtsp_test_reset_server ();
 }
 
@@ -458,6 +463,7 @@ rtsp_test_wait(InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 
   /* We reached the time */
   *t = GST_CLOCK_TIME_NONE;
+  insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE, NULL);
   return NEXT_STEP_NOW;
 }
 
@@ -572,7 +578,7 @@ do_next_step (gpointer data)
       break;
     case NEXT_STEP_RESTART_ON_TICK:
       global_next_state = global_state;
-      g_timeout_add (250, (GSourceFunc)&do_next_step, test);
+      global_timer_id = g_timeout_add (250, (GSourceFunc)&do_next_step, test);
       break;
   }
 
