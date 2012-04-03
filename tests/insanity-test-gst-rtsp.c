@@ -25,17 +25,13 @@
 #include <gst/rtsp-server/rtsp-server.h>
 #include <insanity-gst/insanity-gst.h>
 
-/*
-TODO:
-wait in playback a bit (see http and seek tests)
-*/
-
 typedef enum
 {
   NEXT_STEP_NOW,
   NEXT_STEP_ON_PLAYING,
   NEXT_STEP_RESTART_ON_PLAYING,
   NEXT_STEP_ON_PAUSED,
+  NEXT_STEP_RESTART_ON_TICK,
 } NextStepTrigger;
 
 static GstElement *global_pipeline = NULL;
@@ -44,6 +40,35 @@ static guint global_state_change_timeout = 0;
 static unsigned int global_state = 0;
 static unsigned int global_next_state = 0;
 static GstState global_waiting_on_state = GST_STATE_VOID_PENDING;
+static GstClockTime global_wait_time = GST_CLOCK_TIME_NONE;
+static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
+
+static GstClockTime
+rtsp_test_get_position (InsanityTest *test)
+{
+  gint64 pos = 0;
+  gboolean res;
+  GstFormat format = GST_FORMAT_TIME;
+
+  res = gst_element_query_position (global_pipeline, &format, &pos);
+  if (format != GST_FORMAT_TIME)
+    res = FALSE;
+  insanity_test_validate_checklist_item (test, "position-queried", res, NULL);
+  if (!res) {
+    pos = GST_CLOCK_TIME_NONE;
+  }
+  return pos;
+}
+
+static GstClockTime
+rtsp_test_get_wait_time (InsanityTest *test)
+{
+  gint64 pos = rtsp_test_get_position (test);
+  if (GST_CLOCK_TIME_IS_VALID (pos)) {
+    pos += global_playback_time;
+  }
+  return pos;
+}
 
 static void on_ready_for_next_state (InsanityGstPipelineTest * ptest,
     gboolean timeout);
@@ -106,9 +131,18 @@ rtsp_test_destroy_server (void)
 static gboolean
 rtsp_test_setup(InsanityTest *test)
 {
-  const char *error = rtsp_test_create_rtsp_server ();
+  const char *error;
+  gint secs;
+
+  error = rtsp_test_create_rtsp_server ();
   insanity_test_validate_checklist_item (test, "server-created", error == NULL, error);
-  return error == NULL;
+  if (error)
+    return FALSE;
+
+  insanity_test_get_int_argument (test, "playback-time", &secs);
+  global_playback_time = secs * GST_SECOND;
+
+  return TRUE;
 }
 
 static void
@@ -403,6 +437,31 @@ rtsp_test_play (InsanityGstPipelineTest * ptest, const char *step, guintptr data
 }
 
 static NextStepTrigger
+rtsp_test_wait(InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+{
+  GstClockTime *t = (GstClockTime *)data;
+
+  /* First call, generate a stream time to wait for */
+  if (*t == GST_CLOCK_TIME_NONE) {
+    *t = rtsp_test_get_wait_time (INSANITY_TEST (ptest));
+    if (*t == GST_CLOCK_TIME_NONE) {
+      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, FALSE,
+          "Failed to generate a wait time");
+      return NEXT_STEP_NOW;
+    }
+    return NEXT_STEP_RESTART_ON_TICK;
+  }
+
+  /* Wait till next tick if we're not there yet */
+  if (GST_CLOCK_TIME_IS_VALID (*t) && rtsp_test_get_position (INSANITY_TEST (ptest)) < *t)
+    return NEXT_STEP_RESTART_ON_TICK;
+
+  /* We reached the time */
+  *t = GST_CLOCK_TIME_NONE;
+  return NEXT_STEP_NOW;
+}
+
+static NextStepTrigger
 rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 {
   GstEvent *event;
@@ -456,13 +515,19 @@ static const struct
   guintptr data;
 } steps[] = {
   { "play", &rtsp_test_play, 0 },
+  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
   { "pause", &rtsp_test_pause, 0 },
   { "play", &rtsp_test_play, 0 },
+  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
   /*{ "seek", &rtsp_test_seek, 0 },*/ /* fails to send event, disabled for now */
   { "protocol-udp-unicast", &rtsp_test_set_protocols, 1 },
+  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
   { "protocol-udp-multicast", &rtsp_test_set_protocols, 2 },
+  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
   { "protocol-tcp", &rtsp_test_set_protocols, 4 },
+  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
   { "protocol-http", &rtsp_test_set_protocols, 0x10 },
+  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
   /* add more here */
 };
 
@@ -504,6 +569,10 @@ do_next_step (gpointer data)
     case NEXT_STEP_RESTART_ON_PLAYING:
       global_next_state = global_state;
       global_waiting_on_state = GST_STATE_PLAYING;
+      break;
+    case NEXT_STEP_RESTART_ON_TICK:
+      global_next_state = global_state;
+      g_timeout_add (250, (GSourceFunc)&do_next_step, test);
       break;
   }
 
@@ -585,15 +654,19 @@ main (int argc, char **argv)
   insanity_test_add_string_argument (test, "muxer", "The muxer element to use, if any, when not streaming a URI", NULL, FALSE, "");
   insanity_test_add_string_argument (test, "muxer-payloader", "The payloader element to use, if using a muxer", NULL, FALSE, "");
 
+  insanity_test_add_int_argument (test, "playback-time", "Stream time to playback for before seeking, in seconds", NULL, TRUE, 5);
+
   insanity_test_add_checklist_item (test, "valid-setup", "The setup given in arguments makes sense", NULL);
   insanity_test_add_checklist_item (test, "server-created", "The RTSP server was created succesfully", NULL);
   insanity_test_add_checklist_item (test, "pause", "The pipeline could be paused", NULL);
   insanity_test_add_checklist_item (test, "play", "The pipeline could be played", NULL);
+  insanity_test_add_checklist_item (test, "wait", "The pipeline could stay in playback mode", NULL);
   insanity_test_add_checklist_item (test, "seek", "The pipeline could seek", NULL);
   insanity_test_add_checklist_item (test, "protocol-udp-unicast", "The RTP transport could be set to UDP unicast", NULL);
   insanity_test_add_checklist_item (test, "protocol-udp-multicast", "The RTP transport could be set to UDP multicast", NULL);
   insanity_test_add_checklist_item (test, "protocol-tcp", "The RTP transport could be set to TCP", NULL);
   insanity_test_add_checklist_item (test, "protocol-http", "The RTP transport could be set to HTTP", NULL);
+  insanity_test_add_checklist_item (test, "position-queried", "Stream position could be determined", NULL);
 
   insanity_test_add_extra_info (test, "launch-line", "The launch line gst-rtsp-server was configued with");
 
