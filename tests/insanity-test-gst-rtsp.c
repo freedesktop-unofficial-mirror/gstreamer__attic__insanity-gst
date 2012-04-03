@@ -25,6 +25,11 @@
 #include <gst/rtsp-server/rtsp-server.h>
 #include <insanity-gst/insanity-gst.h>
 
+/*
+TODO:
+wait in playback a bit (see http and seek tests)
+*/
+
 typedef enum
 {
   NEXT_STEP_NOW,
@@ -56,7 +61,7 @@ rtsp_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
       error ? error->message : NULL);
     if (error)
       g_error_free (error);
@@ -65,7 +70,7 @@ rtsp_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
   else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
       error->message);
     g_error_free (error);
     return NULL;
@@ -102,7 +107,7 @@ static gboolean
 rtsp_test_setup(InsanityTest *test)
 {
   const char *error = rtsp_test_create_rtsp_server ();
-  insanity_test_validate_step (test, "server-created", error == NULL, error);
+  insanity_test_validate_checklist_item (test, "server-created", error == NULL, error);
   return error == NULL;
 }
 
@@ -148,7 +153,7 @@ rtsp_test_configure_server_for_uri (const char *uri)
 }
 
 static char *
-rtsp_test_make_path (const char *source,const char *transform,const char *pay,unsigned int *payidx, unsigned int *ptidx)
+rtsp_test_make_source_path (const char *source,const char *transform,const char *pay,unsigned int *payidx, unsigned int *ptidx)
 {
   if (pay)
     return g_strdup_printf ("%s is-live=1 ! %s ! %s name=pay%u pt=%u",
@@ -158,22 +163,49 @@ rtsp_test_make_path (const char *source,const char *transform,const char *pay,un
         source, transform ? transform : "identity", source);
 }
 
+static char *
+rtsp_test_make_muxer_path(const char *src0,const char *src1,const char *muxer,const char *pay,unsigned int *payidx,unsigned int *ptidx)
+{
+  char *base, *path0 = NULL, *path1 = NULL;
+
+  if (src0) {
+    path0 = g_strdup_printf ("%s-path. ! queue ! mux.", src0);
+  }
+  if (src1) {
+    path1 = g_strdup_printf ("%s-path. ! queue ! mux.", src1);
+  }
+  base = g_strdup_printf ("%s name=mux ! %s name=pay%u pt=%u %s %s",
+      muxer, pay, *payidx++, *ptidx++,
+      path0 ? path0 : "", path1 ? path1 : "");
+  g_free (path1);
+  g_free (path0);
+  return base;
+}
+
 static gboolean
 rtsp_test_configure_server_for_multiple_streams(InsanityTest *test,
     const char *video_encoder, const char *video_payloader,
-    const char *audio_encoder, const char *audio_payloader)
+    const char *audio_encoder, const char *audio_payloader,
+    const char *muxer, const char *muxer_payloader)
 {
   GstRTSPMediaMapping *mapping;
   GstRTSPMediaFactory *factory;
-  char *video_path = NULL, *audio_path = NULL, *sbin = NULL;
+  char *video_path = NULL, *audio_path = NULL, *muxer_path = NULL, *sbin = NULL;
   unsigned payloader_index = 0, pt_index = 96;
   GValue vsbin = {0};
 
-  if (video_payloader) {
-    video_path = rtsp_test_make_path ("videotestsrc", video_encoder, video_payloader, &payloader_index, &pt_index);
+  if (video_encoder) {
+    video_path = rtsp_test_make_source_path ("videotestsrc",
+        video_encoder, video_payloader, &payloader_index, &pt_index);
   }
-  if (audio_payloader) {
-    audio_path = rtsp_test_make_path ("audiotestsrc", audio_encoder, audio_payloader, &payloader_index, &pt_index);
+  if (audio_encoder) {
+    audio_path = rtsp_test_make_source_path ("audiotestsrc",
+        audio_encoder, audio_payloader, &payloader_index, &pt_index);
+  }
+  if (muxer) {
+    muxer_path = rtsp_test_make_muxer_path (video_path ? "videotestsrc" : NULL,
+        audio_path ? "audiotestsrc" : NULL, muxer, muxer_payloader,
+        &payloader_index, &pt_index);
   }
 
   /* get the mapping for this server, every server has a default mapper object
@@ -185,7 +217,10 @@ rtsp_test_configure_server_for_multiple_streams(InsanityTest *test,
    * any launch line works as long as it contains elements named pay%d. Each
    * element with pay%d names will be a stream */
   factory = gst_rtsp_media_factory_new ();
-  sbin = g_strdup_printf ("( %s %s )", video_path ? video_path : "", audio_path ? audio_path : "");
+  sbin = g_strdup_printf ("( %s %s %s )",
+    video_path ? video_path : "",
+    audio_path ? audio_path : "",
+    muxer_path ? muxer_path : "");
   gst_rtsp_media_factory_set_launch (factory, sbin);
   /*gst_rtsp_media_factory_set_shared (factory, TRUE);*/
 
@@ -216,13 +251,16 @@ rtsp_test_get_string (const GValue *v)
 static const char *
 rtsp_test_check_arguments (const GValue *vuri,
     const GValue *vvideo_encoder, const GValue *vvideo_payloader,
-    const GValue *vaudio_encoder, const GValue *vaudio_payloader)
+    const GValue *vaudio_encoder, const GValue *vaudio_payloader,
+    const GValue *vmuxer, const GValue *vmuxer_payloader)
 {
   const char *uri = rtsp_test_get_string (vuri);
   const char *video_encoder = rtsp_test_get_string (vvideo_encoder);
   const char *video_payloader = rtsp_test_get_string (vvideo_payloader);
   const char *audio_encoder = rtsp_test_get_string (vaudio_encoder);
   const char *audio_payloader = rtsp_test_get_string (vaudio_payloader);
+  const char *muxer = rtsp_test_get_string (vmuxer);
+  const char *muxer_payloader = rtsp_test_get_string (vmuxer_payloader);
 
   /* URI must be set if all others are not, and not if any other is */
   if (uri) {
@@ -230,17 +268,27 @@ rtsp_test_check_arguments (const GValue *vuri,
       return "URI and video encoder/payloader are conflicting";
     if (audio_encoder || audio_payloader)
       return "URI and video encoder/payloader are conflicting";
+    if (muxer || muxer_payloader)
+      return "URI and muxer/payloader are conflicting";
   }
   else {
-    /* payloader for audio or video must be specified */
-    if (!video_payloader && !audio_payloader)
-      return "Must specify at least either a URI, or an audio and/or video payloader";
+    if (muxer_payloader) {
+      if (video_payloader || audio_payloader)
+        return "Must specify no A/V payloaders when a muxer payloader is specified";
+    }
+    else {
+      /* payloader for audio or video must be specified */
+      if (!video_payloader && !audio_payloader)
+        return "Must specify at least either a URI, or an audio and/or video payloader, or a muxer + payloader";
+    }
 
-    /* payloaders must be specified when an encoder is */
-    if (video_encoder && !video_payloader)
-      return "A video payloader must be specified when a video encoder is";
-    if (audio_encoder && !audio_payloader)
-      return "An audio payloader must be specified when an audio encoder is";
+    /* payloaders must be specified when an encoder is but no muxer is */
+    if (video_encoder && !video_payloader && !muxer)
+      return "A video payloader or muxer must be specified when a video encoder is";
+    if (audio_encoder && !audio_payloader && !muxer)
+      return "An audio payloader or muxer must be specified when an audio encoder is";
+    if (muxer && !muxer_payloader)
+      return "An muxer payloader must be specified when a muxer is";
   }
 
   return NULL;
@@ -251,6 +299,7 @@ rtsp_test_start(InsanityTest *test)
 {
   GValue uri = {0};
   GValue video_encoder = {0}, audio_encoder = {0}, video_payloader = {0}, audio_payloader = {0};
+  GValue muxer = {0}, muxer_payloader = {0};
   const char *protocol;
   gboolean configured = FALSE;
   const char *uri_string;
@@ -267,11 +316,17 @@ rtsp_test_start(InsanityTest *test)
     return FALSE;
   if (!insanity_test_get_argument (test, "audio-payloader", &audio_payloader))
     return FALSE;
+  if (!insanity_test_get_argument (test, "muxer", &muxer))
+    return FALSE;
+  if (!insanity_test_get_argument (test, "muxer-payloader", &muxer_payloader))
+    return FALSE;
 
   /* Check the setup makes sense */
-  error = rtsp_test_check_arguments (&uri, &video_encoder, &video_payloader, &audio_encoder, &audio_payloader);
+  error = rtsp_test_check_arguments (&uri,
+      &video_encoder, &video_payloader, &audio_encoder, &audio_payloader,
+      &muxer, &muxer_payloader);
   if (error) {
-    insanity_test_validate_step (test, "valid-setup", FALSE, error);
+    insanity_test_validate_checklist_item (test, "valid-setup", FALSE, error);
     goto done;
   }
 
@@ -279,23 +334,24 @@ rtsp_test_start(InsanityTest *test)
   if (!uri_string) {
     configured = rtsp_test_configure_server_for_multiple_streams(test,
         rtsp_test_get_string (&video_encoder), rtsp_test_get_string (&video_payloader),
-        rtsp_test_get_string (&audio_encoder), rtsp_test_get_string (&audio_payloader));
+        rtsp_test_get_string (&audio_encoder), rtsp_test_get_string (&audio_payloader),
+        rtsp_test_get_string (&muxer), rtsp_test_get_string (&muxer_payloader));
   }
   else {
     if (!gst_uri_is_valid (uri_string)) {
-      insanity_test_validate_step (test, "valid-setup", FALSE, "URI is invalid");
+      insanity_test_validate_checklist_item (test, "valid-setup", FALSE, "URI is invalid");
       goto done;
     }
     protocol = gst_uri_get_protocol (uri_string);
     if (!protocol || g_ascii_strcasecmp (protocol, "file")) {
-      insanity_test_validate_step (test, "valid-setup", FALSE, "URI protocol must be file");
+      insanity_test_validate_checklist_item (test, "valid-setup", FALSE, "URI protocol must be file");
       goto done;
     }
 
     configured = rtsp_test_configure_server_for_uri (uri_string);
   }
 
-  insanity_test_validate_step (test, "valid-setup", configured, NULL);
+  insanity_test_validate_checklist_item (test, "valid-setup", configured, NULL);
 
   global_state = 0;
   global_next_state = 0;
@@ -307,6 +363,8 @@ done:
   g_value_unset (&video_payloader);
   g_value_unset (&audio_encoder);
   g_value_unset (&audio_payloader);
+  g_value_unset (&muxer);
+  g_value_unset (&muxer_payloader);
   return configured;
 }
 
@@ -356,7 +414,7 @@ rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data
 
   res = gst_element_send_event (global_pipeline, event);
   if (!res) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), step,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step,
         FALSE, "Failed to send seek event");
     return NEXT_STEP_NOW;
   }
@@ -397,13 +455,15 @@ static const struct
     NextStepTrigger (*f) (InsanityGstPipelineTest *, const char *, guintptr);
   guintptr data;
 } steps[] = {
+  { "play", &rtsp_test_play, 0 },
   { "pause", &rtsp_test_pause, 0 },
   { "play", &rtsp_test_play, 0 },
-  /*{ "seek", &rtsp_test_seek, 0 },*/
+  /*{ "seek", &rtsp_test_seek, 0 },*/ /* fails to send event, disabled for now */
   { "protocol-udp-unicast", &rtsp_test_set_protocols, 1 },
   { "protocol-udp-multicast", &rtsp_test_set_protocols, 2 },
   { "protocol-tcp", &rtsp_test_set_protocols, 4 },
   { "protocol-http", &rtsp_test_set_protocols, 0x10 },
+  /* add more here */
 };
 
 static gboolean
@@ -454,7 +514,7 @@ static void
 on_ready_for_next_state (InsanityGstPipelineTest * ptest, gboolean timeout)
 {
   if (global_next_state != global_state) {
-    insanity_test_validate_step (INSANITY_TEST (ptest),
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
         steps[global_state].step, TRUE, NULL);
     global_state = global_next_state;
   }
@@ -514,7 +574,7 @@ main (int argc, char **argv)
 
   g_type_init ();
 
-  ptest = insanity_gst_pipeline_test_new ("gst-rtsp", "Test RTSP using gst-rtsp-server", NULL);
+  ptest = insanity_gst_pipeline_test_new ("rtsp-test", "Test RTSP using gst-rtsp-server", NULL);
   test = INSANITY_TEST (ptest);
 
   insanity_test_add_string_argument (test, "uri", "The file URI to use for streaming (file only)", NULL, FALSE, "");
@@ -522,6 +582,8 @@ main (int argc, char **argv)
   insanity_test_add_string_argument (test, "video-payloader", "The video payloader element to use to payload test video when not streaming a URI", NULL, FALSE, "");
   insanity_test_add_string_argument (test, "audio-encoder", "The optional audio encoder element to use to encode test audio when not streaming a URI", NULL, FALSE, "");
   insanity_test_add_string_argument (test, "audio-payloader", "The audio payloader element to use to payload test audio when not streaming a URI", NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "muxer", "The muxer element to use, if any, when not streaming a URI", NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "muxer-payloader", "The payloader element to use, if using a muxer", NULL, FALSE, "");
 
   insanity_test_add_checklist_item (test, "valid-setup", "The setup given in arguments makes sense", NULL);
   insanity_test_add_checklist_item (test, "server-created", "The RTSP server was created succesfully", NULL);
