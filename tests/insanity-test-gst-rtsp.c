@@ -410,7 +410,10 @@ rtsp_test_stop (InsanityTest *test)
     g_source_remove (global_timer_id);
     global_timer_id = 0;
   }
-  rtsp_test_reset_server ();
+
+  /* This seems too late and causes deleted data in the rtsp server to be accessed,
+     though I'm not sure just why */
+  /* rtsp_test_reset_server (); */
 }
 
 static gboolean
