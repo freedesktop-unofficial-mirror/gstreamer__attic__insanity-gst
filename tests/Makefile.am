@@ -12,6 +12,9 @@ testdir=$(libexecdir)/insanity-gst/tests
 common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(WARNING_CFLAGS)
 common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
 
+built_sources = insanity-marshal.c
+built_headers = insanity-marshal.h
+
 insanity_test_gst_generic_pipeline_SOURCES=insanity-test-gst-generic-pipeline.c
 insanity_test_gst_generic_pipeline_CFLAGS=$(common_cflags)
 insanity_test_gst_generic_pipeline_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
@@ -33,11 +36,33 @@ insanity_test_gst_stream_switch_CFLAGS=$(GST_VIDEO_CFLAGS) $(GST_BASE_CFLAGS) $(
 insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_VIDEO_LIBS) $(GST_BASE_LIBS) $(common_ldadd)
 
 if HAVE_SOUP
+libinsanitygsttests_la_LIBADD=$(SOUP_LIBS) $(common_ldadd)
+libinsanitygsttests_la_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
+libinsanitygsttestsincdir=$(libexecdir)/insanity-gst/tests
+lib_LTLIBRARIES=libinsanitygsttests.la
+libinsanitygsttests_la_SOURCES = insanity-http-server.c
+libinsanitygsttestsinc_HEADERS = 
+noinst_HEADERS = insanity-http-server.h
+
 insanity_test_gst_http_SOURCES=insanity-test-gst-http.c
 insanity_test_gst_http_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
-insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(SOUP_LIBS) $(common_ldadd)
-http_test=insanity-test-gst-http
+insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(SOUP_LIBS) $(common_ldadd)
+
+soup_tests=insanity-test-gst-http
+
+nodist_libinsanitygsttests_la_SOURCES = $(built_sources)
+nodist_libinsanitygsttestsinc_HEADERS = insanity-marshal.h
+
 endif
+
+BUILT_SOURCES = $(built_headers) $(built_sources)
+EXTRA_DIST = insanity-marshal.list run-insanity-test-gst-generic-pipeline
+CLEANFILES = $(BUILT_SOURCES)
+
+glib_gen_prefix = __insanity
+glib_gen_basename = insanity
+
+include $(top_srcdir)/common/gst-glib-gen.mak
 
 test_PROGRAMS=\
     insanity-test-gst-generic-pipeline \
@@ -45,8 +70,6 @@ test_PROGRAMS=\
     insanity-test-gst-seek \
     insanity-test-gst-dvd \
     insanity-test-gst-stream-switch \
-    $(http_test)
+    $(soup_tests)
 
 TESTS=run-insanity-test-gst-generic-pipeline
-
-EXTRA_DIST=run-insanity-test-gst-generic-pipeline
