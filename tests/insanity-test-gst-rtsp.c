@@ -498,6 +498,8 @@ rtsp_test_set_protocols (InsanityGstPipelineTest * ptest, const char *step, guin
   g_object_get (global_pipeline, "source", &source, NULL);
   g_object_set (source, "protocols", protocols, NULL);
   gst_object_unref (source);
+  gst_element_set_state(global_pipeline, GST_STATE_PAUSED);
+  gst_element_get_state(global_pipeline, NULL, NULL, GST_SECOND);
   gst_element_set_state(global_pipeline, GST_STATE_PLAYING);
 
   global_state_change_timeout =
