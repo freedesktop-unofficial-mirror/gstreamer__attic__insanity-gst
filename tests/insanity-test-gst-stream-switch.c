@@ -755,6 +755,7 @@ stream_switch_test_stop (InsanityTest * test)
   for (n=0; n<nsinks; n++) {
     insanity_gst_test_remove_data_probe (INSANITY_GST_TEST (test),
         sinks[n], probes[n]);
+    gst_object_unref (sinks[n]);
     sinks[n] = NULL;
     probes[n] = 0;
   }
@@ -1194,14 +1195,14 @@ do_next_switch (InsanityTest * test)
 }
 
 static gboolean
-probe (GstPad * pad, GstMiniObject * object, gpointer userdata)
+probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object, gpointer userdata)
 {
   StreamType type;
   GstBuffer *buffer;
   GstCaps *caps;
   GstStructure *s;
   guint8 marker;
-  InsanityTest *test = INSANITY_TEST (userdata);
+  InsanityTest *test = INSANITY_TEST (gtest);
 
   insanity_test_ping (test);
 
@@ -1311,8 +1312,8 @@ stream_switch_test_reached_initial_state (InsanityGstPipelineTest * test)
     e = gst_bin_get_by_name (GST_BIN (pipeline), sink_names[n]);
     if (e) {
       gboolean ok = insanity_gst_test_add_data_probe(INSANITY_GST_TEST (test),
-          GST_BIN (pipeline), sink_names[n], "sink", &probe,
-          &sinks[nsinks], &probes[nsinks]);
+          GST_BIN (pipeline), sink_names[n], "sink", &sinks[nsinks], &probes[nsinks],
+          &probe, NULL, NULL);
       if (ok) {
         nsinks++;
       }

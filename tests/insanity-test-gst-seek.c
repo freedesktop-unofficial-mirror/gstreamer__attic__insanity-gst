@@ -285,9 +285,8 @@ get_waiting_string (int w)
 }
 
 static gboolean
-probe (GstPad * pad, GstMiniObject * object, gpointer userdata)
+probe (InsanityGstTest *ptest, GstPad * pad, GstMiniObject * object, gpointer userdata)
 {
-  InsanityGstPipelineTest *ptest = userdata;
   gboolean changed = FALSE, ready = FALSE;
   unsigned n;
   int index = -1;
@@ -656,8 +655,9 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
     e = gst_bin_get_by_name (GST_BIN (global_pipeline), sink_names[n]);
     if (e) {
       gboolean ok = insanity_gst_test_add_data_probe(INSANITY_GST_TEST (ptest),
-          GST_BIN (global_pipeline), sink_names[n], "sink", &probe,
-          &global_sinks[global_nsinks], &global_probes[global_nsinks]);
+          GST_BIN (global_pipeline), sink_names[n], "sink", 
+          &global_sinks[global_nsinks], &global_probes[global_nsinks],
+          &probe, NULL, NULL);
       if (ok) {
         global_nsinks++;
       }
@@ -735,6 +735,7 @@ seek_test_stop (InsanityTest * test)
   for (n=0; n<global_nsinks; n++) {
     insanity_gst_test_remove_data_probe (INSANITY_GST_TEST (test),
         global_sinks[n], global_probes[n]);
+    gst_object_unref (global_sinks[n]);
     global_probes[n] = 0;
     global_sinks[n] = NULL;
   }

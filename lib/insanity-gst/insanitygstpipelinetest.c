@@ -60,7 +60,7 @@ struct _InsanityGstPipelineTestPrivateData
 
   guint wait_timeout_id;
 
-  GstPipeline *(*create_pipeline) (InsanityGstPipelineTest *, gpointer);
+  InsanityGstCreatePipelineFunction create_pipeline;
   gpointer create_pipeline_user_data;
   GDestroyNotify create_pipeline_destroy_notify;
 
@@ -295,17 +295,17 @@ waiting_for_state_change (InsanityGstPipelineTest * ptest)
 GstClockTime
 insanity_gst_pipeline_test_query_duration (InsanityGstPipelineTest * ptest)
 {
-  GstQuery *query = gst_query_new_duration (GST_FORMAT_TIME);
-  gboolean res = gst_element_query (GST_ELEMENT (ptest->priv->pipeline), query);
+  gboolean res;
+  GstFormat fmt = GST_FORMAT_TIME;
   gint64 duration = GST_CLOCK_TIME_NONE;
 
-  if (res) {
-    gst_query_parse_duration (query, NULL, &duration);
-    if (GST_CLOCK_TIME_IS_VALID (duration)) {
-      g_signal_emit (ptest, duration_signal, 0, duration, NULL);
-    }
-  }
-  gst_query_unref (query);
+  g_return_val_if_fail (INSANITY_IS_GST_PIPELINE_TEST (ptest), GST_CLOCK_TIME_NONE);
+
+  res = gst_element_query_duration (GST_ELEMENT (ptest->priv->pipeline), &fmt, &duration);
+
+  if (res && fmt == GST_FORMAT_TIME && GST_CLOCK_TIME_IS_VALID (duration))
+    g_signal_emit (ptest, duration_signal, 0, duration, NULL);
+
   return duration;
 }
 
@@ -816,13 +816,15 @@ void
 insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest * test,
     GstState state)
 {
+  g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
+
   test->priv->initial_state = state;
 }
 
 /**
  * insanity_gst_pipeline_test_set_create_pipeline_function:
  * @test: the #InsanityGstPipelineTest to change
- * @f: the function to call to create a new pipeline
+ * @func: the function to call to create a new pipeline
  * @userdata: whatever data the user wants passed to the function
  * @dnotify: (allow-none): a function to be called on the previous data when replaced
  *
@@ -831,15 +833,16 @@ insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest * test,
  */
 void
 insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest
-    * test, GstPipeline * (f) (InsanityGstPipelineTest *, gpointer),
-    gpointer userdata, GDestroyNotify dnotify)
+    * test, InsanityGstCreatePipelineFunction func, gpointer userdata, GDestroyNotify dnotify)
 {
+  g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
+
   if (test->priv->create_pipeline) {
     if (test->priv->create_pipeline_destroy_notify)
       (*test->priv->create_pipeline_destroy_notify) (test->
           priv->create_pipeline_user_data);
   }
-  test->priv->create_pipeline = f;
+  test->priv->create_pipeline = func;
   test->priv->create_pipeline_user_data = userdata;
   test->priv->create_pipeline_destroy_notify = dnotify;
 }
@@ -857,6 +860,8 @@ insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest
 void
 insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolean live)
 {
+  g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
+
   test->priv->is_live = live;
 }
 
@@ -877,6 +882,8 @@ insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolean liv
 void
 insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest *test, gboolean buffering)
 {
+  g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
+
   test->priv->enable_buffering = buffering;
 }
 

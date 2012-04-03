@@ -165,15 +165,40 @@ insanity_gst_test_new (const char *name, const char *description,
   return test;
 }
 
+typedef struct
+{
+  InsanityGstTest *test;
+  InsanityGstDataProbeFunction func;
+  gpointer user_data;
+  GDestroyNotify dnotify;
+} DataProbeCtx;
+
+static void
+free_data_probe_ctx (DataProbeCtx *ctx)
+{
+  g_object_unref (ctx->test);
+  if (ctx->dnotify)
+    ctx->dnotify (ctx->user_data);
+  g_slice_free (DataProbeCtx, ctx);
+}
+
+static gboolean
+data_probe_cb (GstPad *pad, GstMiniObject *obj, DataProbeCtx *ctx)
+{
+  return ctx->func (ctx->test, pad, obj, ctx->user_data);
+}
+
 /**
  * insanity_gst_test_add_data_probe:
  * @test: the #InsanityGstTest
  * @bin (transfer none): a bin where to look for the sinks
  * @element_name: the name of the element on which to find the pad to add a probe to
  * @pad_name: the name of the pad to add a probe to
+ * @pad: (out) (transfer full): a pointer where to place a pointer to the pad to which the probe was attached to
+ * @probe_id: (out): a pointer where to place the identifier of the probe
  * @probe: the data probe function to call
- * @pad: a pointer where to place a pointer to the pad to which the probe was attached to
- * @probe: a pointer where to place the identifier of the probe
+ * @user_data: user data for @probe
+ * @dnotify: #GDestroyNotify for @user_data
  *
  * This function adds a data probe to a named element and pad in the given bin.
  * The pad and probe should be passed to insanity_gst_test_remove_data_probe when done.
@@ -183,26 +208,55 @@ insanity_gst_test_new (const char *name, const char *description,
 gboolean
 insanity_gst_test_add_data_probe (InsanityGstTest * test, GstBin * bin,
     const char *element_name, const char *pad_name,
-    InsanityGstDataProbeFunction probe, GstPad ** pad, gulong * probe_id)
+    GstPad ** pad, gulong * probe_id, InsanityGstDataProbeFunction probe,
+    gpointer user_data, GDestroyNotify dnotify)
 {
   GstElement *e;
+  DataProbeCtx *ctx;
+
+  g_return_val_if_fail (INSANITY_IS_GST_TEST (test), FALSE);
+  g_return_val_if_fail (GST_IS_BIN (bin), FALSE);
+  g_return_val_if_fail (element_name != NULL, FALSE);
+  g_return_val_if_fail (pad_name != NULL, FALSE);
+  g_return_val_if_fail (pad != NULL, FALSE);
+  g_return_val_if_fail (probe_id != NULL, FALSE);
+  g_return_val_if_fail (probe != NULL, FALSE);
 
   *pad = NULL;
   *probe_id = 0;
 
   e = gst_bin_get_by_name (bin, element_name);
-  if (!e)
+  if (!e) {
+    if (dnotify)
+      dnotify (user_data);
     return FALSE;
+  }
+
   *pad = gst_element_get_static_pad (e, pad_name);
   gst_object_unref (e);
-  if (!*pad)
+  if (!*pad) {
+    if (dnotify)
+      dnotify (user_data);
     return FALSE;
-  *probe_id = gst_pad_add_data_probe (*pad, (GCallback) probe, test);
+  }
+   
+  ctx = g_slice_new (DataProbeCtx);
+  ctx->test = g_object_ref (test);
+  ctx->func = probe;
+  ctx->user_data = user_data;
+  ctx->dnotify = dnotify;
+
+  *probe_id = gst_pad_add_data_probe_full (*pad, (GCallback) data_probe_cb, ctx, (GDestroyNotify) free_data_probe_ctx);
+
   if (*probe_id != 0) {
     insanity_test_printf (INSANITY_TEST (test), "Probe %u connected to %s:%s\n",
         *probe_id, element_name, pad_name);
     return TRUE;
   } else {
+    g_object_unref (ctx->test);
+    g_slice_free (DataProbeCtx, ctx);
+    if (dnotify)
+      dnotify (user_data);
     gst_object_unref (*pad);
     *pad = NULL;
     return FALSE;
@@ -221,6 +275,9 @@ void
 insanity_gst_test_remove_data_probe (InsanityGstTest * test,
     GstPad * pad, gulong probe)
 {
+  g_return_if_fail (INSANITY_IS_GST_TEST (test));
+  g_return_if_fail (GST_IS_PAD (pad));
+  g_return_if_fail (probe != 0);
+
   gst_pad_remove_data_probe (pad, probe);
-  gst_object_unref (pad);
 }

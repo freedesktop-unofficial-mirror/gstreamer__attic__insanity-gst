@@ -33,6 +33,7 @@
 typedef struct _InsanityGstPipelineTest InsanityGstPipelineTest;
 typedef struct _InsanityGstPipelineTestClass InsanityGstPipelineTestClass;
 typedef struct _InsanityGstPipelineTestPrivateData InsanityGstPipelineTestPrivateData;
+typedef GstPipeline *(*InsanityGstCreatePipelineFunction) (InsanityGstPipelineTest*, gpointer userdata);
 
 /**
  * InsanityGstPipelineTest:
@@ -75,14 +76,14 @@ InsanityGstPipelineTest *insanity_gst_pipeline_test_new(const char *name, const 
 void insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest *test, GstState state);
 void insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolean live);
 void insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest *test, gboolean buffering);
-void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest *test, GstPipeline *(f)(InsanityGstPipelineTest*, gpointer userdata), gpointer userdata, GDestroyNotify dnotify);
+void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest *test, InsanityGstCreatePipelineFunction func, gpointer userdata, GDestroyNotify dnotify);
 GstClockTime insanity_gst_pipeline_test_query_duration(InsanityGstPipelineTest *test);
 
 /* Handy macros */
 #define INSANITY_TYPE_GST_PIPELINE_TEST                (insanity_gst_pipeline_test_get_type ())
 #define INSANITY_GST_PIPELINE_TEST(obj)                (G_TYPE_CHECK_INSTANCE_CAST ((obj), INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTest))
 #define INSANITY_GST_PIPELINE_TEST_CLASS(c)            (G_TYPE_CHECK_CLASS_CAST ((c), INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTestClass))
-#define INSANITY_IS_GST_PIPELINE_TEST(obj)             (G_TYPE_CHECK_TYPE ((obj), INSANITY_TYPE_GST_PIPELINE_TEST))
+#define INSANITY_IS_GST_PIPELINE_TEST(obj)             (G_TYPE_CHECK_INSTANCE_TYPE ((obj), INSANITY_TYPE_GST_PIPELINE_TEST))
 #define INSANITY_IS_GST_PIPELINE_TEST_CLASS(c)         (G_TYPE_CHECK_CLASS_TYPE ((c), INSANITY_TYPE_GST_PIPELINE_TEST))
 #define INSANITY_GST_PIPELINE_TEST_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), INSANITY_TYPE_GST_PIPELINE_TEST, InsanityGstPipelineTestClass))
 
