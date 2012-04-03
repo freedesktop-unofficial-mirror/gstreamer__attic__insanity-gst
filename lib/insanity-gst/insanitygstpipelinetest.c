@@ -344,7 +344,7 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
           gboolean ret = TRUE;
 
           ptest->priv->reached_initial_state = TRUE;
-          insanity_test_validate_step (INSANITY_TEST (ptest),
+          insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
               "reached-initial-state", TRUE, NULL);
 
           /* Tell the test we reached our initial state */
@@ -450,7 +450,7 @@ insanity_gst_pipeline_test_setup (InsanityTest * test)
 
   priv->pipeline =
       INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
-  insanity_test_validate_step (test, "valid-pipeline", priv->pipeline != NULL,
+  insanity_test_validate_checklist_item (test, "valid-pipeline", priv->pipeline != NULL,
       NULL);
   if (!priv->pipeline)
     return FALSE;
@@ -512,7 +512,7 @@ insanity_gst_pipeline_test_teardown (InsanityTest * test)
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
 
-  insanity_test_validate_step (test, "no-errors-seen", priv->error_count == 0,
+  insanity_test_validate_checklist_item (test, "no-errors-seen", priv->error_count == 0,
       NULL);
 
   if (priv->bus) {
@@ -541,7 +541,7 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest * test)
   sret =
       gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline),
       ptest->priv->initial_state);
-  insanity_test_validate_step (INSANITY_TEST (test), "pipeline-change-state",
+  insanity_test_validate_checklist_item (INSANITY_TEST (test), "pipeline-change-state",
       (sret != GST_STATE_CHANGE_FAILURE), NULL);
   if (sret == GST_STATE_CHANGE_FAILURE) {
     insanity_test_done (INSANITY_TEST (ptest));

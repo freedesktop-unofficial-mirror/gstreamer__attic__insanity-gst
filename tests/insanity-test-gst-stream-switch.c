@@ -610,7 +610,7 @@ stream_switch_test_create_pipeline (InsanityGstPipelineTest * ptest,
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error ? error->message : NULL);
     if (error)
       g_error_free (error);
@@ -618,7 +618,7 @@ stream_switch_test_create_pipeline (InsanityGstPipelineTest * ptest,
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error->message);
     g_error_free (error);
     return NULL;
@@ -760,13 +760,13 @@ stream_switch_test_stop (InsanityTest * test)
   }
   nsinks = 0;
   if (stream_switch_correct)
-    insanity_test_validate_step (test, "stream-switch", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "stream-switch", TRUE, NULL);
   stream_switch_correct = TRUE;
   if (stream_switch_constant_correct)
-    insanity_test_validate_step (test, "streams-constant", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "streams-constant", TRUE, NULL);
   stream_switch_constant_correct = TRUE;
   if (unique_markers_correct)
-    insanity_test_validate_step (test, "unique-markers", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "unique-markers", TRUE, NULL);
   unique_markers_correct = TRUE;
 
   g_value_init (&v, G_TYPE_INT64);
@@ -794,7 +794,7 @@ stream_switch_timeout (InsanityTest * test)
 {
   insanity_test_printf (test, "stream switch timeout\n");
   stream_switch_correct = FALSE;
-  insanity_test_validate_step (test, "stream-switch", FALSE,
+  insanity_test_validate_checklist_item (test, "stream-switch", FALSE,
       "No stream switch happened after some time");
   insanity_test_done (test);
   return FALSE;
@@ -853,7 +853,7 @@ update_successive_markers (InsanityTest * test)
       insanity_test_printf (test,
           "Same marker %d for multiple streams (%d, %d) of type %d\n",
           current_marker, i, idx, type);
-      insanity_test_validate_step (test, "unique-markers", FALSE,
+      insanity_test_validate_checklist_item (test, "unique-markers", FALSE,
           "Same marker for multiple streams");
       unique_markers_correct = FALSE;
       insanity_test_done (test);
@@ -872,7 +872,7 @@ validate_marker (InsanityTest * test, StreamType type, gint idx, gint marker)
     insanity_test_printf (test,
         "Wrong marker for stream %d of type %d (%d != %d)\n", idx, type, marker,
         markers[type][idx]);
-    insanity_test_validate_step (test, "streams-constant", FALSE,
+    insanity_test_validate_checklist_item (test, "streams-constant", FALSE,
         "Wrong marker for index");
     stream_switch_constant_correct = FALSE;
     insanity_test_done (test);
@@ -911,17 +911,17 @@ do_next_switch (InsanityTest * test)
     if (na != n_audio) {
       insanity_test_printf (test,
           "Wrong number of audio streams (expected %d, got %d)\n", n_audio, na);
-      insanity_test_validate_step (test, "found-all-streams", FALSE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE, NULL);
       insanity_test_done (test);
     } else if (nv != n_video) {
       insanity_test_printf (test,
           "Wrong number of video streams (expected %d, got %d)\n", n_video, nv);
-      insanity_test_validate_step (test, "found-all-streams", FALSE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE, NULL);
       insanity_test_done (test);
     } else if (nt != n_text) {
       insanity_test_printf (test,
           "Wrong number of text streams (expected %d, got %d)\n", n_text, nt);
-      insanity_test_validate_step (test, "found-all-streams", FALSE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE, NULL);
       insanity_test_done (test);
     } else {
       insanity_test_printf (test,
@@ -929,7 +929,7 @@ do_next_switch (InsanityTest * test)
       insanity_test_printf (test, "Audio %d, Video %d, Text %d\n", n_audio,
           n_video, n_text);
 
-      insanity_test_validate_step (test, "found-all-streams", TRUE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", TRUE, NULL);
       current_step = CURRENT_STEP_WAIT_INITIAL_MARKERS;
       streams[STREAM_TYPE_AUDIO].current_marker = -1;
       if (n_audio > 0)
@@ -1264,7 +1264,7 @@ probe (GstPad * pad, GstMiniObject * object, gpointer userdata)
     } else if (streams[type].current_marker != marker) {
       insanity_test_printf (test, "%d: Unexpected stream switch\n", type);
       stream_switch_constant_correct = FALSE;
-      insanity_test_validate_step (test, "streams-constant", FALSE,
+      insanity_test_validate_checklist_item (test, "streams-constant", FALSE,
           "Streams switched although not waiting for a stream switch");
       streams[type].current_marker = marker;
     }
@@ -1317,7 +1317,7 @@ stream_switch_test_reached_initial_state (InsanityGstPipelineTest * test)
         nsinks++;
       }
       else {
-        insanity_test_validate_step (INSANITY_TEST (test), "install-probes",
+        insanity_test_validate_checklist_item (INSANITY_TEST (test), "install-probes",
             FALSE, "Failed to attach probe to fakesink");
         error = TRUE;
       }
@@ -1326,7 +1326,7 @@ stream_switch_test_reached_initial_state (InsanityGstPipelineTest * test)
   }
 
   if (!error) {
-    insanity_test_validate_step (INSANITY_TEST (test), "install-probes",
+    insanity_test_validate_checklist_item (INSANITY_TEST (test), "install-probes",
         nsinks > 0, NULL);
   }
 

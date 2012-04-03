@@ -44,7 +44,7 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error ? error->message : NULL);
     if (error)
       g_error_free (error);
@@ -52,7 +52,7 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error->message);
     g_error_free (error);
     return NULL;
@@ -99,7 +99,7 @@ play_test_start (InsanityTest * test)
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
   if (!strcmp (g_value_get_string (&uri), "")) {
-    insanity_test_validate_step (test, "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (test, "valid-pipeline", FALSE,
         "No URI to test on");
     g_value_unset (&uri);
     return FALSE;

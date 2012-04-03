@@ -81,7 +81,7 @@ http_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
       error ? error->message : NULL);
     if (error)
       g_error_free (error);
@@ -90,7 +90,7 @@ http_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
   else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
       error->message);
     g_error_free (error);
     return NULL;
@@ -111,7 +111,7 @@ http_test_get_position (InsanityTest *test)
   res = gst_element_query_position (global_pipeline, &format, &pos);
   if (format != GST_FORMAT_TIME)
     res = FALSE;
-  insanity_test_validate_step (test, "position-queried", res, NULL);
+  insanity_test_validate_checklist_item (test, "position-queried", res, NULL);
   if (!res) {
     pos = GST_CLOCK_TIME_NONE;
   }
@@ -140,7 +140,7 @@ wait_and_do_seek (gpointer data)
 
   /* If duration did not become known yet, we cannot test */
   if (!GST_CLOCK_TIME_IS_VALID (global_duration)) {
-    insanity_test_validate_step (test, "duration-known", FALSE, NULL);
+    insanity_test_validate_checklist_item (test, "duration-known", FALSE, NULL);
     insanity_test_done (test);
     return FALSE;
   }
@@ -153,7 +153,7 @@ wait_and_do_seek (gpointer data)
   res = gst_element_send_event (global_pipeline, event);
   if (!res) {
     global_validate_on_playing = NULL;
-    insanity_test_validate_step (test, "seek", FALSE, "Failed to send seek event");
+    insanity_test_validate_checklist_item (test, "seek", FALSE, "Failed to send seek event");
     return FALSE;
   }
   gst_element_get_state (global_pipeline, NULL, NULL, SEEK_TIMEOUT);
@@ -195,13 +195,13 @@ http_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage *msg)
   switch (GST_MESSAGE_TYPE (msg)) {
     case GST_MESSAGE_STATE_CHANGED:
       if (GST_MESSAGE_SRC (msg) == GST_OBJECT (global_pipeline)) {
-        const char *validate_step = global_validate_on_playing;
+        const char *validate_checklist_item = global_validate_on_playing;
         GstState oldstate, newstate, pending;
 
         gst_message_parse_state_changed (msg, &oldstate, &newstate, &pending);
-        if (newstate == GST_STATE_PLAYING && pending == GST_STATE_VOID_PENDING && validate_step) {
+        if (newstate == GST_STATE_PLAYING && pending == GST_STATE_VOID_PENDING && validate_checklist_item) {
           global_validate_on_playing = NULL;
-          insanity_test_validate_step (INSANITY_TEST (ptest), validate_step, TRUE, NULL);
+          insanity_test_validate_checklist_item (INSANITY_TEST (ptest), validate_checklist_item, TRUE, NULL);
           /* let it run a couple seconds */
           global_wait_time = http_test_get_wait_time (INSANITY_TEST (ptest));
           global_timer_id = g_timeout_add (250, (GSourceFunc)&wait_and_end_step, INSANITY_TEST (ptest));
@@ -455,7 +455,7 @@ start_server (InsanityTest *test, const char *ssl_cert_file, const char *ssl_key
   server = soup_server_new (SOUP_SERVER_PORT, port, SOUP_SERVER_INTERFACE, bind_address, NULL);
   if (!server) {
     char *message = g_strdup_printf ("Unable to bind to server port %u", port);
-    insanity_test_validate_step (test, "server-started", FALSE, message);
+    insanity_test_validate_checklist_item (test, "server-started", FALSE, message);
     g_free (message);
     return 1;
   }
@@ -473,7 +473,7 @@ start_server (InsanityTest *test, const char *ssl_cert_file, const char *ssl_key
 
     if (!ssl_server) {
       char *message = g_strdup_printf ("Unable to bind to SSL server port %u", ssl_port);
-      insanity_test_validate_step (test, "ssl-server-started", FALSE, message);
+      insanity_test_validate_checklist_item (test, "ssl-server-started", FALSE, message);
       g_free (message);
       g_object_unref (global_server);
       global_server = NULL;
@@ -505,11 +505,11 @@ start_server (InsanityTest *test, const char *ssl_cert_file, const char *ssl_key
     g_object_unref (bind_address);
 
   soup_server_run_async (server);
-  insanity_test_validate_step (test, "server-started", TRUE, NULL);
+  insanity_test_validate_checklist_item (test, "server-started", TRUE, NULL);
 
   if (ssl_server) {
     soup_server_run_async (ssl_server);
-    insanity_test_validate_step (test, "server-started", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "server-started", TRUE, NULL);
   }
 
   return 0;
@@ -566,7 +566,7 @@ duration_timeout (gpointer data)
 {
   InsanityTest *test = data;
 
-  insanity_test_validate_step (test, "duration-known", FALSE,
+  insanity_test_validate_checklist_item (test, "duration-known", FALSE,
       "No duration, even after playing for a bit");
   insanity_test_done (test);
   return FALSE;
@@ -582,23 +582,23 @@ http_test_start(InsanityTest *test)
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
   if (!strcmp (g_value_get_string (&uri), "")) {
-    insanity_test_validate_step (test, "valid-pipeline", FALSE, "No URI to test on");
+    insanity_test_validate_checklist_item (test, "valid-pipeline", FALSE, "No URI to test on");
     g_value_unset (&uri);
     return FALSE;
   }
 
   if (!gst_uri_is_valid (g_value_get_string (&uri))) {
-    insanity_test_validate_step (test, "uri-is-file", FALSE, NULL);
+    insanity_test_validate_checklist_item (test, "uri-is-file", FALSE, NULL);
     g_value_unset (&uri);
     return FALSE;
   }
   protocol = gst_uri_get_protocol (g_value_get_string (&uri));
   if (!protocol || g_ascii_strcasecmp (protocol, "file")) {
-    insanity_test_validate_step (test, "uri-is-file", FALSE, NULL);
+    insanity_test_validate_checklist_item (test, "uri-is-file", FALSE, NULL);
     g_value_unset (&uri);
     return FALSE;
   }
-  insanity_test_validate_step (test, "uri-is-file", TRUE, NULL);
+  insanity_test_validate_checklist_item (test, "uri-is-file", TRUE, NULL);
   global_source_filename = gst_uri_get_location (g_value_get_string (&uri));
   g_value_unset (&uri);
 
@@ -682,7 +682,7 @@ http_test_duration (InsanityGstPipelineTest *ptest, GstClockTime duration)
   insanity_test_printf (INSANITY_TEST (ptest),
       "Just got notified duration is %"GST_TIME_FORMAT"\n", GST_TIME_ARGS (duration));
   global_duration = duration;
-  insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", TRUE, NULL);
+  insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "duration-known", TRUE, NULL);
 
   if (start) {
     /* start now if we were waiting for the duration before doing so */

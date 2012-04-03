@@ -68,7 +68,7 @@ dvd_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error ? error->message : NULL);
     if (error)
       g_error_free (error);
@@ -76,7 +76,7 @@ dvd_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error->message);
     g_error_free (error);
     return NULL;
@@ -148,24 +148,24 @@ retrieve_commands (InsanityGstPipelineTest * ptest, const char *step,
             }
             global_allowed_commands[global_n_allowed_commands++] = cmd;
           } else {
-            insanity_test_validate_step (test, step, FALSE,
+            insanity_test_validate_checklist_item (test, step, FALSE,
                 "Failed to parse command query result");
             break;
           }
         }
         if (res) {
-          insanity_test_validate_step (test, step, TRUE, NULL);
+          insanity_test_validate_checklist_item (test, step, TRUE, NULL);
         }
       } else {
-        insanity_test_validate_step (test, step, FALSE,
+        insanity_test_validate_checklist_item (test, step, FALSE,
             "Too many commands in command query result");
       }
     } else {
-      insanity_test_validate_step (test, step, FALSE,
+      insanity_test_validate_checklist_item (test, step, FALSE,
           "Failed to parse command query result");
     }
   } else {
-    insanity_test_validate_step (test, step, FALSE,
+    insanity_test_validate_checklist_item (test, step, FALSE,
         "Failed to send command query");
   }
   gst_query_unref (q);
@@ -209,13 +209,13 @@ retrieve_angles (InsanityGstPipelineTest * ptest, const char *step,
       global_angle = current;
       global_n_angles = count;
 
-      insanity_test_validate_step (test, step, TRUE, NULL);
+      insanity_test_validate_checklist_item (test, step, TRUE, NULL);
     } else {
-      insanity_test_validate_step (test, step, FALSE,
+      insanity_test_validate_checklist_item (test, step, FALSE,
           "Failed to parse answer to angles query");
     }
   } else {
-    insanity_test_validate_step (test, step, FALSE,
+    insanity_test_validate_checklist_item (test, step, FALSE,
         "Failed to send angles query");
   }
   gst_query_unref (q);
@@ -275,7 +275,7 @@ cycle_unused_commands (InsanityGstPipelineTest * ptest, const char *step,
     }
   }
 
-  insanity_test_validate_step (test, "cycle-unused-commands", TRUE, NULL);
+  insanity_test_validate_checklist_item (test, "cycle-unused-commands", TRUE, NULL);
 
   return NEXT_STEP_NOW;
 }
@@ -312,7 +312,7 @@ seek_to_main_title (InsanityGstPipelineTest * ptest, const char *step,
       GST_SEEK_TYPE_SET, title, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
   res = gst_element_send_event (global_pipeline, event);
   if (!res) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), step, FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, FALSE,
         "Failed to send seek event");
     return NEXT_STEP_NOW;
   }
@@ -320,7 +320,7 @@ seek_to_main_title (InsanityGstPipelineTest * ptest, const char *step,
 
   global_state_change_timeout =
       g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
-  insanity_test_validate_step (test, step, TRUE, NULL);
+  insanity_test_validate_checklist_item (test, step, TRUE, NULL);
   return NEXT_STEP_ON_PLAYING;
 }
 
@@ -356,7 +356,7 @@ send_random_commands (InsanityGstPipelineTest * ptest, const char *step,
       g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
   if (++*counter == MAX_RANDOM_COMMANDS) {
     *counter = 0;
-    insanity_test_validate_step (test, "send-random-commands", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "send-random-commands", TRUE, NULL);
     return NEXT_STEP_ON_PLAYING;
   } else {
     return NEXT_STEP_RESTART_ON_PLAYING;
@@ -440,7 +440,7 @@ on_ready_for_next_state (InsanityGstPipelineTest * ptest, gboolean timeout)
 {
   global_waiting_on_playing = FALSE;
   if (global_next_state != global_state) {
-    insanity_test_validate_step (INSANITY_TEST (ptest),
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
         steps[global_state].step, TRUE, NULL);
     global_state = global_next_state;
   }
@@ -567,24 +567,24 @@ dvd_test_start (InsanityTest * test)
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
   if (!strcmp (g_value_get_string (&uri), "")) {
-    insanity_test_validate_step (test, "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (test, "valid-pipeline", FALSE,
         "No URI to test on");
     g_value_unset (&uri);
     return FALSE;
   }
 
   if (!gst_uri_is_valid (g_value_get_string (&uri))) {
-    insanity_test_validate_step (test, "uri-is-dvd", FALSE, NULL);
+    insanity_test_validate_checklist_item (test, "uri-is-dvd", FALSE, NULL);
     g_value_unset (&uri);
     return FALSE;
   }
   protocol = gst_uri_get_protocol (g_value_get_string (&uri));
   if (!protocol || g_ascii_strcasecmp (protocol, "dvd")) {
-    insanity_test_validate_step (test, "uri-is-dvd", FALSE, NULL);
+    insanity_test_validate_checklist_item (test, "uri-is-dvd", FALSE, NULL);
     g_value_unset (&uri);
     return FALSE;
   }
-  insanity_test_validate_step (test, "uri-is-dvd", TRUE, NULL);
+  insanity_test_validate_checklist_item (test, "uri-is-dvd", TRUE, NULL);
 
   g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
   g_value_unset (&uri);

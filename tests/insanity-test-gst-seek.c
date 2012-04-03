@@ -145,7 +145,7 @@ do_seek (InsanityGstPipelineTest * ptest, GstElement * pipeline,
 
   res = gst_element_send_event (pipeline, event);
   if (!res) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "seek", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seek", FALSE,
         "Failed to send seek event");
     global_seek_failed = TRUE;
     return FALSE;
@@ -249,7 +249,7 @@ seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error ? error->message : NULL);
     if (error)
       g_error_free (error);
@@ -257,7 +257,7 @@ seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_step (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
         error->message);
     g_error_free (error);
     return NULL;
@@ -365,7 +365,7 @@ probe (GstPad * pad, GstMiniObject * object, gpointer userdata)
             GST_TIME_ARGS (global_segment[index].start),
             GST_TIME_ARGS (global_segment[index].stop),
             global_state);
-        insanity_test_validate_step (INSANITY_TEST (ptest), "segment-clipping",
+        insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "segment-clipping",
             FALSE, msg);
         g_free (msg);
         global_bad_segment_clipping = TRUE;
@@ -401,7 +401,7 @@ probe (GstPad * pad, GstMiniObject * object, gpointer userdata)
                 GST_TIME_FORMAT ", method %d",
                 GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (global_target),
                 GST_TIME_ARGS (diff), global_state);
-            insanity_test_validate_step (INSANITY_TEST (ptest),
+            insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
                 "buffer-seek-time-correct", FALSE, msg);
             g_free (msg);
             global_bad_ts = TRUE;
@@ -475,7 +475,7 @@ probe (GstPad * pad, GstMiniObject * object, gpointer userdata)
               ", method %d",
               GST_TIME_ARGS (stime_start), GST_TIME_ARGS (global_target),
               GST_TIME_ARGS (diff), global_state);
-          insanity_test_validate_step (INSANITY_TEST (ptest),
+          insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
               "segment-seek-time-correct", FALSE, msg);
           g_free (msg);
           global_bad_segment_start = TRUE;
@@ -573,7 +573,7 @@ duration_timeout (gpointer data)
 {
   InsanityTest *test = data;
 
-  insanity_test_validate_step (test, "duration-known", FALSE,
+  insanity_test_validate_checklist_item (test, "duration-known", FALSE,
       "No duration, even after playing for a bit");
   insanity_test_done (test);
   return FALSE;
@@ -591,7 +591,7 @@ check_wedged (gpointer data)
       0) ? 0 : 1000 * (g_get_monotonic_time () - global_last_probe);
   if (idle >= IDLE_TIMEOUT) {
     insanity_test_printf (test, "Wedged, kicking\n");
-    insanity_test_validate_step (test, "buffer-seek-time-correct", FALSE,
+    insanity_test_validate_checklist_item (test, "buffer-seek-time-correct", FALSE,
         "No buffers or events were seen for a while");
     g_idle_add ((GSourceFunc) & do_next_seek, test);
   }
@@ -609,7 +609,7 @@ seek_test_start (InsanityTest * test)
   if (!insanity_test_get_argument (test, "uri", &uri))
     return FALSE;
   if (!strcmp (g_value_get_string (&uri), "")) {
-    insanity_test_validate_step (test, "valid-pipeline", FALSE,
+    insanity_test_validate_checklist_item (test, "valid-pipeline", FALSE,
         "No URI to test on");
     g_value_unset (&uri);
     return FALSE;
@@ -662,7 +662,7 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
         global_nsinks++;
       }
       else {
-        insanity_test_validate_step (INSANITY_TEST (ptest), "install-probes",
+        insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "install-probes",
             FALSE, "Failed to attach probe to fakesink");
         error = TRUE;
       }
@@ -671,7 +671,7 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
   }
 
   if (!error) {
-    insanity_test_validate_step (INSANITY_TEST (ttest), "install-probes",
+    insanity_test_validate_checklist_item (INSANITY_TEST (ttest), "install-probes",
         global_nsinks > 0, NULL);
   }
 
@@ -700,7 +700,7 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
         "No duration yet, try a bit harder\n");
     sret = gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     if (sret == GST_STATE_CHANGE_FAILURE) {
-      insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known",
+      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "duration-known",
           FALSE,
           "No duration, and failed to switch to PLAYING in hope we might get it then");
       return;
@@ -752,16 +752,16 @@ seek_test_stop (InsanityTest * test)
 
   /* If we've not invalidated these, validate them now */
   if (!global_seek_failed) {
-    insanity_test_validate_step (test, "seek", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "seek", TRUE, NULL);
   }
   if (!global_bad_ts) {
-    insanity_test_validate_step (test, "buffer-seek-time-correct", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "buffer-seek-time-correct", TRUE, NULL);
   }
   if (!global_bad_segment_start) {
-    insanity_test_validate_step (test, "segment-seek-time-correct", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "segment-seek-time-correct", TRUE, NULL);
   }
   if (!global_bad_segment_clipping) {
-    insanity_test_validate_step (test, "segment-clipping", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "segment-clipping", TRUE, NULL);
   }
 
   started = FALSE;
@@ -786,7 +786,7 @@ seek_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
       "Just got notified duration is %" GST_TIME_FORMAT "\n",
       GST_TIME_ARGS (duration));
   global_duration = duration;
-  insanity_test_validate_step (INSANITY_TEST (ptest), "duration-known", TRUE,
+  insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "duration-known", TRUE,
       NULL);
 
   /* Do first test now if we were waiting to do it */
