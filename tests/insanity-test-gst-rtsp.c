@@ -489,14 +489,11 @@ rtsp_test_wait(InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 static NextStepTrigger
 rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 {
-  GstEvent *event;
   GstClockTime t = GST_SECOND * 10;
   gboolean res;
 
-  event = gst_event_new_seek (1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
-      GST_SEEK_TYPE_SET, t, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
-
-  res = gst_element_send_event (global_pipeline, event);
+  res = gst_element_seek (global_pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
+     GST_SEEK_TYPE_SET, t, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
   if (!res) {
     insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step,
         FALSE, "Failed to send seek event");
