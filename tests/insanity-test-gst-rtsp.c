@@ -43,6 +43,7 @@ static GstState global_waiting_on_state = GST_STATE_VOID_PENDING;
 static GstClockTime global_wait_time = GST_CLOCK_TIME_NONE;
 static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
 static guint global_timer_id = 0;
+static gboolean global_live = FALSE;
 
 static GstClockTime
 rtsp_test_get_position (InsanityTest *test)
@@ -371,6 +372,7 @@ rtsp_test_start(InsanityTest *test)
         rtsp_test_get_string (&video_encoder), rtsp_test_get_string (&video_payloader),
         rtsp_test_get_string (&audio_encoder), rtsp_test_get_string (&audio_payloader),
         rtsp_test_get_string (&muxer), rtsp_test_get_string (&muxer_payloader));
+    global_live = TRUE;
   }
   else {
     if (!gst_uri_is_valid (uri_string)) {
@@ -384,6 +386,7 @@ rtsp_test_start(InsanityTest *test)
     }
 
     configured = rtsp_test_configure_server_for_uri (uri_string);
+    global_live = FALSE;
   }
 
   insanity_test_validate_checklist_item (test, "valid-setup", configured, NULL);
@@ -492,6 +495,13 @@ rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data
   GstClockTime t = GST_SECOND * 10;
   gboolean res;
 
+  /* We can't seek in a live pipeline */
+  if (global_live) {
+    insanity_test_printf (INSANITY_TEST (ptest),
+        "Skipping seek test in live pipeline");
+    return NEXT_STEP_NOW;
+  }
+
   res = gst_element_seek (global_pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
      GST_SEEK_TYPE_SET, t, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
   if (!res) {
@@ -509,6 +519,15 @@ rtsp_test_set_protocols (InsanityGstPipelineTest * ptest, const char *step, guin
 {
   guint protocols = data;
   GstElement *source;
+
+  /* We can't set certain protocols that with a live pipeline */
+  if (global_live) {
+    if (protocols == 1 || protocols == 2) { /* UDP multicast/unicast - unicast might be OK ? */
+      insanity_test_printf (INSANITY_TEST (ptest),
+          "Skipping protocols %u in live pipeline", protocols);
+      return NEXT_STEP_NOW;
+    }
+  }
 
   gst_element_set_state(global_pipeline, GST_STATE_READY);
   g_object_get (global_pipeline, "source", &source, NULL);
