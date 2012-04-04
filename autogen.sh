@@ -63,7 +63,7 @@ if test -r Makefile.am; then
   if test -z $AM_NEEDED; then
     echo -n "checking for automake... "
     AUTOMAKE=automake
-    ACLOCAL="aclocal -I m4"
+    ACLOCAL="aclocal -I m4 -I common/m4"
     if ($AUTOMAKE --version < /dev/null > /dev/null 2>&1); then
       echo "yes"
     else
@@ -95,7 +95,7 @@ if test -r Makefile.am; then
       maj=`echo $ver | $VERSIONMKMAJ`
       min=`echo $ver | $VERSIONMKMIN`
       if test $maj -eq $majneeded -a $min -ge $minneeded; then
-        ACLOCAL="$ac -I m4"
+        ACLOCAL="$ac -I m4 -I common/m4"
         echo $ACLOCAL
         break
       fi
