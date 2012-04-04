@@ -84,6 +84,7 @@ static GstClockTime global_last_ts[2] =
     { GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE };
 static GstPad *global_sinks[2] = {NULL, NULL};
 static gulong global_probes[2] = {0, 0};
+static GstClockTime global_seek_offset = 0;
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
 static gboolean global_expecting_eos = FALSE;
 static gint64 global_seek_start_time = 0;
@@ -202,7 +203,7 @@ do_next_seek (gpointer data)
     insanity_test_printf (INSANITY_TEST (ptest),
         "Switching to seek method %d\n", global_state);
   }
-  global_target =
+  global_target = global_seek_offset +
       gst_util_uint64_scale (global_duration,
       seek_targets[global_seek_target_index], 100);
   /* Note that when seeking to 99%, we may end up just against EOS and thus not
@@ -712,6 +713,10 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
         g_timeout_add (1000, (GSourceFunc) & duration_timeout, ptest);
     started = TRUE;
     return;
+  } else if (global_duration == GST_CLOCK_TIME_NONE) {
+    /* Reset to NONE if the stream is not seekable. Explode then */
+    insanity_test_done (INSANITY_TEST (ptest));
+    return;
   }
 
   /* Start first seek to start */
@@ -775,6 +780,8 @@ static void
 seek_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
 {
   gboolean seek = FALSE;
+  GstQuery *q;
+  gboolean ret;
 
   /* If we were waiting on it to start up, do it now */
   if (global_duration_timeout) {
@@ -790,8 +797,40 @@ seek_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
   insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "duration-known", TRUE,
       NULL);
 
+  global_seek_offset = 0;
+  q = gst_query_new_seeking (GST_FORMAT_TIME);
+  ret = gst_element_query (global_pipeline, q);
+  if (ret) {
+    GstFormat fmt;
+    gboolean seekable;
+    gint64 sstart, send;
+
+    gst_query_parse_seeking (q, &fmt, &seekable, &sstart, &send);
+    insanity_test_printf (INSANITY_TEST (ptest), "Seeking query: %s seekable, %" GST_TIME_FORMAT,
+        " -- %" GST_TIME_FORMAT "\n", (seekable ? "" : "not"),
+        GST_TIME_ARGS (sstart), GST_TIME_ARGS (send));
+    if (seekable && fmt == GST_FORMAT_TIME && sstart != -1 && sstart != send) {
+      global_seek_offset = sstart;
+      if (send != -1)
+        global_duration = send - sstart;
+      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable", TRUE, NULL);
+    } else {
+      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable", FALSE, "not seekable");
+      global_duration = GST_CLOCK_TIME_NONE;
+    }
+  } else {
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable", FALSE, "seeking query failed");
+    global_duration = GST_CLOCK_TIME_NONE;
+  }
+  gst_query_unref (q);
+
+  if (global_duration == GST_CLOCK_TIME_NONE) {
+    /* Only handle seekable files */
+    insanity_test_done (INSANITY_TEST (ptest));
+  }
+
   /* Do first test now if we were waiting to do it */
-  if (seek) {
+  if (seek && global_duration != GST_CLOCK_TIME_NONE) {
     insanity_test_printf (INSANITY_TEST (ptest),
         "We can now start seeking, since we have duration\n");
     do_seek (ptest, global_pipeline, 0);
@@ -837,6 +876,8 @@ main (int argc, char **argv)
       "Probes were installed on the sinks", NULL);
   insanity_test_add_checklist_item (test, "duration-known",
       "Stream duration could be determined", NULL);
+  insanity_test_add_checklist_item (test, "seekable",
+      "Stream detected as seekable", NULL);
   insanity_test_add_checklist_item (test, "seek",
       "Seek events were accepted by the pipeline", NULL);
   insanity_test_add_checklist_item (test, "buffer-seek-time-correct",
