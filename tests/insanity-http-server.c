@@ -459,7 +459,7 @@ do_get (InsanityHttpServer * srv, SoupServer * server, SoupMessage * msg,
       contents = "";
     } else {
       if (priv->source_folder == NULL) {
-        contents = (guint8 *) GST_BUFFER_DATA (buf);
+        contents = (gchar *) GST_BUFFER_DATA (buf);
       } else
         contents = g_mapped_file_get_contents (f);
     }
@@ -716,7 +716,7 @@ done:
   return ret;
 }
 
-static void
+static gpointer
 mainloop_thread_func (gpointer data)
 {
   InsanityHttpServer *srv = INSANITY_HTTP_SERVER (data);
@@ -735,6 +735,7 @@ mainloop_thread_func (gpointer data)
   while (priv->running)
     g_main_context_iteration (priv->mcontext, TRUE);
 
+  return NULL;
 }
 
 /**
