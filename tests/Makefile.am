@@ -54,23 +54,14 @@ insanity_test_gst_http_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
 insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(SOUP_LIBS) $(common_ldadd)
 
 http_tests=insanity-test-gst-http
-
-libinsanitygsttestsincdir=
-nodist_libinsanitygsttests_la_SOURCES = $(built_sources)
-nodist_libinsanitygsttestsinc_HEADERS = insanity-marshal.h
 endif
 
 noinst_LTLIBRARIES=$(http_noinst_libraries)
 noinst_HEADERS=$(http_noinst_headers)
 
 BUILT_SOURCES = $(built_headers) $(built_sources)
-EXTRA_DIST = insanity-marshal.list run-insanity-test-gst-generic-pipeline
+EXTRA_DIST = run-insanity-test-gst-generic-pipeline
 CLEANFILES = $(BUILT_SOURCES)
-
-glib_gen_prefix = __insanity
-glib_gen_basename = insanity
-
-include $(top_srcdir)/common/gst-glib-gen.mak
 
 test_PROGRAMS=\
     insanity-test-gst-generic-pipeline \

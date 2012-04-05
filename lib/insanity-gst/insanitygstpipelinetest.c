@@ -299,9 +299,12 @@ insanity_gst_pipeline_test_query_duration (InsanityGstPipelineTest * ptest)
   GstFormat fmt = GST_FORMAT_TIME;
   gint64 duration = GST_CLOCK_TIME_NONE;
 
-  g_return_val_if_fail (INSANITY_IS_GST_PIPELINE_TEST (ptest), GST_CLOCK_TIME_NONE);
+  g_return_val_if_fail (INSANITY_IS_GST_PIPELINE_TEST (ptest),
+      GST_CLOCK_TIME_NONE);
 
-  res = gst_element_query_duration (GST_ELEMENT (ptest->priv->pipeline), &fmt, &duration);
+  res =
+      gst_element_query_duration (GST_ELEMENT (ptest->priv->pipeline), &fmt,
+      &duration);
 
   if (res && fmt == GST_FORMAT_TIME && GST_CLOCK_TIME_IS_VALID (duration))
     g_signal_emit (ptest, duration_signal, 0, duration, NULL);
@@ -403,20 +406,25 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
         ptest->priv->buffering = FALSE;
         /* if the desired state is playing, go back */
         if (ptest->priv->initial_state == GST_STATE_PLAYING) {
-          gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PLAYING);
+          gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline),
+              GST_STATE_PLAYING);
         }
       } else {
         /* buffering busy */
-        if (ptest->priv->buffering == FALSE && ptest->priv->initial_state == GST_STATE_PLAYING) {
+        if (ptest->priv->buffering == FALSE
+            && ptest->priv->initial_state == GST_STATE_PLAYING) {
           /* we were not buffering but PLAYING, PAUSE  the pipeline. */
-          gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PAUSED);
+          gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline),
+              GST_STATE_PAUSED);
         }
         ptest->priv->buffering = TRUE;
       }
       break;
     case GST_MESSAGE_CLOCK_LOST:
-      gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PAUSED);
-      gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_PLAYING);
+      gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline),
+          GST_STATE_PAUSED);
+      gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline),
+          GST_STATE_PLAYING);
       break;
     }
     default:
@@ -450,8 +458,8 @@ insanity_gst_pipeline_test_setup (InsanityTest * test)
 
   priv->pipeline =
       INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
-  insanity_test_validate_checklist_item (test, "valid-pipeline", priv->pipeline != NULL,
-      NULL);
+  insanity_test_validate_checklist_item (test, "valid-pipeline",
+      priv->pipeline != NULL, NULL);
   if (!priv->pipeline)
     return FALSE;
   watch_container (ptest, GST_BIN (priv->pipeline));
@@ -512,8 +520,8 @@ insanity_gst_pipeline_test_teardown (InsanityTest * test)
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
 
-  insanity_test_validate_checklist_item (test, "no-errors-seen", priv->error_count == 0,
-      NULL);
+  insanity_test_validate_checklist_item (test, "no-errors-seen",
+      priv->error_count == 0, NULL);
 
   if (priv->bus) {
     gst_object_unref (priv->bus);
@@ -541,8 +549,8 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest * test)
   sret =
       gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline),
       ptest->priv->initial_state);
-  insanity_test_validate_checklist_item (INSANITY_TEST (test), "pipeline-change-state",
-      (sret != GST_STATE_CHANGE_FAILURE), NULL);
+  insanity_test_validate_checklist_item (INSANITY_TEST (test),
+      "pipeline-change-state", (sret != GST_STATE_CHANGE_FAILURE), NULL);
   if (sret == GST_STATE_CHANGE_FAILURE) {
     insanity_test_done (INSANITY_TEST (ptest));
     return;
@@ -680,38 +688,6 @@ insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT (GClosure * closure,
   g_value_set_boolean (return_value, v_return);
 }
 
-static void
-insanity_cclosure_marshal_BOOLEAN__VOID (GClosure * closure,
-    GValue * return_value G_GNUC_UNUSED,
-    guint n_param_values,
-    const GValue * param_values,
-    gpointer invocation_hint G_GNUC_UNUSED, gpointer marshal_data)
-{
-  typedef gboolean (*GMarshalFunc_BOOLEAN__VOID) (gpointer data1,
-      gpointer data2);
-  register GMarshalFunc_BOOLEAN__VOID callback;
-  register GCClosure *cc = (GCClosure *) closure;
-  register gpointer data1, data2;
-  gboolean v_return;
-
-  g_return_if_fail (return_value != NULL);
-  g_return_if_fail (n_param_values == 1);
-
-  if (G_CCLOSURE_SWAP_DATA (closure)) {
-    data1 = closure->data;
-    data2 = g_value_peek_pointer (param_values + 0);
-  } else {
-    data1 = g_value_peek_pointer (param_values + 0);
-    data2 = closure->data;
-  }
-  callback =
-      (GMarshalFunc_BOOLEAN__VOID) (marshal_data ? marshal_data : cc->callback);
-
-  v_return = callback (data1, data2);
-
-  g_value_set_boolean (return_value, v_return);
-}
-
 static gboolean
 stop_accumulator (GSignalInvocationHint * ihint,
     GValue * return_accu, const GValue * handler_return, gpointer data)
@@ -761,9 +737,7 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
       G_STRUCT_OFFSET (InsanityGstPipelineTestClass, reached_initial_state),
-      &stop_accumulator, NULL,
-      insanity_cclosure_marshal_BOOLEAN__VOID,
-      G_TYPE_BOOLEAN /* return_type */ ,
+      &stop_accumulator, NULL, NULL, G_TYPE_BOOLEAN /* return_type */ ,
       0, NULL);
   duration_signal = g_signal_new ("duration",
       G_TYPE_FROM_CLASS (klass),
@@ -833,7 +807,8 @@ insanity_gst_pipeline_test_set_initial_state (InsanityGstPipelineTest * test,
  */
 void
 insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest
-    * test, InsanityGstCreatePipelineFunction func, gpointer userdata, GDestroyNotify dnotify)
+    * test, InsanityGstCreatePipelineFunction func, gpointer userdata,
+    GDestroyNotify dnotify)
 {
   g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
 
@@ -858,7 +833,8 @@ insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest
  * buffering messages).
  */
 void
-insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolean live)
+insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest * test,
+    gboolean live)
 {
   g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
 
@@ -880,10 +856,10 @@ insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolean liv
  * itself, so disabling buffering when doing so is suggested.
  */
 void
-insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest *test, gboolean buffering)
+insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest * test,
+    gboolean buffering)
 {
   g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
 
   test->priv->enable_buffering = buffering;
 }
-

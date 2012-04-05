@@ -32,7 +32,6 @@
  */
 
 #include "insanity-http-server.h"
-#include "insanity-marshal.h"
 
 #include <glib.h>
 #include <string.h>
@@ -299,13 +298,13 @@ insanity_http_server_class_init (InsanityHttpServerClass * klass)
       0, NULL, NULL, insanity_cclosure_user_marshal_GSTBUFFER__VOID,
       GST_TYPE_BUFFER, 0, NULL);
 
-  signals[SIGNAL_WRITING_CHUNK] = g_signal_new ("writing-chunk", G_TYPE_FROM_CLASS (gobject_class), G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL, NULL, __insanity_marshal_VOID__STRING, G_TYPE_NONE, 4, G_TYPE_STRING, /* Path to file */
+  signals[SIGNAL_WRITING_CHUNK] = g_signal_new ("writing-chunk", G_TYPE_FROM_CLASS (gobject_class), G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL, NULL, NULL, G_TYPE_NONE, 4, G_TYPE_STRING,    /* Path to file */
       G_TYPE_POINTER,           /* Pointer to the data prepared to be written */
       G_TYPE_UINT64,            /* Size of the data that will be written */
       G_TYPE_UINT64,            /* Size of the data missing before that chunk */
       NULL);
 
-  signals[SIGNAL_WRITING_DONE] = g_signal_new ("writing-done", G_TYPE_FROM_CLASS (gobject_class), G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL, NULL, __insanity_marshal_VOID__STRING, G_TYPE_NONE, 1, G_TYPE_STRING,   /* Path to file writen */
+  signals[SIGNAL_WRITING_DONE] = g_signal_new ("writing-done", G_TYPE_FROM_CLASS (gobject_class), G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING,      /* Path to file writen */
       NULL);
 
   g_object_class_install_properties (gobject_class, N_PROPERTIES, properties);
