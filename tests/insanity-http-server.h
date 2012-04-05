@@ -24,6 +24,7 @@
 #define INSANITY_HTTP_SERVER_H
 
 #include <glib.h>
+#include <gio/gio.h>
 #include <glib-object.h>
 
 #include <insanity-gst/insanity-gst.h>
