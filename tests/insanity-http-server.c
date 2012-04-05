@@ -64,6 +64,14 @@ enum
   SIGNAL_LAST
 };
 
+const char *good_user = "good_user";
+const char *bad_user = "bad_user";
+const char *good_pw = "good_pw";
+const char *bad_pw = "bad_pw";
+const char *realm = "SOUPHTTPSRC_REALM";
+const char *basic_auth_path = "/basic_auth";
+const char *digest_auth_path = "/digest_auth";
+
 static GParamSpec *properties[N_PROPERTIES] = { NULL, };
 static guint signals[SIGNAL_LAST] = { 0, };
 

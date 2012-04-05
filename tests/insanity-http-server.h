@@ -42,13 +42,13 @@ GType insanity_http_server_get_type (void);
 #define INSANITY_HTTP_SERVER_GET_CLASS(obj)      (G_TYPE_INSTANCE_GET_CLASS ((obj), INSANITY_TYPE_HTTP_SERVER, InsanityHttpServerClass))
 
 /* SSL setup */
-const char *good_user = "good_user";
-const char *bad_user = "bad_user";
-const char *good_pw = "good_pw";
-const char *bad_pw = "bad_pw";
-const char *realm = "SOUPHTTPSRC_REALM";
-const char *basic_auth_path = "/basic_auth";
-const char *digest_auth_path = "/digest_auth";
+extern const char *good_user;
+extern const char *bad_user;
+extern const char *good_pw;
+extern const char *bad_pw;
+extern const char *realm;
+extern const char *basic_auth_path;
+extern const char *digest_auth_path;
 
 typedef struct _InsanityHttpServer InsanityHttpServer;
 typedef struct _InsanityHttpServerClass InsanityHttpServerClass;
