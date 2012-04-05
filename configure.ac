@@ -85,8 +85,13 @@ dnl Check for documentation xrefs
 GLIB_PREFIX="`$PKG_CONFIG --variable=prefix glib-2.0`"
 AC_SUBST(GLIB_PREFIX)
 
+dnl Add parameters for aclocal
+AC_SUBST(ACLOCAL_AMFLAGS, "-I m4 -I common/m4")
+
 AC_CONFIG_FILES(
   [Makefile]
+  [common/Makefile]
+  [common/m4/Makefile]
   [lib/Makefile]
   [lib/insanity-gst/Makefile]
   [tests/Makefile]

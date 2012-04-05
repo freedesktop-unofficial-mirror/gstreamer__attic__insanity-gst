@@ -12,6 +12,9 @@ testdir=$(libexecdir)/insanity-gst/tests
 common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(WARNING_CFLAGS)
 common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
 
+built_sources = insanity-marshal.c
+built_headers = insanity-marshal.h
+
 insanity_test_gst_generic_pipeline_SOURCES=insanity-test-gst-generic-pipeline.c
 insanity_test_gst_generic_pipeline_CFLAGS=$(common_cflags)
 insanity_test_gst_generic_pipeline_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
@@ -32,13 +35,6 @@ insanity_test_gst_stream_switch_SOURCES=insanity-test-gst-stream-switch.c
 insanity_test_gst_stream_switch_CFLAGS=$(GST_VIDEO_CFLAGS) $(GST_BASE_CFLAGS) $(common_cflags)
 insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_VIDEO_LIBS) $(GST_BASE_LIBS) $(common_ldadd)
 
-if HAVE_SOUP
-insanity_test_gst_http_SOURCES=insanity-test-gst-http.c
-insanity_test_gst_http_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
-insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(SOUP_LIBS) $(common_ldadd)
-http_test=insanity-test-gst-http
-endif
-
 if HAVE_GST_RTSP_SERVER
 insanity_test_gst_rtsp_SOURCES=insanity-test-gst-rtsp.c
 insanity_test_gst_rtsp_CFLAGS=$(GST_RTSP_SERVER_CFLAGS) $(common_cflags)
@@ -46,15 +42,43 @@ insanity_test_gst_rtsp_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la
 rtsp_test=insanity-test-gst-rtsp
 endif
 
+if HAVE_SOUP
+libinsanitygsttests_la_LIBADD=$(SOUP_LIBS) $(common_ldadd)
+libinsanitygsttests_la_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
+libinsanitygsttests_la_SOURCES = insanity-http-server.c
+http_noinst_libraries=libinsanitygsttests.la
+http_noinst_headers=insanity-http-server.h
+
+insanity_test_gst_http_SOURCES=insanity-test-gst-http.c
+insanity_test_gst_http_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
+insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(SOUP_LIBS) $(common_ldadd)
+
+http_tests=insanity-test-gst-http
+
+libinsanitygsttestsincdir=
+nodist_libinsanitygsttests_la_SOURCES = $(built_sources)
+nodist_libinsanitygsttestsinc_HEADERS = insanity-marshal.h
+endif
+
+noinst_LTLIBRARIES=$(http_noinst_libraries)
+noinst_HEADERS=$(http_noinst_headers)
+
+BUILT_SOURCES = $(built_headers) $(built_sources)
+EXTRA_DIST = insanity-marshal.list run-insanity-test-gst-generic-pipeline
+CLEANFILES = $(BUILT_SOURCES)
+
+glib_gen_prefix = __insanity
+glib_gen_basename = insanity
+
+include $(top_srcdir)/common/gst-glib-gen.mak
+
 test_PROGRAMS=\
     insanity-test-gst-generic-pipeline \
     insanity-test-gst-play \
     insanity-test-gst-seek \
     insanity-test-gst-dvd \
     insanity-test-gst-stream-switch \
-    $(http_test) \
+    $(http_tests) \
     $(rtsp_test)
 
 TESTS=run-insanity-test-gst-generic-pipeline
-
-EXTRA_DIST=run-insanity-test-gst-generic-pipeline
