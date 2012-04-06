@@ -51,8 +51,8 @@ insanity_test_gst_http_CFLAGS=$(GIO_CFLAGS) $(SOUP_CFLAGS) $(common_cflags)
 insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(GIO_LIBS) $(SOUP_LIBS) $(common_ldadd)
 
 insanity_test_gst_hls_SOURCES=insanity-test-gst-hls.c
-insanity_test_gst_hls_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
-insanity_test_gst_hls_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(SOUP_LIBS) $(common_ldadd)
+insanity_test_gst_hls_CFLAGS=$(GIO_CFLAGS) $(SOUP_CFLAGS) $(common_cflags)
+insanity_test_gst_hls_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(GIO_LIBS) $(SOUP_LIBS) $(common_ldadd)
 
 soup_tests=insanity-test-gst-http \
     insanity-test-gst-hls
