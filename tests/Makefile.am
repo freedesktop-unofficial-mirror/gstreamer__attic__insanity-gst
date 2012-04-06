@@ -40,15 +40,15 @@ rtsp_test=insanity-test-gst-rtsp
 endif
 
 if HAVE_SOUP
-libinsanitygsttests_la_LIBADD=$(SOUP_LIBS) $(common_ldadd)
-libinsanitygsttests_la_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
+libinsanitygsttests_la_LIBADD=$(GIO_LIBS) $(SOUP_LIBS) $(common_ldadd)
+libinsanitygsttests_la_CFLAGS=$(GIO_CFLAGS) $(SOUP_CFLAGS) $(common_cflags)
 libinsanitygsttests_la_SOURCES = insanity-http-server.c
 http_noinst_libraries=libinsanitygsttests.la
 http_noinst_headers=insanity-http-server.h
 
 insanity_test_gst_http_SOURCES=insanity-test-gst-http.c
-insanity_test_gst_http_CFLAGS=$(SOUP_CFLAGS) $(common_cflags)
-insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(SOUP_LIBS) $(common_ldadd)
+insanity_test_gst_http_CFLAGS=$(GIO_CFLAGS) $(SOUP_CFLAGS) $(common_cflags)
+insanity_test_gst_http_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libinsanitygsttests.la $(GIO_LIBS) $(SOUP_LIBS) $(common_ldadd)
 
 http_tests=insanity-test-gst-http
 endif
