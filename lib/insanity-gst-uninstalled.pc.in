@@ -1,12 +1,12 @@
-# This is the pkg-config file for libinsanity-gst-0.10
+# This is the pkg-config file for libinsanity-gst-@LIBINSANITY_GST_API_VERSION@
 prefix=
 exec_prefix=
-libdir=${pcfiledir}/insanity
+libdir=${pcfiledir}/insanity-gst
 includedir=${pcfiledir}
 
-Name: insanity-gst-0.10
-Description: insanity-gst-0.10 is a library to help write tests for gstreamer(not installed)
+Name: insanity-gst-@LIBINSANITY_GST_API_VERSION@
+Description: insanity-gst-@LIBINSANITY_GST_API_VERSION@ is a library to help write tests for gstreamer @GST_TARGET@ (not installed)
 Version: @VERSION@
-Requires: insanity
-Libs: ${libdir}/.libs/libinsanity-gst-0.10.la
+Requires: insanity gstreamer-@GST_TARGET@
+Libs: ${libdir}/.libs/libinsanity-gst-@LIBINSANITY_GST_API_VERSION@.la
 Cflags: -I${includedir}

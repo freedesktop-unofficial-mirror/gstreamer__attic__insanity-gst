@@ -1,1 +1,1 @@
-SUBDIRS = #insanity random
+SUBDIRS = insanity-gst

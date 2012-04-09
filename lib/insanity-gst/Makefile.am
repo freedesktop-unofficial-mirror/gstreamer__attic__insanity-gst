@@ -2,11 +2,11 @@ LIBTOOLFLAGS=--silent
 
 AM_CPPFLAGS=-I $(top_srcdir)/lib
 
-insanityincdir=$(includedir)/insanity-gst-0.10
+insanityincdir=$(includedir)/insanity-gst-@LIBINSANITY_GST_API_VERSION@
 
-lib_LTLIBRARIES=libinsanity-gst-0.10.la
+lib_LTLIBRARIES=libinsanity-gst-@LIBINSANITY_GST_API_VERSION@.la
 
-libinsanity_gst_0_10_la_SOURCES=\
+libinsanity_gst_@LIBINSANITY_GST_API_VERSION@_la_SOURCES=\
   insanitygsttest.c \
   insanitygstpipelinetest.c
 
@@ -14,24 +14,25 @@ insanityinc_HEADERS=\
   insanitygsttest.h \
   insanitygstpipelinetest.h
 
-libinsanity_gst_0_10_la_LIBADD=$(GST_LIBS) $(INSANITY_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
-libinsanity_gst_0_10_la_CFLAGS=$(GST_CFLAGS) $(INSANITY_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(WARNING_CFLAGS)
+libinsanity_gst_@LIBINSANITY_GST_API_VERSION@_la_LDFLAGS = -version-info @LIBINSANITY_GST_SHARED_VERSION@ -no-undefined -export-symbols-regex \^insanity_gst_.*
+libinsanity_gst_@LIBINSANITY_GST_API_VERSION@_la_LIBADD=$(GST_LIBS) $(INSANITY_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
+libinsanity_gst_@LIBINSANITY_GST_API_VERSION@_la_CFLAGS=$(GST_CFLAGS) $(INSANITY_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(WARNING_CFLAGS)
 
 if HAVE_INTROSPECTION
-BUILT_GIRSOURCES = InsanityGst-0.10-1.0.gir
+BUILT_GIRSOURCES = InsanityGst-@LIBINSANITY_GST_API_VERSION@.gir
 
 gir_headers=$(patsubst %,$(srcdir)/%, $(insanityinc_HEADERS))
-gir_sources=$(patsubst %,$(srcdir)/%, $(libinsanity_gst_0_10_la_SOURCES))
+gir_sources=$(patsubst %,$(srcdir)/%, $(libinsanity_gst_@LIBINSANITY_GST_API_VERSION@_la_SOURCES))
 
-InsanityGst-0.10-1.0.gir: $(INTROSPECTION_SCANNER) libinsanity-gst-0.10.la
+InsanityGst-@LIBINSANITY_GST_API_VERSION@.gir: $(INTROSPECTION_SCANNER) libinsanity-gst-@LIBINSANITY_GST_API_VERSION@.la
 	echo $(AM_V_GEN) $(INTROSPECTION_SCANNER) -v --namespace InsanityGst \
-		--nsversion=0.0.1 \
+		--nsversion=@LIBINSANITY_GST_API_VERSION@ \
 		--warn-all \
 		-I$(top_srcdir)/lib \
 		-I$(top_builddir) \
 		-DIN_GOBJECT_INTROSPECTION=1 \
-		--c-include='insanity-gst-0.10/insanitygsttest.h' \
-		--library=libinsanity-gst-0.10.la \
+		--c-include='insanity-gst/insanitygst.h' \
+		--library=libinsanity-gst-@LIBINSANITY_GST_API_VERSION@.la \
 		--include=Gst-@GST_TARGET@ \
 		--include=Insanity-1.0 \
 		--include=GLib-2.0 \
@@ -41,7 +42,9 @@ InsanityGst-0.10-1.0.gir: $(INTROSPECTION_SCANNER) libinsanity-gst-0.10.la
 		--pkg gobject-2.0 \
 		--pkg gmodule-no-export-2.0 \
 		--pkg gthread-2.0 \
-		--pkg-export insanity-gst-0.10 \
+		--pkg insanity-1.0 \
+		--pkg gstreamer-@GST_TARGET@ \
+		--pkg-export insanity-gst-@LIBINSANITY_GST_API_VERSION@ \
 		--output $@ \
 		$(gir_headers) \
 		$(gir_sources)

@@ -26,9 +26,10 @@ dnl     then increment AGE.
 dnl
 dnl  6. If any interfaces have been removed since the last public release,
 dnl     then set AGE to 0.
-
-LIBINSANITYGST_SHARED_VERSION="0:0:0"
-
+LIBINSANITY_GST_SHARED_VERSION="0:0:0"
+AC_SUBST(LIBINSANITY_GST_SHARED_VERSION)
+LIBINSANITY_GST_API_VERSION=0.10
+AC_SUBST(LIBINSANITY_GST_API_VERSION)
 GST_TARGET=0.10
 AC_SUBST(GST_TARGET)
 
@@ -81,6 +82,7 @@ GOBJECT_INTROSPECTION_CHECK([1.31.1])
 
 dnl check for gtk-doc
 GTK_DOC_CHECK([1.3])
+AC_CHECK_PROGS(GTKDOC_REBASE,[gtkdoc-rebase])
 
 dnl Check for documentation xrefs
 GLIB_PREFIX="`$PKG_CONFIG --variable=prefix glib-2.0`"
@@ -98,17 +100,11 @@ AC_CONFIG_FILES(
   [tests/Makefile]
   [generators/Makefile]
   [docs/Makefile]
+  [docs/insanity-gst/Makefile]
+  [docs/insanity-gst/version.xml]
   [lib/insanity-gst.pc]
   [lib/insanity-gst-uninstalled.pc]
 )
 
-ln -sf insanity-gst.pc lib/insanity-gst-$GST_TARGET.pc
-ln -sf insanity-gst-uninstalled.pc lib/insanity-gst-$GST_TARGET-uninstalled.pc
-
 AC_OUTPUT
-
-# gtk-doc 
-#  [docs/insanity-gst/Makefile]
-#  [docs/insanity-gst/version.xml]
-#  [docs/random/Makefile]
 
