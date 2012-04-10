@@ -1,3 +1,3 @@
-SUBDIRS=lib tests generators docs
+SUBDIRS=lib tests generators docs tools
 
 EXTRA_DIST=README

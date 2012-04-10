@@ -103,6 +103,7 @@ AC_CONFIG_FILES(
   [docs/Makefile]
   [docs/insanity-gst/Makefile]
   [docs/insanity-gst/version.xml]
+  [tools/Makefile]
   [lib/insanity-gst.pc]
   [lib/insanity-gst-uninstalled.pc]
 )
