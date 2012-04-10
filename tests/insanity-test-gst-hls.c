@@ -94,6 +94,12 @@ static InsanityHttpServer *glob_server;
    frame's worth for low framerate video. */
 #define SEEK_THRESHOLD  (GST_SECOND * 3)
 
+static void
+source_setup_cb (GstElement * playbin, GstElement * source, gpointer user_data)
+{
+  g_object_set (source, "user-id", good_user, "user-pw", good_pw, NULL);
+}
+
 static GstPipeline *
 hls_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
@@ -117,6 +123,9 @@ hls_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
     g_error_free (error);
     return NULL;
   }
+
+  g_signal_connect (pipeline, "source-setup", G_CALLBACK (source_setup_cb),
+      NULL);
 
   glob_pipeline = pipeline;
 
@@ -633,12 +642,6 @@ wait_and_start (gpointer data)
 static void
 hls_test_pipeline_test (InsanityGstPipelineTest * ptest)
 {
-  GstElement *source = NULL;
-
-  g_object_get (glob_pipeline, "source", &source, NULL);
-  g_object_set (source, "user-id", good_user, "user-pw", good_pw, NULL);
-  gst_object_unref (source);
-
   glob_duration_timeout =
       g_timeout_add (5000, (GSourceFunc) & duration_timeout, ptest);
   glob_timer_id = g_timeout_add (250, (GSourceFunc) & wait_and_start, ptest);

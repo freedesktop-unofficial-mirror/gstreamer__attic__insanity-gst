@@ -46,6 +46,12 @@ static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
 static guint global_duration_timeout = 0;
 static guint global_timer_id = 0;
 
+static void
+source_setup_cb (GstElement * playbin, GstElement * source, gpointer user_data)
+{
+  g_object_set (source, "user-id", good_user, "user-pw", good_pw, NULL);
+}
+
 static GstPipeline *
 http_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
@@ -68,6 +74,9 @@ http_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
     g_error_free (error);
     return NULL;
   }
+
+  g_signal_connect (pipeline, "source-setup", G_CALLBACK (source_setup_cb),
+      NULL);
 
   global_pipeline = pipeline;
 
@@ -341,12 +350,6 @@ wait_and_start (gpointer data)
 static void
 http_test_pipeline_test (InsanityGstPipelineTest * ptest)
 {
-  GstElement *source = NULL;
-
-  g_object_get (global_pipeline, "source", &source, NULL);
-  g_object_set (source, "user-id", good_user, "user-pw", good_pw, NULL);
-  gst_object_unref (source);
-
   global_duration_timeout =
       g_timeout_add (5000, (GSourceFunc) & duration_timeout, ptest);
   global_timer_id = g_timeout_add (250, (GSourceFunc) & wait_and_start, ptest);
