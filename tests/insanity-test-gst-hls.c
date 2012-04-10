@@ -640,7 +640,7 @@ wait_and_start (gpointer data)
 }
 
 static void
-hls_test_pipeline_test (InsanityGstPipelineTest * ptest)
+hls_test_test (InsanityGstPipelineTest * ptest)
 {
   glob_duration_timeout =
       g_timeout_add (5000, (GSourceFunc) & duration_timeout, ptest);
@@ -683,6 +683,11 @@ hls_test_stop (InsanityTest * test)
   if (glob_timer_id) {
     g_source_remove (glob_timer_id);
     glob_timer_id = 0;
+  }
+
+  if (glob_duration_timeout) {
+    g_source_remove (glob_duration_timeout);
+    glob_duration_timeout = 0;
   }
 
   if (glob_is_seekable) {
@@ -781,10 +786,9 @@ main (int argc, char **argv)
   g_signal_connect_after (test, "setup", G_CALLBACK (&hls_test_setup), 0);
   g_signal_connect_after (test, "bus-message",
       G_CALLBACK (&hls_test_bus_message), 0);
-  g_signal_connect_after (test, "start", G_CALLBACK (&hls_test_start), 0);
+  g_signal_connect (test, "start", G_CALLBACK (&hls_test_start), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&hls_test_stop), 0);
-  g_signal_connect_after (test, "pipeline-test",
-      G_CALLBACK (&hls_test_pipeline_test), 0);
+  g_signal_connect (test, "test", G_CALLBACK (&hls_test_test), 0);
   g_signal_connect_after (test, "teardown", G_CALLBACK (&hls_test_teardown), 0);
   g_signal_connect_after (ptest, "duration", G_CALLBACK (&hls_test_duration),
       0);

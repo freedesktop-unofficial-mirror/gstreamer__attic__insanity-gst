@@ -870,8 +870,6 @@ insanity_http_server_start (InsanityHttpServer * srv,
   while (srv->priv->ready == FALSE)
     g_cond_wait (srv->priv->cond, srv->priv->lock);
 
-  g_usleep (2 * G_USEC_PER_SEC);
-
   return srv->priv->running;
 }
 

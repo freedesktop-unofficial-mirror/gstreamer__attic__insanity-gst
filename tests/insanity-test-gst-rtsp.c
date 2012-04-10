@@ -46,7 +46,7 @@ static guint global_timer_id = 0;
 static gboolean global_live = FALSE;
 
 static GstClockTime
-rtsp_test_get_position (InsanityTest *test)
+rtsp_test_get_position (InsanityTest * test)
 {
   gint64 pos = 0;
   gboolean res;
@@ -63,7 +63,7 @@ rtsp_test_get_position (InsanityTest *test)
 }
 
 static GstClockTime
-rtsp_test_get_wait_time (InsanityTest *test)
+rtsp_test_get_wait_time (InsanityTest * test)
 {
   gint64 pos = rtsp_test_get_position (test);
   if (GST_CLOCK_TIME_IS_VALID (pos)) {
@@ -75,30 +75,29 @@ rtsp_test_get_wait_time (InsanityTest *test)
 static void on_ready_for_next_state (InsanityGstPipelineTest * ptest,
     gboolean timeout);
 
-static GstPipeline*
-rtsp_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
+static GstPipeline *
+rtsp_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL;
   const char *launch_line = "playbin2 uri=rtsp://127.0.0.1:8554/test"
 #if 0
-   " audio-sink=fakesink video-sink=fakesink"
+      " audio-sink=fakesink video-sink=fakesink"
 #endif
-  ;
+      ;
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-      error ? error->message : NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error ? error->message : NULL);
     if (error)
       g_error_free (error);
     return NULL;
-  }
-  else if (error) {
+  } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-      error->message);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error->message);
     g_error_free (error);
     return NULL;
   }
@@ -109,7 +108,7 @@ rtsp_test_create_pipeline (InsanityGstPipelineTest *ptest, gpointer userdata)
 }
 
 static const char *
-rtsp_test_create_rtsp_server(void)
+rtsp_test_create_rtsp_server (void)
 {
   global_server = gst_rtsp_server_new ();
 
@@ -125,19 +124,20 @@ static void
 rtsp_test_destroy_server (void)
 {
   /* examples do not free this
-  g_object_unref (global_server);
-  global_server = NULL;
-  */
+     g_object_unref (global_server);
+     global_server = NULL;
+   */
 }
 
 static gboolean
-rtsp_test_setup(InsanityTest *test)
+rtsp_test_setup (InsanityTest * test)
 {
   const char *error;
   gint secs;
 
   error = rtsp_test_create_rtsp_server ();
-  insanity_test_validate_checklist_item (test, "server-created", error == NULL, error);
+  insanity_test_validate_checklist_item (test, "server-created", error == NULL,
+      error);
   if (error)
     return FALSE;
 
@@ -148,7 +148,7 @@ rtsp_test_setup(InsanityTest *test)
 }
 
 static void
-rtsp_test_teardown (InsanityTest *test)
+rtsp_test_teardown (InsanityTest * test)
 {
   rtsp_test_destroy_server ();
 }
@@ -179,17 +179,19 @@ rtsp_test_configure_server_for_uri (const char *uri)
    * element with pay%d names will be a stream */
   factory = gst_rtsp_media_factory_uri_new ();
   gst_rtsp_media_factory_uri_set_uri (factory, uri);
-  /*gst_rtsp_media_factory_set_shared (factory, TRUE);*/
+  /*gst_rtsp_media_factory_set_shared (factory, TRUE); */
 
   /* attach the test factory to the /test url; any previous factory will be unreffed */
-  gst_rtsp_media_mapping_add_factory (mapping, "/test", GST_RTSP_MEDIA_FACTORY (factory));
+  gst_rtsp_media_mapping_add_factory (mapping, "/test",
+      GST_RTSP_MEDIA_FACTORY (factory));
   g_object_unref (mapping);
 
   return TRUE;
 }
 
 static char *
-rtsp_test_make_source_path (const char *source,const char *transform,const char *pay,unsigned int *payidx, unsigned int *ptidx)
+rtsp_test_make_source_path (const char *source, const char *transform,
+    const char *pay, unsigned int *payidx, unsigned int *ptidx)
 {
   if (pay)
     return g_strdup_printf ("%s is-live=1 ! %s ! %s name=pay%u pt=%u",
@@ -200,7 +202,9 @@ rtsp_test_make_source_path (const char *source,const char *transform,const char 
 }
 
 static char *
-rtsp_test_make_muxer_path(const char *src0,const char *src1,const char *muxer,const char *pay,unsigned int *payidx,unsigned int *ptidx)
+rtsp_test_make_muxer_path (const char *src0, const char *src1,
+    const char *muxer, const char *pay, unsigned int *payidx,
+    unsigned int *ptidx)
 {
   char *base, *path0 = NULL, *path1 = NULL;
 
@@ -211,15 +215,14 @@ rtsp_test_make_muxer_path(const char *src0,const char *src1,const char *muxer,co
     path1 = g_strdup_printf ("%s-path. ! queue ! mux.", src1);
   }
   base = g_strdup_printf ("%s name=mux ! %s name=pay%u pt=%u %s %s",
-      muxer, pay, *payidx++, *ptidx++,
-      path0 ? path0 : "", path1 ? path1 : "");
+      muxer, pay, *payidx++, *ptidx++, path0 ? path0 : "", path1 ? path1 : "");
   g_free (path1);
   g_free (path0);
   return base;
 }
 
 static gboolean
-rtsp_test_configure_server_for_multiple_streams(InsanityTest *test,
+rtsp_test_configure_server_for_multiple_streams (InsanityTest * test,
     const char *video_encoder, const char *video_payloader,
     const char *audio_encoder, const char *audio_payloader,
     const char *muxer, const char *muxer_payloader)
@@ -228,7 +231,7 @@ rtsp_test_configure_server_for_multiple_streams(InsanityTest *test,
   GstRTSPMediaFactory *factory;
   char *video_path = NULL, *audio_path = NULL, *muxer_path = NULL, *sbin = NULL;
   unsigned payloader_index = 0, pt_index = 96;
-  GValue vsbin = {0};
+  GValue vsbin = { 0 };
 
   if (video_encoder) {
     video_path = rtsp_test_make_source_path ("videotestsrc",
@@ -254,14 +257,14 @@ rtsp_test_configure_server_for_multiple_streams(InsanityTest *test,
    * element with pay%d names will be a stream */
   factory = gst_rtsp_media_factory_new ();
   sbin = g_strdup_printf ("( %s %s %s )",
-    video_path ? video_path : "",
-    audio_path ? audio_path : "",
-    muxer_path ? muxer_path : "");
+      video_path ? video_path : "",
+      audio_path ? audio_path : "", muxer_path ? muxer_path : "");
   gst_rtsp_media_factory_set_launch (factory, sbin);
-  /*gst_rtsp_media_factory_set_shared (factory, TRUE);*/
+  /*gst_rtsp_media_factory_set_shared (factory, TRUE); */
 
   /* attach the test factory to the /test url; any previous factory will be unreffed */
-  gst_rtsp_media_mapping_add_factory (mapping, "/test", GST_RTSP_MEDIA_FACTORY (factory));
+  gst_rtsp_media_mapping_add_factory (mapping, "/test",
+      GST_RTSP_MEDIA_FACTORY (factory));
   g_object_unref (mapping);
 
   g_value_init (&vsbin, G_TYPE_STRING);
@@ -277,18 +280,19 @@ rtsp_test_configure_server_for_multiple_streams(InsanityTest *test,
 }
 
 static const char *
-rtsp_test_get_string (const GValue *v)
+rtsp_test_get_string (const GValue * v)
 {
   const char *s = g_value_get_string (v);
-  if (!s || !*s) return NULL;
+  if (!s || !*s)
+    return NULL;
   return s;
 }
 
 static const char *
-rtsp_test_check_arguments (const GValue *vuri,
-    const GValue *vvideo_encoder, const GValue *vvideo_payloader,
-    const GValue *vaudio_encoder, const GValue *vaudio_payloader,
-    const GValue *vmuxer, const GValue *vmuxer_payloader)
+rtsp_test_check_arguments (const GValue * vuri,
+    const GValue * vvideo_encoder, const GValue * vvideo_payloader,
+    const GValue * vaudio_encoder, const GValue * vaudio_payloader,
+    const GValue * vmuxer, const GValue * vmuxer_payloader)
 {
   const char *uri = rtsp_test_get_string (vuri);
   const char *video_encoder = rtsp_test_get_string (vvideo_encoder);
@@ -306,23 +310,25 @@ rtsp_test_check_arguments (const GValue *vuri,
       return "URI and video encoder/payloader are conflicting";
     if (muxer || muxer_payloader)
       return "URI and muxer/payloader are conflicting";
-  }
-  else {
+  } else {
     if (muxer_payloader) {
       if (video_payloader || audio_payloader)
-        return "Must specify no A/V payloaders when a muxer payloader is specified";
-    }
-    else {
+        return
+            "Must specify no A/V payloaders when a muxer payloader is specified";
+    } else {
       /* payloader for audio or video must be specified */
       if (!video_payloader && !audio_payloader)
-        return "Must specify at least either a URI, or an audio and/or video payloader, or a muxer + payloader";
+        return
+            "Must specify at least either a URI, or an audio and/or video payloader, or a muxer + payloader";
     }
 
     /* payloaders must be specified when an encoder is but no muxer is */
     if (video_encoder && !video_payloader && !muxer)
-      return "A video payloader or muxer must be specified when a video encoder is";
+      return
+          "A video payloader or muxer must be specified when a video encoder is";
     if (audio_encoder && !audio_payloader && !muxer)
-      return "An audio payloader or muxer must be specified when an audio encoder is";
+      return
+          "An audio payloader or muxer must be specified when an audio encoder is";
     if (muxer && !muxer_payloader)
       return "An muxer payloader must be specified when a muxer is";
   }
@@ -331,11 +337,15 @@ rtsp_test_check_arguments (const GValue *vuri,
 }
 
 static gboolean
-rtsp_test_start(InsanityTest *test)
+rtsp_test_start (InsanityTest * test)
 {
-  GValue uri = {0};
-  GValue video_encoder = {0}, audio_encoder = {0}, video_payloader = {0}, audio_payloader = {0};
-  GValue muxer = {0}, muxer_payloader = {0};
+  GValue uri = { 0 };
+  GValue video_encoder = { 0 }, audio_encoder = {
+  0}, video_payloader = {
+  0}, audio_payloader = {
+  0};
+  GValue muxer = { 0 }, muxer_payloader = {
+  0};
   const char *protocol;
   gboolean configured = FALSE;
   const char *uri_string;
@@ -368,20 +378,23 @@ rtsp_test_start(InsanityTest *test)
 
   uri_string = rtsp_test_get_string (&uri);
   if (!uri_string) {
-    configured = rtsp_test_configure_server_for_multiple_streams(test,
-        rtsp_test_get_string (&video_encoder), rtsp_test_get_string (&video_payloader),
-        rtsp_test_get_string (&audio_encoder), rtsp_test_get_string (&audio_payloader),
-        rtsp_test_get_string (&muxer), rtsp_test_get_string (&muxer_payloader));
+    configured = rtsp_test_configure_server_for_multiple_streams (test,
+        rtsp_test_get_string (&video_encoder),
+        rtsp_test_get_string (&video_payloader),
+        rtsp_test_get_string (&audio_encoder),
+        rtsp_test_get_string (&audio_payloader), rtsp_test_get_string (&muxer),
+        rtsp_test_get_string (&muxer_payloader));
     global_live = TRUE;
-  }
-  else {
+  } else {
     if (!gst_uri_is_valid (uri_string)) {
-      insanity_test_validate_checklist_item (test, "valid-setup", FALSE, "URI is invalid");
+      insanity_test_validate_checklist_item (test, "valid-setup", FALSE,
+          "URI is invalid");
       goto done;
     }
     protocol = gst_uri_get_protocol (uri_string);
     if (!protocol || g_ascii_strcasecmp (protocol, "file")) {
-      insanity_test_validate_checklist_item (test, "valid-setup", FALSE, "URI protocol must be file");
+      insanity_test_validate_checklist_item (test, "valid-setup", FALSE,
+          "URI protocol must be file");
       goto done;
     }
 
@@ -407,7 +420,7 @@ done:
 }
 
 static void
-rtsp_test_stop (InsanityTest *test)
+rtsp_test_stop (InsanityTest * test)
 {
   if (global_timer_id) {
     g_source_remove (global_timer_id);
@@ -430,16 +443,18 @@ state_change_timeout (gpointer data)
 }
 
 static NextStepTrigger
-rtsp_test_pause (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+rtsp_test_pause (InsanityGstPipelineTest * ptest, const char *step,
+    guintptr data)
 {
   GstStateChangeReturn sret;
 
   global_state_change_timeout =
       g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
-  sret = gst_element_set_state(global_pipeline, GST_STATE_PAUSED);
+  sret = gst_element_set_state (global_pipeline, GST_STATE_PAUSED);
   if (sret == GST_STATE_CHANGE_SUCCESS) {
     /* If this was done already, we can switch now */
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE, NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE,
+        NULL);
     return NEXT_STEP_NOW;
   }
 
@@ -447,16 +462,18 @@ rtsp_test_pause (InsanityGstPipelineTest * ptest, const char *step, guintptr dat
 }
 
 static NextStepTrigger
-rtsp_test_play (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+rtsp_test_play (InsanityGstPipelineTest * ptest, const char *step,
+    guintptr data)
 {
   GstStateChangeReturn sret;
 
   global_state_change_timeout =
       g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
-  sret = gst_element_set_state(global_pipeline, GST_STATE_PLAYING);
+  sret = gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
   if (sret == GST_STATE_CHANGE_SUCCESS) {
     /* If this was done already, we can switch now */
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE, NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE,
+        NULL);
     return NEXT_STEP_NOW;
   }
 
@@ -464,9 +481,10 @@ rtsp_test_play (InsanityGstPipelineTest * ptest, const char *step, guintptr data
 }
 
 static NextStepTrigger
-rtsp_test_wait(InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+rtsp_test_wait (InsanityGstPipelineTest * ptest, const char *step,
+    guintptr data)
 {
-  GstClockTime *t = (GstClockTime *)data;
+  GstClockTime *t = (GstClockTime *) data;
 
   /* First call, generate a stream time to wait for */
   if (*t == GST_CLOCK_TIME_NONE) {
@@ -480,17 +498,20 @@ rtsp_test_wait(InsanityGstPipelineTest * ptest, const char *step, guintptr data)
   }
 
   /* Wait till next tick if we're not there yet */
-  if (GST_CLOCK_TIME_IS_VALID (*t) && rtsp_test_get_position (INSANITY_TEST (ptest)) < *t)
+  if (GST_CLOCK_TIME_IS_VALID (*t)
+      && rtsp_test_get_position (INSANITY_TEST (ptest)) < *t)
     return NEXT_STEP_RESTART_ON_TICK;
 
   /* We reached the time */
   *t = GST_CLOCK_TIME_NONE;
-  insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE, NULL);
+  insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step, TRUE,
+      NULL);
   return NEXT_STEP_NOW;
 }
 
 static NextStepTrigger
-rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step,
+    guintptr data)
 {
   GstClockTime t = GST_SECOND * 10;
   gboolean res;
@@ -502,8 +523,10 @@ rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data
     return NEXT_STEP_NOW;
   }
 
-  res = gst_element_seek (global_pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
-     GST_SEEK_TYPE_SET, t, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+  res =
+      gst_element_seek (global_pipeline, 1.0, GST_FORMAT_TIME,
+      GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, t, GST_SEEK_TYPE_NONE,
+      GST_CLOCK_TIME_NONE);
   if (!res) {
     insanity_test_validate_checklist_item (INSANITY_TEST (ptest), step,
         FALSE, "Failed to send seek event");
@@ -515,27 +538,28 @@ rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step, guintptr data
 }
 
 static NextStepTrigger
-rtsp_test_set_protocols (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
+rtsp_test_set_protocols (InsanityGstPipelineTest * ptest, const char *step,
+    guintptr data)
 {
   guint protocols = data;
   GstElement *source;
 
   /* We can't set certain protocols that with a live pipeline */
   if (global_live) {
-    if (protocols == 1 || protocols == 2) { /* UDP multicast/unicast - unicast might be OK ? */
+    if (protocols == 1 || protocols == 2) {     /* UDP multicast/unicast - unicast might be OK ? */
       insanity_test_printf (INSANITY_TEST (ptest),
           "Skipping protocols %u in live pipeline", protocols);
       return NEXT_STEP_NOW;
     }
   }
 
-  gst_element_set_state(global_pipeline, GST_STATE_READY);
+  gst_element_set_state (global_pipeline, GST_STATE_READY);
   g_object_get (global_pipeline, "source", &source, NULL);
   g_object_set (source, "protocols", protocols, NULL);
   gst_object_unref (source);
-  gst_element_set_state(global_pipeline, GST_STATE_PAUSED);
-  gst_element_get_state(global_pipeline, NULL, NULL, GST_SECOND);
-  gst_element_set_state(global_pipeline, GST_STATE_PLAYING);
+  gst_element_set_state (global_pipeline, GST_STATE_PAUSED);
+  gst_element_get_state (global_pipeline, NULL, NULL, GST_SECOND);
+  gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
 
   global_state_change_timeout =
       g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
@@ -557,21 +581,23 @@ static const struct
     NextStepTrigger (*f) (InsanityGstPipelineTest *, const char *, guintptr);
   guintptr data;
 } steps[] = {
-  { "play", &rtsp_test_play, 0 },
-  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
-  { "pause", &rtsp_test_pause, 0 },
-  { "play", &rtsp_test_play, 0 },
-  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
-  /*{ "seek", &rtsp_test_seek, 0 },*/ /* fails to send event, disabled for now */
-  { "protocol-udp-unicast", &rtsp_test_set_protocols, 1 },
-  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
-  { "protocol-udp-multicast", &rtsp_test_set_protocols, 2 },
-  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
-  { "protocol-tcp", &rtsp_test_set_protocols, 4 },
-  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
-  { "protocol-http", &rtsp_test_set_protocols, 0x10 },
-  { "wait", &rtsp_test_wait, (guintptr)&global_wait_time },
-  /* add more here */
+  {
+  "play", &rtsp_test_play, 0}, {
+  "wait", &rtsp_test_wait, (guintptr) & global_wait_time}, {
+  "pause", &rtsp_test_pause, 0}, {
+  "play", &rtsp_test_play, 0}, {
+  "wait", &rtsp_test_wait, (guintptr) & global_wait_time},
+      /*{ "seek", &rtsp_test_seek, 0 }, *//* fails to send event, disabled for now */
+  {
+  "protocol-udp-unicast", &rtsp_test_set_protocols, 1}, {
+  "wait", &rtsp_test_wait, (guintptr) & global_wait_time}, {
+  "protocol-udp-multicast", &rtsp_test_set_protocols, 2}, {
+  "wait", &rtsp_test_wait, (guintptr) & global_wait_time}, {
+  "protocol-tcp", &rtsp_test_set_protocols, 4}, {
+  "wait", &rtsp_test_wait, (guintptr) & global_wait_time}, {
+  "protocol-http", &rtsp_test_set_protocols, 0x10}, {
+  "wait", &rtsp_test_wait, (guintptr) & global_wait_time},
+      /* add more here */
 };
 
 static gboolean
@@ -615,7 +641,7 @@ do_next_step (gpointer data)
       break;
     case NEXT_STEP_RESTART_ON_TICK:
       global_next_state = global_state;
-      global_timer_id = g_timeout_add (250, (GSourceFunc)&do_next_step, test);
+      global_timer_id = g_timeout_add (250, (GSourceFunc) & do_next_step, test);
       break;
   }
 
@@ -631,7 +657,8 @@ on_ready_for_next_state (InsanityGstPipelineTest * ptest, gboolean timeout)
     global_state = global_next_state;
   }
   insanity_test_printf (INSANITY_TEST (ptest), "Got %s, going to next step\n",
-      timeout ? "timeout" : gst_element_state_get_name (global_waiting_on_state));
+      timeout ? "timeout" :
+      gst_element_state_get_name (global_waiting_on_state));
   global_waiting_on_state = GST_STATE_VOID_PENDING;
   g_idle_add ((GSourceFunc) & do_next_step, ptest);
 }
@@ -650,7 +677,8 @@ rtsp_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
           global_state_change_timeout = 0;
         }
 
-        if (pending == GST_STATE_VOID_PENDING && global_waiting_on_state == newstate) {
+        if (pending == GST_STATE_VOID_PENDING
+            && global_waiting_on_state == newstate) {
           on_ready_for_next_state (ptest, FALSE);
         }
       }
@@ -662,19 +690,21 @@ rtsp_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
   return TRUE;
 }
 
-static void
-rtsp_test_test (InsanityThreadedTest *ttest)
+static gboolean
+rtsp_test_reached_initial_state (InsanityThreadedTest * ttest)
 {
   if (gst_element_set_state (global_pipeline,
           GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
     insanity_test_done (INSANITY_TEST (ttest));
-    return;
+    return FALSE;
   }
   if (gst_element_get_state (global_pipeline, NULL, NULL,
           GST_SECOND) == GST_STATE_CHANGE_FAILURE) {
     insanity_test_done (INSANITY_TEST (ttest));
-    return;
+    return FALSE;
   }
+
+  return TRUE;
 }
 
 int
@@ -686,43 +716,73 @@ main (int argc, char **argv)
 
   g_type_init ();
 
-  ptest = insanity_gst_pipeline_test_new ("rtsp-test", "Test RTSP using gst-rtsp-server", NULL);
+  ptest =
+      insanity_gst_pipeline_test_new ("rtsp-test",
+      "Test RTSP using gst-rtsp-server", NULL);
   test = INSANITY_TEST (ptest);
 
-  insanity_test_add_string_argument (test, "uri", "The file URI to use for streaming (file only)", NULL, FALSE, "");
-  insanity_test_add_string_argument (test, "video-encoder", "The optional video encoder element to use to encode test video when not streaming a URI", NULL, FALSE, "");
-  insanity_test_add_string_argument (test, "video-payloader", "The video payloader element to use to payload test video when not streaming a URI", NULL, FALSE, "");
-  insanity_test_add_string_argument (test, "audio-encoder", "The optional audio encoder element to use to encode test audio when not streaming a URI", NULL, FALSE, "");
-  insanity_test_add_string_argument (test, "audio-payloader", "The audio payloader element to use to payload test audio when not streaming a URI", NULL, FALSE, "");
-  insanity_test_add_string_argument (test, "muxer", "The muxer element to use, if any, when not streaming a URI", NULL, FALSE, "");
-  insanity_test_add_string_argument (test, "muxer-payloader", "The payloader element to use, if using a muxer", NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "uri",
+      "The file URI to use for streaming (file only)", NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "video-encoder",
+      "The optional video encoder element to use to encode test video when not streaming a URI",
+      NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "video-payloader",
+      "The video payloader element to use to payload test video when not streaming a URI",
+      NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "audio-encoder",
+      "The optional audio encoder element to use to encode test audio when not streaming a URI",
+      NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "audio-payloader",
+      "The audio payloader element to use to payload test audio when not streaming a URI",
+      NULL, FALSE, "");
+  insanity_test_add_string_argument (test, "muxer",
+      "The muxer element to use, if any, when not streaming a URI", NULL, FALSE,
+      "");
+  insanity_test_add_string_argument (test, "muxer-payloader",
+      "The payloader element to use, if using a muxer", NULL, FALSE, "");
 
-  insanity_test_add_int_argument (test, "playback-time", "Stream time to playback for before seeking, in seconds", NULL, TRUE, 5);
+  insanity_test_add_int_argument (test, "playback-time",
+      "Stream time to playback for before seeking, in seconds", NULL, TRUE, 5);
 
-  insanity_test_add_checklist_item (test, "valid-setup", "The setup given in arguments makes sense", NULL);
-  insanity_test_add_checklist_item (test, "server-created", "The RTSP server was created succesfully", NULL);
-  insanity_test_add_checklist_item (test, "pause", "The pipeline could be paused", NULL);
-  insanity_test_add_checklist_item (test, "play", "The pipeline could be played", NULL);
-  insanity_test_add_checklist_item (test, "wait", "The pipeline could stay in playback mode", NULL);
-  insanity_test_add_checklist_item (test, "seek", "The pipeline could seek", NULL);
-  insanity_test_add_checklist_item (test, "protocol-udp-unicast", "The RTP transport could be set to UDP unicast", NULL);
-  insanity_test_add_checklist_item (test, "protocol-udp-multicast", "The RTP transport could be set to UDP multicast", NULL);
-  insanity_test_add_checklist_item (test, "protocol-tcp", "The RTP transport could be set to TCP", NULL);
-  insanity_test_add_checklist_item (test, "protocol-http", "The RTP transport could be set to HTTP", NULL);
-  insanity_test_add_checklist_item (test, "position-queried", "Stream position could be determined", NULL);
+  insanity_test_add_checklist_item (test, "valid-setup",
+      "The setup given in arguments makes sense", NULL);
+  insanity_test_add_checklist_item (test, "server-created",
+      "The RTSP server was created succesfully", NULL);
+  insanity_test_add_checklist_item (test, "pause",
+      "The pipeline could be paused", NULL);
+  insanity_test_add_checklist_item (test, "play",
+      "The pipeline could be played", NULL);
+  insanity_test_add_checklist_item (test, "wait",
+      "The pipeline could stay in playback mode", NULL);
+  insanity_test_add_checklist_item (test, "seek", "The pipeline could seek",
+      NULL);
+  insanity_test_add_checklist_item (test, "protocol-udp-unicast",
+      "The RTP transport could be set to UDP unicast", NULL);
+  insanity_test_add_checklist_item (test, "protocol-udp-multicast",
+      "The RTP transport could be set to UDP multicast", NULL);
+  insanity_test_add_checklist_item (test, "protocol-tcp",
+      "The RTP transport could be set to TCP", NULL);
+  insanity_test_add_checklist_item (test, "protocol-http",
+      "The RTP transport could be set to HTTP", NULL);
+  insanity_test_add_checklist_item (test, "position-queried",
+      "Stream position could be determined", NULL);
 
-  insanity_test_add_extra_info (test, "launch-line", "The launch line gst-rtsp-server was configued with");
+  insanity_test_add_extra_info (test, "launch-line",
+      "The launch line gst-rtsp-server was configued with");
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &rtsp_test_create_pipeline, NULL, NULL);
   insanity_gst_pipeline_test_set_initial_state (ptest, GST_STATE_PAUSED);
 
   g_signal_connect_after (test, "setup", G_CALLBACK (&rtsp_test_setup), 0);
-  g_signal_connect_after (test, "teardown", G_CALLBACK (&rtsp_test_teardown), 0);
-  g_signal_connect_after (test, "start", G_CALLBACK (&rtsp_test_start), 0);
+  g_signal_connect_after (test, "teardown", G_CALLBACK (&rtsp_test_teardown),
+      0);
+  g_signal_connect (test, "start", G_CALLBACK (&rtsp_test_start), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&rtsp_test_stop), 0);
-  g_signal_connect_after (test, "pipeline-test", G_CALLBACK (&rtsp_test_test), 0);
-  g_signal_connect_after (test, "bus-message", G_CALLBACK (&rtsp_test_bus_message), 0);
+  g_signal_connect_after (test, "reached-initial-state",
+      G_CALLBACK (&rtsp_test_reached_initial_state), 0);
+  g_signal_connect_after (test, "bus-message",
+      G_CALLBACK (&rtsp_test_bus_message), 0);
 
   ret = insanity_test_run (test, &argc, &argv);
 

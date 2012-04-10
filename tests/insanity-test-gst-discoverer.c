@@ -1452,12 +1452,6 @@ discoverer_test_setup (InsanityTest * test)
 {
   GError *err = NULL;
 
-  (void) test;
-  printf ("discoverer_test_setup\n");
-
-  if (!g_thread_supported ())
-    g_thread_init (NULL);
-
   dc = gst_discoverer_new (timeout * GST_SECOND, &err);
   if (G_UNLIKELY (dc == NULL)) {
     printf ("Error initializing: %s\n", err->message);
@@ -1622,12 +1616,11 @@ main (int argc, char **argv)
 
   g_signal_connect_after (test, "setup", G_CALLBACK (&discoverer_test_setup),
       0);
-  g_signal_connect_after (test, "start", G_CALLBACK (&discoverer_test_start),
-      0);
+  g_signal_connect (test, "start", G_CALLBACK (&discoverer_test_start), 0);
   g_signal_connect (test, "stop", G_CALLBACK (&discoverer_test_stop), 0);
   g_signal_connect (test, "teardown", G_CALLBACK (&discoverer_test_teardown),
       0);
-  g_signal_connect_after (test, "test", G_CALLBACK (&discoverer_test_test), 0);
+  g_signal_connect (test, "test", G_CALLBACK (&discoverer_test_test), 0);
 
 
   ret = insanity_test_run (test, &argc, &argv);

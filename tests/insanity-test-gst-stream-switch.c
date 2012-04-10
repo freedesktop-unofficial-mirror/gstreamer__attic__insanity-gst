@@ -570,8 +570,9 @@ typedef enum
 
 static CurrentStep current_step = CURRENT_STEP_WAIT_PLAYING;
 static gint current_step_switch = 0;
-static GstPad *sinks[MAX_STREAMS] = {NULL};
-static gulong probes[MAX_STREAMS] = {0};
+static GstPad *sinks[MAX_STREAMS] = { NULL };
+static gulong probes[MAX_STREAMS] = { 0 };
+
 static guint nsinks = 0;
 static gboolean stream_switch_correct = TRUE;
 static gboolean stream_switch_constant_correct = TRUE;
@@ -610,16 +611,16 @@ stream_switch_test_create_pipeline (InsanityGstPipelineTest * ptest,
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error ? error->message : NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error ? error->message : NULL);
     if (error)
       g_error_free (error);
     return NULL;
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error->message);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error->message);
     g_error_free (error);
     return NULL;
   }
@@ -752,7 +753,7 @@ stream_switch_test_stop (InsanityTest * test)
   current_step = CURRENT_STEP_WAIT_PLAYING;
   current_step_switch = 0;
 
-  for (n=0; n<nsinks; n++) {
+  for (n = 0; n < nsinks; n++) {
     insanity_gst_test_remove_data_probe (INSANITY_GST_TEST (test),
         sinks[n], probes[n]);
     gst_object_unref (sinks[n]);
@@ -764,7 +765,8 @@ stream_switch_test_stop (InsanityTest * test)
     insanity_test_validate_checklist_item (test, "stream-switch", TRUE, NULL);
   stream_switch_correct = TRUE;
   if (stream_switch_constant_correct)
-    insanity_test_validate_checklist_item (test, "streams-constant", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "streams-constant", TRUE,
+        NULL);
   stream_switch_constant_correct = TRUE;
   if (unique_markers_correct)
     insanity_test_validate_checklist_item (test, "unique-markers", TRUE, NULL);
@@ -912,17 +914,20 @@ do_next_switch (InsanityTest * test)
     if (na != n_audio) {
       insanity_test_printf (test,
           "Wrong number of audio streams (expected %d, got %d)\n", n_audio, na);
-      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE,
+          NULL);
       insanity_test_done (test);
     } else if (nv != n_video) {
       insanity_test_printf (test,
           "Wrong number of video streams (expected %d, got %d)\n", n_video, nv);
-      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE,
+          NULL);
       insanity_test_done (test);
     } else if (nt != n_text) {
       insanity_test_printf (test,
           "Wrong number of text streams (expected %d, got %d)\n", n_text, nt);
-      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", FALSE,
+          NULL);
       insanity_test_done (test);
     } else {
       insanity_test_printf (test,
@@ -930,7 +935,8 @@ do_next_switch (InsanityTest * test)
       insanity_test_printf (test, "Audio %d, Video %d, Text %d\n", n_audio,
           n_video, n_text);
 
-      insanity_test_validate_checklist_item (test, "found-all-streams", TRUE, NULL);
+      insanity_test_validate_checklist_item (test, "found-all-streams", TRUE,
+          NULL);
       current_step = CURRENT_STEP_WAIT_INITIAL_MARKERS;
       streams[STREAM_TYPE_AUDIO].current_marker = -1;
       if (n_audio > 0)
@@ -1195,7 +1201,8 @@ do_next_switch (InsanityTest * test)
 }
 
 static gboolean
-probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object, gpointer userdata)
+probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object,
+    gpointer userdata)
 {
   StreamType type;
   GstBuffer *buffer;
@@ -1284,42 +1291,33 @@ done:
   return TRUE;
 }
 
-static void
-stream_switch_test_pipeline_test (InsanityGstPipelineTest * test)
-{
-  TEST_LOCK ();
-
-  stream_switch_timeout_id =
-      g_timeout_add_seconds (SWITCH_TIMEOUT,
-      (GSourceFunc) stream_switch_timeout, test);
-  gst_element_set_state (pipeline, GST_STATE_PLAYING);
-
-  TEST_UNLOCK ();
-}
-
 static gboolean
 stream_switch_test_reached_initial_state (InsanityGstPipelineTest * test)
 {
   GstElement *e;
   gboolean error = FALSE;
   size_t n;
-  static const char * const sink_names[] = {"asink", "vsink", "tsink"};
+  static const char *const sink_names[] = { "asink", "vsink", "tsink" };
 
   TEST_LOCK ();
+  stream_switch_timeout_id =
+      g_timeout_add_seconds (SWITCH_TIMEOUT,
+      (GSourceFunc) stream_switch_timeout, test);
+
   /* Look for sinks and add probes */
   nsinks = 0;
-  for (n=0; n < G_N_ELEMENTS (sink_names); n++) {
+  for (n = 0; n < G_N_ELEMENTS (sink_names); n++) {
     e = gst_bin_get_by_name (GST_BIN (pipeline), sink_names[n]);
     if (e) {
-      gboolean ok = insanity_gst_test_add_data_probe(INSANITY_GST_TEST (test),
-          GST_BIN (pipeline), sink_names[n], "sink", &sinks[nsinks], &probes[nsinks],
+      gboolean ok = insanity_gst_test_add_data_probe (INSANITY_GST_TEST (test),
+          GST_BIN (pipeline), sink_names[n], "sink", &sinks[nsinks],
+          &probes[nsinks],
           &probe, NULL, NULL);
       if (ok) {
         nsinks++;
-      }
-      else {
-        insanity_test_validate_checklist_item (INSANITY_TEST (test), "install-probes",
-            FALSE, "Failed to attach probe to fakesink");
+      } else {
+        insanity_test_validate_checklist_item (INSANITY_TEST (test),
+            "install-probes", FALSE, "Failed to attach probe to fakesink");
         error = TRUE;
       }
       gst_object_unref (e);
@@ -1327,8 +1325,8 @@ stream_switch_test_reached_initial_state (InsanityGstPipelineTest * test)
   }
 
   if (!error) {
-    insanity_test_validate_checklist_item (INSANITY_TEST (test), "install-probes",
-        nsinks > 0, NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (test),
+        "install-probes", nsinks > 0, NULL);
   }
 
   if (nsinks == 0) {
@@ -1386,10 +1384,8 @@ main (int argc, char **argv)
       &stream_switch_test_create_pipeline, NULL, NULL);
   g_signal_connect_after (test, "setup", G_CALLBACK (&stream_switch_test_setup),
       NULL);
-  g_signal_connect_after (test, "start", G_CALLBACK (&stream_switch_test_start),
+  g_signal_connect (test, "start", G_CALLBACK (&stream_switch_test_start),
       NULL);
-  g_signal_connect_after (test, "pipeline-test",
-      G_CALLBACK (&stream_switch_test_pipeline_test), NULL);
   g_signal_connect_after (test, "stop", G_CALLBACK (&stream_switch_test_stop),
       NULL);
   g_signal_connect_after (test, "reached-initial-state",

@@ -82,8 +82,9 @@ static SeekTestState global_state = SEEK_TEST_STATE_FIRST;
 static int global_seek_target_index = 0;
 static GstClockTime global_last_ts[2] =
     { GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE };
-static GstPad *global_sinks[2] = {NULL, NULL};
-static gulong global_probes[2] = {0, 0};
+static GstPad *global_sinks[2] = { NULL, NULL };
+static gulong global_probes[2] = { 0, 0 };
+
 static GstClockTime global_seek_offset = 0;
 static GstClockTime global_duration = GST_CLOCK_TIME_NONE;
 static gboolean global_expecting_eos = FALSE;
@@ -245,21 +246,22 @@ static GstPipeline *
 seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL;
-  const char *launch_line = "playbin2 audio-sink=\"fakesink name=asink\" video-sink=\"fakesink name=vsink\"";
+  const char *launch_line =
+      "playbin2 audio-sink=\"fakesink name=asink\" video-sink=\"fakesink name=vsink\"";
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error ? error->message : NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error ? error->message : NULL);
     if (error)
       g_error_free (error);
     return NULL;
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error->message);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error->message);
     g_error_free (error);
     return NULL;
   }
@@ -286,7 +288,8 @@ get_waiting_string (int w)
 }
 
 static gboolean
-probe (InsanityGstTest *ptest, GstPad * pad, GstMiniObject * object, gpointer userdata)
+probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
+    gpointer userdata)
 {
   gboolean changed = FALSE, ready = FALSE;
   unsigned n;
@@ -365,8 +368,8 @@ probe (InsanityGstTest *ptest, GstPad * pad, GstMiniObject * object, gpointer us
             GST_TIME_ARGS (global_segment[index].start),
             GST_TIME_ARGS (global_segment[index].stop),
             global_state);
-        insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "segment-clipping",
-            FALSE, msg);
+        insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+            "segment-clipping", FALSE, msg);
         g_free (msg);
         global_bad_segment_clipping = TRUE;
         SEEK_TEST_UNLOCK ();
@@ -591,8 +594,8 @@ check_wedged (gpointer data)
       0) ? 0 : 1000 * (g_get_monotonic_time () - global_last_probe);
   if (idle >= IDLE_TIMEOUT) {
     insanity_test_printf (test, "Wedged, kicking\n");
-    insanity_test_validate_checklist_item (test, "buffer-seek-time-correct", FALSE,
-        "No buffers or events were seen for a while");
+    insanity_test_validate_checklist_item (test, "buffer-seek-time-correct",
+        FALSE, "No buffers or events were seen for a while");
     g_idle_add ((GSourceFunc) & do_next_seek, test);
   }
   SEEK_TEST_UNLOCK ();
@@ -627,7 +630,7 @@ seek_test_start (InsanityTest * test)
   global_state = SEEK_TEST_STATE_FIRST;
   global_seek_target_index = 0;
   global_last_ts[0] = global_last_ts[1] = GST_CLOCK_TIME_NONE;
-  for (n=0; n<2; ++n) {
+  for (n = 0; n < 2; ++n) {
     global_probes[n] = 0;
     global_sinks[n] = NULL;
   }
@@ -637,14 +640,14 @@ seek_test_start (InsanityTest * test)
   return TRUE;
 }
 
-static void
-seek_test_pipeline_test (InsanityThreadedTest * ttest)
+static gboolean
+seek_test_reached_initial_state (InsanityThreadedTest * ttest)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (ttest);
   GstElement *e;
   gboolean error = FALSE;
   size_t n;
-  static const char * const sink_names[] = {"asink", "vsink"};
+  static const char *const sink_names[] = { "asink", "vsink" };
 
   /* Set to PAUSED so we get everything autoplugged */
   gst_element_set_state (global_pipeline, GST_STATE_PAUSED);
@@ -652,19 +655,18 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
 
   /* Look for sinks and add probes */
   global_nsinks = 0;
-  for (n=0; n < G_N_ELEMENTS (sink_names); n++) {
+  for (n = 0; n < G_N_ELEMENTS (sink_names); n++) {
     e = gst_bin_get_by_name (GST_BIN (global_pipeline), sink_names[n]);
     if (e) {
-      gboolean ok = insanity_gst_test_add_data_probe(INSANITY_GST_TEST (ptest),
-          GST_BIN (global_pipeline), sink_names[n], "sink", 
+      gboolean ok = insanity_gst_test_add_data_probe (INSANITY_GST_TEST (ptest),
+          GST_BIN (global_pipeline), sink_names[n], "sink",
           &global_sinks[global_nsinks], &global_probes[global_nsinks],
           &probe, NULL, NULL);
       if (ok) {
         global_nsinks++;
-      }
-      else {
-        insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "install-probes",
-            FALSE, "Failed to attach probe to fakesink");
+      } else {
+        insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+            "install-probes", FALSE, "Failed to attach probe to fakesink");
         error = TRUE;
       }
       gst_object_unref (e);
@@ -672,13 +674,13 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
   }
 
   if (!error) {
-    insanity_test_validate_checklist_item (INSANITY_TEST (ttest), "install-probes",
-        global_nsinks > 0, NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ttest),
+        "install-probes", global_nsinks > 0, NULL);
   }
 
   if (global_nsinks == 0) {
     insanity_test_done (INSANITY_TEST (ttest));
-    return;
+    return FALSE;
   }
 
   memset (global_waiting, WAIT_STATE_READY, global_nsinks);
@@ -701,10 +703,11 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
         "No duration yet, try a bit harder\n");
     sret = gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     if (sret == GST_STATE_CHANGE_FAILURE) {
-      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "duration-known",
-          FALSE,
+      insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+          "duration-known", FALSE,
           "No duration, and failed to switch to PLAYING in hope we might get it then");
-      return;
+      insanity_test_done (INSANITY_TEST (ttest));
+      return FALSE;
     }
 
     /* Start off, claim we're ready, but do not start seeking yet,
@@ -712,11 +715,11 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
     global_duration_timeout =
         g_timeout_add (1000, (GSourceFunc) & duration_timeout, ptest);
     started = TRUE;
-    return;
+    return TRUE;
   } else if (global_duration == GST_CLOCK_TIME_NONE) {
     /* Reset to NONE if the stream is not seekable. Explode then */
     insanity_test_done (INSANITY_TEST (ptest));
-    return;
+    return FALSE;
   }
 
   /* Start first seek to start */
@@ -728,6 +731,7 @@ seek_test_pipeline_test (InsanityThreadedTest * ttest)
       (gpointer) ptest);
 
   started = TRUE;
+  return TRUE;
 }
 
 static gboolean
@@ -737,14 +741,14 @@ seek_test_stop (InsanityTest * test)
   int n;
 
   SEEK_TEST_LOCK ();
-  for (n=0; n<global_nsinks; n++) {
+  for (n = 0; n < global_nsinks; n++) {
     insanity_gst_test_remove_data_probe (INSANITY_GST_TEST (test),
         global_sinks[n], global_probes[n]);
     gst_object_unref (global_sinks[n]);
     global_probes[n] = 0;
     global_sinks[n] = NULL;
   }
-  global_nsinks=0;
+  global_nsinks = 0;
 
   g_value_init (&v, G_TYPE_INT64);
   g_value_set_int64 (&v, global_max_diff);
@@ -761,13 +765,16 @@ seek_test_stop (InsanityTest * test)
     insanity_test_validate_checklist_item (test, "seek", TRUE, NULL);
   }
   if (!global_bad_ts) {
-    insanity_test_validate_checklist_item (test, "buffer-seek-time-correct", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "buffer-seek-time-correct",
+        TRUE, NULL);
   }
   if (!global_bad_segment_start) {
-    insanity_test_validate_checklist_item (test, "segment-seek-time-correct", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "segment-seek-time-correct",
+        TRUE, NULL);
   }
   if (!global_bad_segment_clipping) {
-    insanity_test_validate_checklist_item (test, "segment-clipping", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "segment-clipping", TRUE,
+        NULL);
   }
 
   started = FALSE;
@@ -794,8 +801,8 @@ seek_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
       "Just got notified duration is %" GST_TIME_FORMAT "\n",
       GST_TIME_ARGS (duration));
   global_duration = duration;
-  insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "duration-known", TRUE,
-      NULL);
+  insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+      "duration-known", TRUE, NULL);
 
   global_seek_offset = 0;
   q = gst_query_new_seeking (GST_FORMAT_TIME);
@@ -806,20 +813,24 @@ seek_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
     gint64 sstart, send;
 
     gst_query_parse_seeking (q, &fmt, &seekable, &sstart, &send);
-    insanity_test_printf (INSANITY_TEST (ptest), "Seeking query: %s seekable, %" GST_TIME_FORMAT,
+    insanity_test_printf (INSANITY_TEST (ptest),
+        "Seeking query: %s seekable, %" GST_TIME_FORMAT,
         " -- %" GST_TIME_FORMAT "\n", (seekable ? "" : "not"),
         GST_TIME_ARGS (sstart), GST_TIME_ARGS (send));
     if (seekable && fmt == GST_FORMAT_TIME && sstart != -1 && sstart != send) {
       global_seek_offset = sstart;
       if (send != -1)
         global_duration = send - sstart;
-      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable", TRUE, NULL);
+      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable",
+          TRUE, NULL);
     } else {
-      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable", FALSE, "not seekable");
+      insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable",
+          FALSE, "not seekable");
       global_duration = GST_CLOCK_TIME_NONE;
     }
   } else {
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable", FALSE, "seeking query failed");
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seekable",
+        FALSE, "seeking query failed");
     global_duration = GST_CLOCK_TIME_NONE;
   }
   gst_query_unref (q);
@@ -898,12 +909,14 @@ main (int argc, char **argv)
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &seek_test_create_pipeline, NULL, NULL);
+  insanity_gst_pipeline_test_set_initial_state (ptest, GST_STATE_PAUSED);
+
   g_signal_connect_after (test, "bus-message",
       G_CALLBACK (&seek_test_bus_message), 0);
   g_signal_connect_after (test, "setup", G_CALLBACK (&seek_test_setup), 0);
-  g_signal_connect_after (test, "start", G_CALLBACK (&seek_test_start), 0);
-  g_signal_connect_after (test, "pipeline-test",
-      G_CALLBACK (&seek_test_pipeline_test), 0);
+  g_signal_connect (test, "start", G_CALLBACK (&seek_test_start), 0);
+  g_signal_connect_after (test, "reached-initial-state",
+      G_CALLBACK (&seek_test_reached_initial_state), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&seek_test_stop), 0);
   g_signal_connect_after (ptest, "duration", G_CALLBACK (&seek_test_duration),
       0);

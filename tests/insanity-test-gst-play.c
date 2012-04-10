@@ -44,16 +44,16 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error ? error->message : NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error ? error->message : NULL);
     if (error)
       g_error_free (error);
     return NULL;
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error->message);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error->message);
     g_error_free (error);
     return NULL;
   }
@@ -157,7 +157,7 @@ main (int argc, char **argv)
   insanity_gst_pipeline_test_set_create_pipeline_function
       (INSANITY_GST_PIPELINE_TEST (test), &play_gst_test_create_pipeline, NULL,
       NULL);
-  g_signal_connect_after (test, "start", G_CALLBACK (play_test_start), test);
+  g_signal_connect (test, "start", G_CALLBACK (play_test_start), test);
   g_signal_connect_after (test, "stop", G_CALLBACK (play_test_stop), test);
 
   ret = insanity_test_run (test, &argc, &argv);

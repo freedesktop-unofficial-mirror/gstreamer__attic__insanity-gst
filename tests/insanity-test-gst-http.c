@@ -46,6 +46,9 @@ static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
 static guint global_duration_timeout = 0;
 static guint global_timer_id = 0;
 
+static gchar *http_uri = NULL;
+static gchar *https_uri = NULL;
+
 static void
 source_setup_cb (GstElement * playbin, GstElement * source, gpointer user_data)
 {
@@ -149,7 +152,6 @@ static gboolean
 wait_and_end_step (gpointer data)
 {
   InsanityTest *test = data;
-  char *httpsuri;
   SoupServer *ssl_server;
 
   if (GST_CLOCK_TIME_IS_VALID (global_wait_time)
@@ -161,12 +163,10 @@ wait_and_end_step (gpointer data)
   if (global_done_http || ssl_server == NULL) {
     insanity_test_done (test);
   } else {
-    guint ssl_port = insanity_http_server_get_ssl_port (global_server);
     global_done_http = TRUE;
+
     gst_element_set_state (global_pipeline, GST_STATE_READY);
-    httpsuri = g_strdup_printf ("https://127.0.0.1:%u/", ssl_port);
-    g_object_set (global_pipeline, "uri", httpsuri, NULL);
-    g_free (httpsuri);
+    g_object_set (global_pipeline, "uri", https_uri, NULL);
     gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     gst_element_get_state (global_pipeline, NULL, NULL, GST_SECOND * 2);
 
@@ -262,7 +262,7 @@ http_test_start (InsanityTest * test)
   GValue uri = { 0 }, ival = {
   0};
   const char *protocol;
-  gchar *httpuri, *source_folder;
+  gchar *source_folder;
   SoupServer *ssl_server;
   guint port, ssl_port;
 
@@ -296,12 +296,10 @@ http_test_start (InsanityTest * test)
   ssl_port = insanity_http_server_get_ssl_port (global_server);
   ssl_server = insanity_http_server_get_soup_ssl_server (global_server);
   if (ssl_server) {
-    httpuri = g_strdup_printf ("https://127.0.0.1:%u/", ssl_port);
-  } else {
-    httpuri = g_strdup_printf ("http://127.0.0.1:%u/", port);
+    https_uri = g_strdup_printf ("https://127.0.0.1:%u/", ssl_port);
   }
-  g_object_set (global_pipeline, "uri", httpuri, NULL);
-  g_free (httpuri);
+  http_uri = g_strdup_printf ("http://127.0.0.1:%u/", port);
+  g_object_set (global_pipeline, "uri", http_uri, NULL);
 
   global_validate_on_playing = NULL;
   global_done_http = FALSE;
@@ -325,6 +323,16 @@ http_test_stop (InsanityTest * test)
     g_source_remove (global_timer_id);
     global_timer_id = 0;
   }
+
+  if (global_duration_timeout) {
+    g_source_remove (global_duration_timeout);
+    global_duration_timeout = 0;
+  }
+
+  g_free (http_uri);
+  http_uri = NULL;
+  g_free (https_uri);
+  https_uri = NULL;
 }
 
 static gboolean
@@ -348,7 +356,7 @@ wait_and_start (gpointer data)
 }
 
 static void
-http_test_pipeline_test (InsanityGstPipelineTest * ptest)
+http_test_test (InsanityGstPipelineTest * ptest)
 {
   global_duration_timeout =
       g_timeout_add (5000, (GSourceFunc) & duration_timeout, ptest);
@@ -442,10 +450,9 @@ main (int argc, char **argv)
   g_signal_connect_after (test, "setup", G_CALLBACK (&http_test_setup), 0);
   g_signal_connect_after (test, "bus-message",
       G_CALLBACK (&http_test_bus_message), 0);
-  g_signal_connect_after (test, "start", G_CALLBACK (&http_test_start), 0);
+  g_signal_connect (test, "start", G_CALLBACK (&http_test_start), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&http_test_stop), 0);
-  g_signal_connect_after (test, "pipeline-test",
-      G_CALLBACK (&http_test_pipeline_test), 0);
+  g_signal_connect (test, "test", G_CALLBACK (&http_test_test), 0);
   g_signal_connect_after (test, "teardown", G_CALLBACK (&http_test_teardown),
       0);
   g_signal_connect_after (ptest, "duration", G_CALLBACK (&http_test_duration),

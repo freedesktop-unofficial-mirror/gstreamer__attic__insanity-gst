@@ -39,7 +39,6 @@
 static guint bus_message_signal;
 static guint reached_initial_state_signal;
 static guint duration_signal;
-static guint pipeline_test_signal;
 
 G_DEFINE_TYPE (InsanityGstPipelineTest, insanity_gst_pipeline_test,
     INSANITY_TYPE_GST_TEST);
@@ -573,7 +572,6 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest * test)
   gst_bus_add_signal_watch (ptest->priv->bus);
   id = g_signal_connect (G_OBJECT (ptest->priv->bus), "message",
       (GCallback) & on_message, ptest);
-  g_signal_emit (ptest, pipeline_test_signal, 0, NULL);
   g_main_loop_run (ptest->priv->loop);
   g_signal_handler_disconnect (G_OBJECT (ptest->priv->bus), id);
 
@@ -752,11 +750,6 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
       0, NULL, NULL, NULL, G_TYPE_NONE /* return_type */ ,
       1, G_TYPE_UINT64, NULL);
-  pipeline_test_signal = g_signal_new ("pipeline-test",
-      G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
-      0, NULL, NULL, NULL, G_TYPE_NONE /* return_type */ ,
-      0, NULL);
 }
 
 /**

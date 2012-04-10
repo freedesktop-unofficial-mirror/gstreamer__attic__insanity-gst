@@ -68,16 +68,16 @@ dvd_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error ? error->message : NULL);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error ? error->message : NULL);
     if (error)
       g_error_free (error);
     return NULL;
   } else if (error) {
     /* Do we get a dangling pointer here ? gst-launch.c does not unref */
     pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "valid-pipeline", FALSE,
-        error->message);
+    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+        "valid-pipeline", FALSE, error->message);
     g_error_free (error);
     return NULL;
   }
@@ -275,7 +275,8 @@ cycle_unused_commands (InsanityGstPipelineTest * ptest, const char *step,
     }
   }
 
-  insanity_test_validate_checklist_item (test, "cycle-unused-commands", TRUE, NULL);
+  insanity_test_validate_checklist_item (test, "cycle-unused-commands", TRUE,
+      NULL);
 
   return NEXT_STEP_NOW;
 }
@@ -356,7 +357,8 @@ send_random_commands (InsanityGstPipelineTest * ptest, const char *step,
       g_timeout_add (1000, (GSourceFunc) & state_change_timeout, ptest);
   if (++*counter == MAX_RANDOM_COMMANDS) {
     *counter = 0;
-    insanity_test_validate_checklist_item (test, "send-random-commands", TRUE, NULL);
+    insanity_test_validate_checklist_item (test, "send-random-commands", TRUE,
+        NULL);
     return NEXT_STEP_ON_PLAYING;
   } else {
     return NEXT_STEP_RESTART_ON_PLAYING;
@@ -554,7 +556,8 @@ static void
 dvd_test_teardown (InsanityTest * test)
 {
   (void) test;
-  g_rand_free (global_prg);
+  if (global_prg)
+    g_rand_free (global_prg);
   global_prg = NULL;
 }
 
@@ -607,21 +610,12 @@ dvd_test_stop (InsanityTest * test)
   }
 }
 
-static void
-dvd_test_pipeline_test (InsanityGstPipelineTest * ptest)
+static gboolean
+dvd_test_reached_initial_state (InsanityGstPipelineTest * ptest)
 {
-  if (gst_element_set_state (global_pipeline,
-          GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-    insanity_test_done (INSANITY_TEST (ptest));
-    return;
-  }
-  if (gst_element_get_state (global_pipeline, NULL, NULL,
-          GST_SECOND) == GST_STATE_CHANGE_FAILURE) {
-    insanity_test_done (INSANITY_TEST (ptest));
-    return;
-  }
-
   global_nav = GST_NAVIGATION (gst_object_ref (global_pipeline));
+
+  return TRUE;
 }
 
 int
@@ -686,12 +680,11 @@ main (int argc, char **argv)
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &dvd_test_create_pipeline, NULL, NULL);
   g_signal_connect_after (test, "setup", G_CALLBACK (&dvd_test_setup), 0);
-  g_signal_connect_after (test, "bus-message",
-      G_CALLBACK (&dvd_test_bus_message), 0);
-  g_signal_connect_after (test, "start", G_CALLBACK (&dvd_test_start), 0);
+  g_signal_connect (test, "bus-message", G_CALLBACK (&dvd_test_bus_message), 0);
+  g_signal_connect (test, "start", G_CALLBACK (&dvd_test_start), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&dvd_test_stop), 0);
-  g_signal_connect_after (test, "pipeline-test",
-      G_CALLBACK (&dvd_test_pipeline_test), 0);
+  g_signal_connect_after (test, "reached-initial-state",
+      G_CALLBACK (&dvd_test_reached_initial_state), 0);
   g_signal_connect_after (test, "teardown", G_CALLBACK (&dvd_test_teardown), 0);
 
   ret = insanity_test_run (test, &argc, &argv);
