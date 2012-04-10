@@ -604,7 +604,7 @@ static gboolean
 insanity_gst_pipeline_test_reached_initial_state (InsanityGstPipelineTest *
     ptest)
 {
-  /* By default, we quit */
+  /* By default, we continue */
   return TRUE;
 }
 
