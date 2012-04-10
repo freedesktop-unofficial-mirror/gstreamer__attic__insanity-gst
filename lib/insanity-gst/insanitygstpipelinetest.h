@@ -78,6 +78,7 @@ void insanity_gst_pipeline_test_set_live (InsanityGstPipelineTest *test, gboolea
 void insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest *test, gboolean buffering);
 void insanity_gst_pipeline_test_set_create_pipeline_function (InsanityGstPipelineTest *test, InsanityGstCreatePipelineFunction func, gpointer userdata, GDestroyNotify dnotify);
 gboolean insanity_gst_pipeline_test_query_duration(InsanityGstPipelineTest *test, GstFormat fmt, gint64 *duration);
+void insanity_gst_pipeline_test_set_create_pipeline_in_start (InsanityGstPipelineTest *test, gboolean create_pipeline_in_start);
 
 /* Handy macros */
 #define INSANITY_TYPE_GST_PIPELINE_TEST                (insanity_gst_pipeline_test_get_type ())

@@ -56,6 +56,7 @@ struct _InsanityGstPipelineTestPrivateData
   gboolean is_live;
   gboolean buffering;
   gboolean enable_buffering;
+  gboolean create_pipeline_in_start;
 
   guint wait_timeout_id;
 
@@ -462,6 +463,26 @@ on_message (GstBus * bus, GstMessage * msg, gpointer userdata)
 }
 
 static gboolean
+create_pipeline (InsanityGstPipelineTest * ptest)
+{
+  InsanityGstPipelineTestPrivateData *priv = ptest->priv;
+
+  priv->pipeline =
+      INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
+  insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
+      "valid-pipeline", priv->pipeline != NULL, NULL);
+
+  if (!priv->pipeline)
+    return FALSE;
+
+  watch_container (ptest, GST_BIN (priv->pipeline));
+
+  priv->bus = gst_element_get_bus (GST_ELEMENT (priv->pipeline));
+
+  return TRUE;
+}
+
+static gboolean
 insanity_gst_pipeline_test_setup (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
@@ -474,15 +495,8 @@ insanity_gst_pipeline_test_setup (InsanityTest * test)
   priv->elements_used =
       g_hash_table_new_full (&g_str_hash, &g_str_equal, &g_free, &g_free);
 
-  priv->pipeline =
-      INSANITY_GST_PIPELINE_TEST_GET_CLASS (ptest)->create_pipeline (ptest);
-  insanity_test_validate_checklist_item (test, "valid-pipeline",
-      priv->pipeline != NULL, NULL);
-  if (!priv->pipeline)
-    return FALSE;
-  watch_container (ptest, GST_BIN (priv->pipeline));
-
-  priv->bus = gst_element_get_bus (GST_ELEMENT (priv->pipeline));
+  if (!priv->create_pipeline_in_start)
+    return create_pipeline (ptest);
 
   return TRUE;
 }
@@ -495,6 +509,11 @@ insanity_gst_pipeline_test_start (InsanityTest * test)
 
   g_assert (priv->loop == NULL);
   priv->loop = g_main_loop_new (NULL, FALSE);
+
+  if (priv->create_pipeline_in_start) {
+    if (!create_pipeline (ptest))
+      return FALSE;
+  }
 
   if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start
       (test))
@@ -518,26 +537,42 @@ insanity_gst_pipeline_test_start (InsanityTest * test)
 static void
 insanity_gst_pipeline_test_stop (InsanityTest * test)
 {
-  InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
+  InsanityGstPipelineTestPrivateData *priv =
+      INSANITY_GST_PIPELINE_TEST (test)->priv;
   GstState state, pending;
 
-  if (ptest->priv->wait_timeout_id) {
-    g_source_remove (ptest->priv->wait_timeout_id);
-    ptest->priv->wait_timeout_id = 0;
+  if (priv->wait_timeout_id) {
+    g_source_remove (priv->wait_timeout_id);
+    priv->wait_timeout_id = 0;
   }
 
-  if (ptest->priv->pipeline) {
-    gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_NULL);
-    gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state,
+  if (priv->pipeline) {
+    gst_element_set_state (GST_ELEMENT (priv->pipeline), GST_STATE_NULL);
+    gst_element_get_state (GST_ELEMENT (priv->pipeline), &state,
         &pending, GST_CLOCK_TIME_NONE);
   }
 
-  if (ptest->priv->loop) {
-    g_main_loop_quit (ptest->priv->loop);
-    while (g_main_loop_is_running (ptest->priv->loop))
+  if (priv->create_pipeline_in_start) {
+    if (priv->bus) {
+      gst_object_unref (priv->bus);
+      priv->bus = NULL;
+    }
+    if (priv->pipeline) {
+      gst_object_unref (priv->pipeline);
+      priv->pipeline = NULL;
+    }
+
+    if (priv->elements_used)
+      g_hash_table_destroy (priv->elements_used);
+    priv->elements_used = NULL;
+  }
+
+  if (priv->loop) {
+    g_main_loop_quit (priv->loop);
+    while (g_main_loop_is_running (priv->loop))
       g_usleep (20000);
-    g_main_loop_unref (ptest->priv->loop);
-    ptest->priv->loop = NULL;
+    g_main_loop_unref (priv->loop);
+    priv->loop = NULL;
   }
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
@@ -561,7 +596,8 @@ insanity_gst_pipeline_test_teardown (InsanityTest * test)
     priv->pipeline = NULL;
   }
 
-  g_hash_table_destroy (ptest->priv->elements_used);
+  if (priv->elements_used)
+    g_hash_table_destroy (ptest->priv->elements_used);
   ptest->priv->elements_used = NULL;
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->teardown
@@ -882,4 +918,22 @@ insanity_gst_pipeline_test_enable_buffering (InsanityGstPipelineTest * test,
   g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
 
   test->priv->enable_buffering = buffering;
+}
+
+/**
+ * insanity_gst_pipeline_test_set_create_pipeline_in_start:
+ * @test: the #InsanityGstPipelineTest to change
+ * @create_pipeline_in_start: Whether the pipeline should be created when starting
+ * the test rather than when the test is created (setup).
+ *
+ * Sets whether the pipeline should be created on each iteration of start/stop
+ * rather than once per process.
+ */
+void
+insanity_gst_pipeline_test_set_create_pipeline_in_start (InsanityGstPipelineTest
+    * test, gboolean create_pipeline_in_start)
+{
+  g_return_if_fail (INSANITY_IS_GST_PIPELINE_TEST (test));
+
+  test->priv->create_pipeline_in_start = create_pipeline_in_start;
 }
