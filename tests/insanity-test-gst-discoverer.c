@@ -1475,8 +1475,6 @@ discoverer_test_setup (InsanityTest * test)
 static gboolean
 discoverer_test_start (InsanityTest * test)
 {
-  insanity_test_printf (test, "discoverer_test_start\n");
-
   gstest = test;
   (void) test;
   return TRUE;
@@ -1514,8 +1512,6 @@ free_properties (Properties * local_properties)
 static void
 discoverer_test_stop (InsanityTest * test)
 {
-  insanity_test_printf (test, "discoverer_test_stop\n");
-
   if (async) {
     gst_discoverer_stop (dc);
     if (ml != NULL) {
@@ -1547,7 +1543,6 @@ discoverer_test_teardown (InsanityTest * test)
   g_object_unref (dc);
   dc = NULL;
 
-  insanity_test_printf (test, "discoverer_test_teardown\n");
   (void) test;
 }
 
