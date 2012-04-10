@@ -479,6 +479,8 @@ insanity_gst_pipeline_test_start (InsanityTest * test)
       (test))
     return FALSE;
 
+  g_assert (priv->loop == NULL);
+  priv->loop = g_main_loop_new (NULL, FALSE);
   priv->reached_initial_state = FALSE;
   priv->error_count = 0;
   priv->tag_count = 0;
@@ -509,6 +511,14 @@ insanity_gst_pipeline_test_stop (InsanityTest * test)
     gst_element_set_state (GST_ELEMENT (ptest->priv->pipeline), GST_STATE_NULL);
     gst_element_get_state (GST_ELEMENT (ptest->priv->pipeline), &state,
         &pending, GST_CLOCK_TIME_NONE);
+  }
+
+  if (ptest->priv->loop) {
+    g_main_loop_quit (ptest->priv->loop);
+    while (g_main_loop_is_running (ptest->priv->loop))
+      g_usleep (20000);
+    g_main_loop_unref (ptest->priv->loop);
+    ptest->priv->loop = NULL;
   }
 
   INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->stop (test);
@@ -559,15 +569,12 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest * test)
     ptest->priv->is_live = TRUE;
   }
 
-  ptest->priv->loop = g_main_loop_new (NULL, FALSE);
   gst_bus_add_signal_watch (ptest->priv->bus);
   id = g_signal_connect (G_OBJECT (ptest->priv->bus), "message",
       (GCallback) & on_message, ptest);
   g_signal_emit (ptest, pipeline_test_signal, 0, NULL);
   g_main_loop_run (ptest->priv->loop);
   g_signal_handler_disconnect (G_OBJECT (ptest->priv->bus), id);
-  g_main_loop_unref (ptest->priv->loop);
-  ptest->priv->loop = NULL;
 
   insanity_test_done (INSANITY_TEST (ptest));
 }
