@@ -475,12 +475,13 @@ insanity_gst_pipeline_test_start (InsanityTest * test)
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
 
+  g_assert (priv->loop == NULL);
+  priv->loop = g_main_loop_new (NULL, FALSE);
+
   if (!INSANITY_TEST_CLASS (insanity_gst_pipeline_test_parent_class)->start
       (test))
     return FALSE;
 
-  g_assert (priv->loop == NULL);
-  priv->loop = g_main_loop_new (NULL, FALSE);
   priv->reached_initial_state = FALSE;
   priv->error_count = 0;
   priv->tag_count = 0;
