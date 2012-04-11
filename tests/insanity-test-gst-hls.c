@@ -626,7 +626,7 @@ wait_and_start (gpointer data)
 
   /* Try getting duration */
   if (!GST_CLOCK_TIME_IS_VALID (glob_wait_time)) {
-    insanity_gst_pipeline_test_query_duration (ptest);
+    insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_TIME, NULL);
   }
 
   /* If we have it, start; if not, we'll be called again */
@@ -648,7 +648,8 @@ hls_test_test (InsanityGstPipelineTest * ptest)
 }
 
 static void
-hls_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
+hls_test_duration (InsanityGstPipelineTest * ptest, GstFormat fmt,
+    GstClockTime duration)
 {
   gboolean start = FALSE;
 
@@ -790,8 +791,8 @@ main (int argc, char **argv)
   g_signal_connect_after (test, "stop", G_CALLBACK (&hls_test_stop), 0);
   g_signal_connect (test, "test", G_CALLBACK (&hls_test_test), 0);
   g_signal_connect_after (test, "teardown", G_CALLBACK (&hls_test_teardown), 0);
-  g_signal_connect_after (ptest, "duration", G_CALLBACK (&hls_test_duration),
-      0);
+  g_signal_connect_after (ptest, "duration::time",
+      G_CALLBACK (&hls_test_duration), 0);
 
   ret = insanity_test_run (test, &argc, &argv);
 

@@ -291,24 +291,29 @@ waiting_for_state_change (InsanityGstPipelineTest * ptest)
   return FALSE;
 }
 
-GstClockTime
-insanity_gst_pipeline_test_query_duration (InsanityGstPipelineTest * ptest)
+gboolean
+insanity_gst_pipeline_test_query_duration (InsanityGstPipelineTest * ptest,
+    GstFormat fmt, gint64 * duration)
 {
   gboolean res;
-  GstFormat fmt = GST_FORMAT_TIME;
-  gint64 duration = GST_CLOCK_TIME_NONE;
+  GstFormat fmt_tmp = fmt;
+  gint64 dur = -1;
 
-  g_return_val_if_fail (INSANITY_IS_GST_PIPELINE_TEST (ptest),
-      GST_CLOCK_TIME_NONE);
+  g_return_val_if_fail (INSANITY_IS_GST_PIPELINE_TEST (ptest), FALSE);
 
   res =
-      gst_element_query_duration (GST_ELEMENT (ptest->priv->pipeline), &fmt,
-      &duration);
+      gst_element_query_duration (GST_ELEMENT (ptest->priv->pipeline), &fmt_tmp,
+      &dur);
 
-  if (res && fmt == GST_FORMAT_TIME && GST_CLOCK_TIME_IS_VALID (duration))
-    g_signal_emit (ptest, duration_signal, 0, duration, NULL);
-
-  return duration;
+  if (res && fmt == fmt_tmp && dur != -1) {
+    g_signal_emit (ptest, duration_signal, gst_format_to_quark (fmt), fmt, dur,
+        NULL);
+    if (duration)
+      *duration = dur;
+    return TRUE;
+  } else {
+    return FALSE;
+  }
 }
 
 static gboolean
@@ -340,6 +345,16 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
         GstState oldstate, newstate, pending;
         gst_message_parse_state_changed (message, &oldstate, &newstate,
             &pending);
+
+        if (newstate >= GST_STATE_PAUSED) {
+          insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_TIME,
+              NULL);
+          insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_BYTES,
+              NULL);
+          insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_DEFAULT,
+              NULL);
+        }
+
         if (newstate == ptest->priv->initial_state
             && pending == GST_STATE_VOID_PENDING
             && !ptest->priv->reached_initial_state) {
@@ -366,9 +381,13 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
       gst_tag_list_free (tags);
       break;
     }
-    case GST_MESSAGE_DURATION:
-      insanity_gst_pipeline_test_query_duration (ptest);
+    case GST_MESSAGE_DURATION:{
+      GstFormat fmt;
+
+      gst_message_parse_duration (message, &fmt, NULL);
+      insanity_gst_pipeline_test_query_duration (ptest, fmt, NULL);
       break;
+    }
     case GST_MESSAGE_EOS:
       if (GST_MESSAGE_SRC (message) == GST_OBJECT (ptest->priv->pipeline)) {
         /* Warning from the original Python source:
@@ -747,9 +766,9 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       0, NULL);
   duration_signal = g_signal_new ("duration",
       G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
-      0, NULL, NULL, NULL, G_TYPE_NONE /* return_type */ ,
-      1, G_TYPE_UINT64, NULL);
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS |
+      G_SIGNAL_DETAILED, 0, NULL, NULL, NULL, G_TYPE_NONE /* return_type */ ,
+      2, GST_TYPE_FORMAT, G_TYPE_UINT64, NULL);
 }
 
 /**

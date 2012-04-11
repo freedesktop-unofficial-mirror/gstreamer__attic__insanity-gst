@@ -687,8 +687,7 @@ seek_test_reached_initial_state (InsanityThreadedTest * ttest)
 
   /* If we don't have duration yet, ask for it, it will call our signal
      if it can be determined */
-  if (!GST_CLOCK_TIME_IS_VALID (insanity_gst_pipeline_test_query_duration
-          (ptest))) {
+  if (insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_TIME, NULL)) {
     /* Belt and braces code from gst-discoverer adapted here, but async
        so we can let insanity test continue initializing properly. */
     GstStateChangeReturn sret;
@@ -784,7 +783,8 @@ seek_test_stop (InsanityTest * test)
 }
 
 static void
-seek_test_duration (InsanityGstPipelineTest * ptest, GstClockTime duration)
+seek_test_duration (InsanityGstPipelineTest * ptest, GstFormat fmt,
+    GstClockTime duration)
 {
   gboolean seek = FALSE;
   GstQuery *q;
@@ -918,8 +918,8 @@ main (int argc, char **argv)
   g_signal_connect_after (test, "reached-initial-state",
       G_CALLBACK (&seek_test_reached_initial_state), 0);
   g_signal_connect_after (test, "stop", G_CALLBACK (&seek_test_stop), 0);
-  g_signal_connect_after (ptest, "duration", G_CALLBACK (&seek_test_duration),
-      0);
+  g_signal_connect_after (ptest, "duration::time",
+      G_CALLBACK (&seek_test_duration), 0);
 
   ret = insanity_test_run (test, &argc, &argv);
 
