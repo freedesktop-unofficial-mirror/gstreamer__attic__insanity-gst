@@ -3,6 +3,8 @@ prefix=
 exec_prefix=
 libdir=${pcfiledir}/insanity-gst
 includedir=${pcfiledir}
+girdir=${pcfiledir}/insanity-gst
+typelibdir=${pcfiledir}/insanity-gst
 
 Name: insanity-gst-@LIBINSANITY_GST_API_VERSION@
 Description: insanity-gst-@LIBINSANITY_GST_API_VERSION@ is a library to help write tests for gstreamer @GST_TARGET@ (not installed)

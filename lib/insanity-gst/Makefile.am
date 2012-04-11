@@ -29,9 +29,11 @@ InsanityGst-@LIBINSANITY_GST_API_VERSION@.gir: $(INTROSPECTION_SCANNER) libinsan
 		--nsversion=@LIBINSANITY_GST_API_VERSION@ \
 		--warn-all \
 		-I$(top_srcdir)/lib \
-		-I$(top_builddir) \
+		-I$(top_builddir)/lib \
 		-DIN_GOBJECT_INTROSPECTION=1 \
 		--c-include='insanity-gst/insanitygst.h' \
+		--add-include-path=`$(PKG_CONFIG) --variable=girdir gstreamer-@GST_TARGET@` \
+		--add-include-path=`$(PKG_CONFIG) --variable=girdir insanity-1.0` \
 		--library=libinsanity-gst-@LIBINSANITY_GST_API_VERSION@.la \
 		--include=Gst-@GST_TARGET@ \
 		--include=Insanity-1.0 \
@@ -59,7 +61,12 @@ typelibsdir = $(libdir)/girepository-1.0/
 typelibs_DATA = $(BUILT_GIRSOURCES:.gir=.typelib)
 
 %.typelib: %.gir $(INTROSPECTION_COMPILER)
-	$(AM_V_GEN)$(INTROSPECTION_COMPILER) --includedir=$(srcdir) --includedir=$(builddir) $(INTROSPECTION_COMPILER_OPTS) $< -o $(@F)
+	$(AM_V_GEN)$(INTROSPECTION_COMPILER) \
+		--includedir=$(srcdir)/lib \
+		--includedir=$(builddir)/lib \
+		--includedir=`$(PKG_CONFIG) --variable=girdir gstreamer-@GST_TARGET@` \
+		--includedir=`$(PKG_CONFIG) --variable=girdir insanity-1.0` \
+		$(INTROSPECTION_COMPILER_OPTS) $< -o $(@F)
 
 CLEANFILES = $(BUILT_GIRSOURCES) $(typelibs_DATA)
 endif
