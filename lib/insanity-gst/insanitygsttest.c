@@ -174,7 +174,7 @@ typedef struct
 } DataProbeCtx;
 
 static void
-free_data_probe_ctx (DataProbeCtx *ctx)
+free_data_probe_ctx (DataProbeCtx * ctx)
 {
   g_object_unref (ctx->test);
   if (ctx->dnotify)
@@ -183,7 +183,7 @@ free_data_probe_ctx (DataProbeCtx *ctx)
 }
 
 static gboolean
-data_probe_cb (GstPad *pad, GstMiniObject *obj, DataProbeCtx *ctx)
+data_probe_cb (GstPad * pad, GstMiniObject * obj, DataProbeCtx * ctx)
 {
   return ctx->func (ctx->test, pad, obj, ctx->user_data);
 }
@@ -191,7 +191,7 @@ data_probe_cb (GstPad *pad, GstMiniObject *obj, DataProbeCtx *ctx)
 /**
  * insanity_gst_test_add_data_probe:
  * @test: the #InsanityGstTest
- * @bin (transfer none): a bin where to look for the sinks
+ * @bin: (transfer none): a bin where to look for the sinks
  * @element_name: the name of the element on which to find the pad to add a probe to
  * @pad_name: the name of the pad to add a probe to
  * @pad: (out) (transfer full): a pointer where to place a pointer to the pad to which the probe was attached to
@@ -239,14 +239,16 @@ insanity_gst_test_add_data_probe (InsanityGstTest * test, GstBin * bin,
       dnotify (user_data);
     return FALSE;
   }
-   
+
   ctx = g_slice_new (DataProbeCtx);
   ctx->test = g_object_ref (test);
   ctx->func = probe;
   ctx->user_data = user_data;
   ctx->dnotify = dnotify;
 
-  *probe_id = gst_pad_add_data_probe_full (*pad, (GCallback) data_probe_cb, ctx, (GDestroyNotify) free_data_probe_ctx);
+  *probe_id =
+      gst_pad_add_data_probe_full (*pad, (GCallback) data_probe_cb, ctx,
+      (GDestroyNotify) free_data_probe_ctx);
 
   if (*probe_id != 0) {
     insanity_test_printf (INSANITY_TEST (test), "Probe %u connected to %s:%s\n",
