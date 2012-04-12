@@ -628,7 +628,9 @@ insanity_gst_pipeline_test_test (InsanityThreadedTest * test)
   id = g_signal_connect (G_OBJECT (ptest->priv->bus), "message",
       (GCallback) & on_message, ptest);
   g_main_loop_run (ptest->priv->loop);
-  g_signal_handler_disconnect (G_OBJECT (ptest->priv->bus), id);
+
+  if (ptest->priv->bus)
+    g_signal_handler_disconnect (G_OBJECT (ptest->priv->bus), id);
 
   insanity_test_done (INSANITY_TEST (ptest));
 }
