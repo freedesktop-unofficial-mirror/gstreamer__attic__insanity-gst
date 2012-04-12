@@ -230,14 +230,18 @@ gst_multiple_stream_demux_base_init (gpointer klass)
   static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
       GST_PAD_SINK, GST_PAD_ALWAYS,
       GST_STATIC_CAPS ("application/x-multiple-streams, "
-          "n-audio  = (int) [0, 64], "
-          "n-video  = (int) [0, 64], "
+          "n-audio  = (int) [0, 32], "
+          "n-non-raw-audio  = (int) [0, 32], "
+          "n-video  = (int) [0, 32], "
+          "n-non-raw-video  = (int) [0, 32], "
           "n-text   = (int) [0, 64], " "n-other  = (int) [0, 64]")
       );
   static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src_%d",
       GST_PAD_SRC, GST_PAD_SOMETIMES,
       GST_STATIC_CAPS
-      ("audio/x-raw-int; video/x-raw-rgb; text/plain; application/x-something")
+      ("audio/x-raw-int; audio/x-compressed; "
+          "video/x-raw-rgb; video/x-compressed; "
+          "text/plain; application/x-something")
       );
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
 
@@ -397,13 +401,35 @@ gst_multiple_stream_demux_event (GstPad * pad, GstEvent * event)
   return ret;
 }
 
+static void
+create_pad (GstMultipleStreamDemux * demux,
+    GstMultipleStreamDemuxStream * stream, gint idx, GstCaps * caps)
+{
+  GstPadTemplate *templ;
+  gchar *name;
+
+  templ =
+      gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (demux),
+      "src_%d");
+  name = g_strdup_printf ("src_%d", idx);
+  stream->srcpad = gst_pad_new_from_template (templ, name);
+  g_free (name);
+  gst_pad_set_active (stream->srcpad, TRUE);
+  gst_pad_use_fixed_caps (stream->srcpad);
+
+  gst_pad_set_caps (stream->srcpad, caps);
+
+  gst_element_add_pad (GST_ELEMENT (demux), stream->srcpad);
+}
+
 static gboolean
 gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
 {
   GstMultipleStreamDemux *demux =
       (GstMultipleStreamDemux *) gst_pad_get_parent (pad);
   GstStructure *s;
-  gint n_audio, n_video, n_text, n_other, n;
+  gint n_audio, n_nonraw_audio, n_video, n_nonraw_video;
+  gint n_text, n_other, n;
   gint i, j;
 
   if (demux->streams) {
@@ -415,12 +441,15 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
   s = gst_caps_get_structure (caps, 0);
 
   if (!gst_structure_get_int (s, "n-audio", &n_audio) ||
+      !gst_structure_get_int (s, "n-non-raw-audio", &n_nonraw_audio) ||
       !gst_structure_get_int (s, "n-video", &n_video) ||
+      !gst_structure_get_int (s, "n-non-raw-video", &n_nonraw_video) ||
       !gst_structure_get_int (s, "n-text", &n_text) ||
       !gst_structure_get_int (s, "n-other", &n_other))
     return FALSE;
 
-  demux->n_streams = n = n_audio + n_video + n_text + n_other;
+  demux->n_streams = n =
+      n_audio + n_nonraw_audio + n_video + n_nonraw_video + n_text + n_other;
   gst_caps_replace (&demux->sinkcaps, caps);
   demux->streams = g_new0 (GstMultipleStreamDemuxStream, n);
 
@@ -428,17 +457,6 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
   for (i = 0; i < n_audio; i++, j++) {
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
-    GstPadTemplate *templ;
-    gchar *name;
-
-    templ =
-        gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (demux),
-        "src_%d");
-    name = g_strdup_printf ("src_%d", j);
-    stream->srcpad = gst_pad_new_from_template (templ, name);
-    g_free (name);
-    gst_pad_set_active (stream->srcpad, TRUE);
-    gst_pad_use_fixed_caps (stream->srcpad);
 
     caps = gst_caps_new_simple ("audio/x-raw-int",
         "rate", G_TYPE_INT, 48000,
@@ -447,10 +465,19 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
         "depth", G_TYPE_INT, 16,
         "endianness", G_TYPE_INT, G_BYTE_ORDER,
         "signed", G_TYPE_BOOLEAN, TRUE, NULL);
-    gst_pad_set_caps (stream->srcpad, caps);
+    create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
-    gst_element_add_pad (GST_ELEMENT (demux), stream->srcpad);
+    stream->type = STREAM_TYPE_AUDIO;
+  }
+
+  for (i = 0; i < n_nonraw_audio; i++, j++) {
+    GstMultipleStreamDemuxStream *stream = &demux->streams[j];
+    GstCaps *caps;
+
+    caps = gst_caps_new_simple ("audio/x-compressed", NULL);
+    create_pad (demux, stream, j, caps);
+    gst_caps_unref (caps);
 
     stream->type = STREAM_TYPE_AUDIO;
   }
@@ -458,25 +485,23 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
   for (i = 0; i < n_video; i++, j++) {
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
-    GstPadTemplate *templ;
-    gchar *name;
-
-    templ =
-        gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (demux),
-        "src_%d");
-    name = g_strdup_printf ("src_%d", j);
-    stream->srcpad = gst_pad_new_from_template (templ, name);
-    g_free (name);
-    gst_pad_set_active (stream->srcpad, TRUE);
-    gst_pad_use_fixed_caps (stream->srcpad);
 
     caps =
         gst_video_format_new_caps (GST_VIDEO_FORMAT_xRGB, 800, 600, 25, 1, 1,
         1);
-    gst_pad_set_caps (stream->srcpad, caps);
+    create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
-    gst_element_add_pad (GST_ELEMENT (demux), stream->srcpad);
+    stream->type = STREAM_TYPE_VIDEO;
+  }
+
+  for (i = 0; i < n_nonraw_video; i++, j++) {
+    GstMultipleStreamDemuxStream *stream = &demux->streams[j];
+    GstCaps *caps;
+
+    caps = gst_caps_new_simple ("video/x-compressed", NULL);
+    create_pad (demux, stream, j, caps);
+    gst_caps_unref (caps);
 
     stream->type = STREAM_TYPE_VIDEO;
   }
@@ -484,23 +509,10 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
   for (i = 0; i < n_text; i++, j++) {
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
-    GstPadTemplate *templ;
-    gchar *name;
-
-    templ =
-        gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (demux),
-        "src_%d");
-    name = g_strdup_printf ("src_%d", j);
-    stream->srcpad = gst_pad_new_from_template (templ, name);
-    g_free (name);
-    gst_pad_set_active (stream->srcpad, TRUE);
-    gst_pad_use_fixed_caps (stream->srcpad);
 
     caps = gst_caps_new_simple ("text/plain", NULL);
-    gst_pad_set_caps (stream->srcpad, caps);
+    create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
-
-    gst_element_add_pad (GST_ELEMENT (demux), stream->srcpad);
 
     stream->type = STREAM_TYPE_TEXT;
   }
@@ -508,23 +520,10 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
   for (i = 0; i < n_other; i++, j++) {
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
-    GstPadTemplate *templ;
-    gchar *name;
-
-    templ =
-        gst_element_class_get_pad_template (GST_ELEMENT_GET_CLASS (demux),
-        "src_%d");
-    name = g_strdup_printf ("src_%d", j);
-    stream->srcpad = gst_pad_new_from_template (templ, name);
-    g_free (name);
-    gst_pad_set_active (stream->srcpad, TRUE);
-    gst_pad_use_fixed_caps (stream->srcpad);
 
     caps = gst_caps_new_simple ("application/x-something", NULL);
-    gst_pad_set_caps (stream->srcpad, caps);
+    create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
-
-    gst_element_add_pad (GST_ELEMENT (demux), stream->srcpad);
 
     stream->type = STREAM_TYPE_OTHER;
   }
@@ -766,6 +765,7 @@ static struct
   gboolean wait_switch;
 } streams[3];
 static gint n_audio, n_video, n_text, n_other, n_streams;
+static gint n_nonraw_audio, n_nonraw_video;
 
 static gint *markers[3];
 
@@ -847,7 +847,9 @@ stream_switch_test_setup (InsanityTest * test)
 
   do {
     n_audio = g_rand_int_range (prg, 0, 10);
+    n_nonraw_audio = g_rand_int_range (prg, 0, n_audio + 1);
     n_video = g_rand_int_range (prg, 0, 10);
+    n_nonraw_video = g_rand_int_range (prg, 0, n_video + 1);
     n_text = g_rand_int_range (prg, 0, 10);
     n_other = g_rand_int_range (prg, 0, 10);
     n_streams = n_audio + n_video + n_text + n_other;
@@ -915,10 +917,12 @@ stream_switch_test_start (InsanityTest * test)
 
   TEST_LOCK ();
 
-  uri =
-      g_strdup_printf
-      ("caps:application/x-multiple-streams, n-audio=(int)%d, n-video=(int)%d, n-text=(int)%d, n-other=(int)%d",
-      n_audio, n_video, n_text, n_other);
+  uri = g_strdup_printf ("caps:application/x-multiple-streams, "
+      "n-audio=(int)%d, n-non-raw-audio=(int)%d, "
+      "n-video=(int)%d, n-non-raw-video=(int)%d, "
+      "n-text=(int)%d, n-other=(int)%d",
+      n_audio - n_nonraw_audio, n_nonraw_audio, n_video - n_nonraw_video,
+      n_nonraw_video, n_text, n_other);
   g_object_set (pipeline, "uri", uri, NULL);
   g_free (uri);
 
@@ -1404,9 +1408,11 @@ probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object,
   buffer = GST_BUFFER (object);
   caps = GST_BUFFER_CAPS (object);
   s = gst_caps_get_structure (caps, 0);
-  if (gst_structure_has_name (s, "video/x-raw-rgb"))
+  if (gst_structure_has_name (s, "video/x-raw-rgb")
+      || gst_structure_has_name (s, "video/x-compressed"))
     type = STREAM_TYPE_VIDEO;
-  else if (gst_structure_has_name (s, "audio/x-raw-int"))
+  else if (gst_structure_has_name (s, "audio/x-raw-int")
+      || gst_structure_has_name (s, "audio/x-compressed"))
     type = STREAM_TYPE_AUDIO;
   else if (gst_structure_has_name (s, "text/plain"))
     type = STREAM_TYPE_TEXT;
