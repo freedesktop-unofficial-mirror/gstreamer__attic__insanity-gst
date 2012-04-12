@@ -24,6 +24,7 @@
 #endif
 
 #include <gst/gst.h>
+#include <gst/base/gstbasesink.h>
 #include <gst/base/gstpushsrc.h>
 #include <gst/video/video.h>
 #include <insanity-gst/insanity-gst.h>
@@ -31,6 +32,9 @@
 
 static GType gst_caps_src_get_type (void);
 static GType gst_multiple_stream_demux_get_type (void);
+static GType gst_codec_sink_get_type (void);
+static GType gst_audio_codec_sink_get_type (void);
+static GType gst_video_codec_sink_get_type (void);
 
 /***** Source element that creates buffers with specific caps *****/
 
@@ -548,6 +552,181 @@ gst_multiple_stream_demux_init (GstMultipleStreamDemux * demux,
   gst_element_add_pad (GST_ELEMENT (demux), demux->sinkpad);
 }
 
+#undef parent_class
+#define parent_class codec_sink_parent_class
+
+typedef struct _GstCodecSink GstCodecSink;
+typedef GstBaseSinkClass GstCodecSinkClass;
+
+struct _GstCodecSink
+{
+  GstBaseSink parent;
+
+  gboolean audio;
+  gboolean raw;
+  gint n_raw, n_compressed;
+};
+
+GST_BOILERPLATE (GstCodecSink, gst_codec_sink, GstBaseSink, GST_TYPE_BASE_SINK);
+
+static void
+gst_codec_sink_base_init (gpointer klass)
+{
+}
+
+static gboolean
+gst_codec_sink_start (GstBaseSink * bsink)
+{
+  GstCodecSink *sink = (GstCodecSink *) bsink;
+
+  sink->n_raw = 0;
+  sink->n_compressed = 0;
+
+  return TRUE;
+}
+
+static GstFlowReturn
+gst_codec_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
+{
+  GstCodecSink *sink = (GstCodecSink *) bsink;
+
+  if (sink->raw)
+    sink->n_raw++;
+  else
+    sink->n_compressed++;
+
+  return GST_FLOW_OK;
+}
+
+static void
+gst_codec_sink_class_init (GstCodecSinkClass * klass)
+{
+  GstBaseSinkClass *basesink_class = (GstBaseSinkClass *) klass;
+
+  basesink_class->start = gst_codec_sink_start;
+  basesink_class->render = gst_codec_sink_render;
+}
+
+static void
+gst_codec_sink_init (GstCodecSink * sink, GstCodecSinkClass * klass)
+{
+  gst_base_sink_set_sync (GST_BASE_SINK (sink), TRUE);
+}
+
+#undef parent_class
+#define parent_class audio_codec_sink_parent_class
+
+typedef GstCodecSink GstAudioCodecSink;
+typedef GstCodecSinkClass GstAudioCodecSinkClass;
+
+GST_BOILERPLATE (GstAudioCodecSink, gst_audio_codec_sink, GstBaseSink,
+    gst_codec_sink_get_type ());
+
+static void
+gst_audio_codec_sink_base_init (gpointer klass)
+{
+  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
+      GST_PAD_SINK, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS ("audio/x-raw-int; audio/x-compressed")
+      );
+  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
+
+  gst_element_class_add_static_pad_template (element_class, &sink_templ);
+  gst_element_class_set_details_simple (element_class,
+      "AudioCodecSink", "Sink/Audio", "yep", "me");
+}
+
+static gboolean
+gst_audio_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+{
+  GstAudioCodecSink *sink = (GstAudioCodecSink *) bsink;
+  GstStructure *s;
+
+  s = gst_caps_get_structure (caps, 0);
+
+  if (gst_structure_has_name (s, "audio/x-raw-int")) {
+    sink->raw = TRUE;
+  } else if (gst_structure_has_name (s, "audio/x-compressed")) {
+    sink->raw = FALSE;
+  } else {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static void
+gst_audio_codec_sink_class_init (GstAudioCodecSinkClass * klass)
+{
+  GstBaseSinkClass *basesink_class = (GstBaseSinkClass *) klass;
+
+  basesink_class->set_caps = gst_audio_codec_sink_set_caps;
+}
+
+static void
+gst_audio_codec_sink_init (GstAudioCodecSink * sink,
+    GstAudioCodecSinkClass * klass)
+{
+  sink->audio = TRUE;
+}
+
+#undef parent_class
+#define parent_class video_codec_sink_parent_class
+
+typedef GstCodecSink GstVideoCodecSink;
+typedef GstCodecSinkClass GstVideoCodecSinkClass;
+
+GST_BOILERPLATE (GstVideoCodecSink, gst_video_codec_sink, GstBaseSink,
+    gst_codec_sink_get_type ());
+
+static void
+gst_video_codec_sink_base_init (gpointer klass)
+{
+  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
+      GST_PAD_SINK, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS ("video/x-raw-rgb; video/x-compressed")
+      );
+  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
+
+  gst_element_class_add_static_pad_template (element_class, &sink_templ);
+  gst_element_class_set_details_simple (element_class,
+      "VideoCodecSink", "Sink/Video", "yep", "me");
+}
+
+static gboolean
+gst_video_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+{
+  GstVideoCodecSink *sink = (GstVideoCodecSink *) bsink;
+  GstStructure *s;
+
+  s = gst_caps_get_structure (caps, 0);
+
+  if (gst_structure_has_name (s, "video/x-raw-rgb")) {
+    sink->raw = TRUE;
+  } else if (gst_structure_has_name (s, "video/x-compressed")) {
+    sink->raw = FALSE;
+  } else {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static void
+gst_video_codec_sink_class_init (GstVideoCodecSinkClass * klass)
+{
+  GstBaseSinkClass *basesink_class = (GstBaseSinkClass *) klass;
+
+  basesink_class->set_caps = gst_video_codec_sink_set_caps;
+}
+
+static void
+gst_video_codec_sink_init (GstVideoCodecSink * sink,
+    GstVideoCodecSinkClass * klass)
+{
+  sink->audio = FALSE;
+}
+
 /***** The actual test *****/
 #define SWITCH_TIMEOUT (15)
 #define NSWITCHES (100)
@@ -606,8 +785,17 @@ stream_switch_test_create_pipeline (InsanityGstPipelineTest * ptest,
     gpointer userdata)
 {
   const char *launch_line =
-      "playbin2 audio-sink=\"capsfilter caps=\\\"audio/x-raw-int\\\" ! fakesink name=asink sync=true\" video-sink=\"capsfilter caps=\\\"video/x-raw-rgb\\\" ! fakesink name=vsink sync=true\" text-sink=\"capsfilter caps=\\\"text/plain\\\" ! fakesink name=tsink sync=true\"";
+      "playbin2 audio-sink=\"audiocodecsink name=asink\" video-sink=\"videocodecsink name=vsink\" text-sink=\"capsfilter caps=\\\"text/plain\\\" ! fakesink name=tsink sync=true\"";
   GError *error = NULL;
+
+  gst_element_register (NULL, "capssrc", GST_RANK_PRIMARY,
+      gst_caps_src_get_type ());
+  gst_element_register (NULL, "multiplestreamdemux", GST_RANK_PRIMARY,
+      gst_multiple_stream_demux_get_type ());
+  gst_element_register (NULL, "audiocodecsink",
+      GST_RANK_PRIMARY + 100, gst_audio_codec_sink_get_type ());
+  gst_element_register (NULL, "videocodecsink",
+      GST_RANK_PRIMARY + 100, gst_video_codec_sink_get_type ());
 
   pipeline = gst_parse_launch (launch_line, &error);
   if (!pipeline) {
@@ -716,11 +904,6 @@ stream_switch_test_setup (InsanityTest * test)
   }
 
   g_rand_free (prg);
-
-  gst_element_register (NULL, "capssrc", GST_RANK_PRIMARY,
-      gst_caps_src_get_type ());
-  gst_element_register (NULL, "multiplestreamdemux", GST_RANK_PRIMARY,
-      gst_multiple_stream_demux_get_type ());
 
   return TRUE;
 }
