@@ -32,7 +32,7 @@ static gint timeout = 10;
 static GMainLoop *ml;
 static GstDiscovererInfo *info;
 static gboolean async = TRUE;
-static gboolean skip = FALSE;
+static gboolean skip_compare = FALSE;
 static InsanityTest *gstest;
 static gchar *uri;
 static gchar **lines;
@@ -1401,7 +1401,11 @@ _new_discovered_uri (GstDiscoverer * dc, GstDiscovererInfo * dcinfo,
     return;
   }
 
-  if (skip) {
+  if (skip_compare) {
+    insanity_test_validate_checklist_item (gstest, "comparison-file-parsed",
+        TRUE, NULL);
+    insanity_test_validate_checklist_item (gstest, "discoverer-correct", TRUE,
+        NULL);
     return;
   }
 
@@ -1550,12 +1554,19 @@ discoverer_test_test (InsanityTest * test)
     g_free (uri);
     uri = NULL;
 
+    insanity_test_validate_checklist_item (gstest,
+        "discoverer-returned-results", TRUE, NULL);
+    insanity_test_validate_checklist_item (gstest, "comparison-file-parsed",
+        TRUE, NULL);
+    insanity_test_validate_checklist_item (gstest, "discoverer-correct", TRUE,
+        NULL);
+
     insanity_test_done (test);
     (void) test;
     return;
   }
 
-  insanity_test_get_boolean_argument (test, "skip", &skip);
+  insanity_test_get_boolean_argument (test, "skip-compare", &skip_compare);
 
   insanity_test_printf (test, "Analyzing URI: %s\n", uri);
 
@@ -1610,9 +1621,10 @@ main (int argc, char **argv)
   insanity_test_add_string_argument (test, "uri", "Input file",
       "URI of file to process", TRUE, "file:///home/user/video.avi");
 
-  insanity_test_add_boolean_argument (test, "skip", "Skip comparing results",
+  insanity_test_add_boolean_argument (test, "skip-compare",
+      "Skip comparing results",
       "Just check whether discoverer returns something without comparing it",
-      TRUE, FALSE);
+      TRUE, TRUE);
 
   g_signal_connect_after (test, "setup", G_CALLBACK (&discoverer_test_setup),
       0);
