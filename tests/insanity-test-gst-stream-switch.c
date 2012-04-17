@@ -761,7 +761,7 @@ stream_switch_test_create_pipeline (InsanityGstPipelineTest * ptest,
     gpointer userdata)
 {
   const char *launch_line =
-      "playbin2 audio-sink=\"audiocodecsink name=asink\" video-sink=\"videocodecsink name=vsink\" text-sink=\"capsfilter caps=\\\"text/plain\\\" ! fakesink name=tsink sync=true\"";
+      "playbin audio-sink=\"audiocodecsink name=asink\" video-sink=\"videocodecsink name=vsink\" text-sink=\"capsfilter caps=\\\"text/plain\\\" ! fakesink name=tsink sync=true\"";
   GError *error = NULL;
 
   gst_element_register (NULL, "capssrc", GST_RANK_PRIMARY,
@@ -1521,7 +1521,7 @@ main (int argc, char **argv)
   g_type_init ();
 
   ptest = insanity_gst_pipeline_test_new ("stream-switch-test",
-      "Tests stream switching inside playbin2", NULL);
+      "Tests stream switching inside playbin", NULL);
   test = INSANITY_TEST (ptest);
 
   g_value_init (&vdef, G_TYPE_UINT);
@@ -1535,7 +1535,7 @@ main (int argc, char **argv)
   insanity_test_add_checklist_item (test, "install-probes",
       "Probes were installed on the sinks", NULL);
   insanity_test_add_checklist_item (test, "found-all-streams",
-      "Streams were successfully detected by playbin2", NULL);
+      "Streams were successfully detected by playbin", NULL);
   insanity_test_add_checklist_item (test, "stream-switch",
       "Streams were successfully switched", NULL);
   insanity_test_add_checklist_item (test, "streams-constant",

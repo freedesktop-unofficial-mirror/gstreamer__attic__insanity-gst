@@ -105,7 +105,7 @@ hls_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL;
   const char *launch_line =
-      "playbin2 audio-sink=\"fakesink name=asink\" video-sink=\"fakesink name=vsink\"";
+      "playbin audio-sink=\"fakesink name=asink\" video-sink=\"fakesink name=vsink\"";
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);

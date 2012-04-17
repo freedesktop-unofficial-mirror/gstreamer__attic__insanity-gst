@@ -76,7 +76,7 @@ static GstPipeline *
 rtsp_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
   GstElement *pipeline = NULL;
-  const char *launch_line = "playbin2 uri=rtsp://127.0.0.1:8554/test"
+  const char *launch_line = "playbin uri=rtsp://127.0.0.1:8554/test"
 #if 0
       " audio-sink=fakesink video-sink=fakesink"
 #endif

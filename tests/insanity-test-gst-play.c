@@ -39,7 +39,7 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
     gpointer userdata)
 {
   GstElement *pipeline;
-  const char *launch_line = "playbin2 audio-sink=fakesink video-sink=fakesink";
+  const char *launch_line = "playbin audio-sink=fakesink video-sink=fakesink";
   GError *error = NULL;
 
   pipeline = gst_parse_launch (launch_line, &error);
