@@ -26,6 +26,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 #include <gst/base/gstpushsrc.h>
+#include <gst/audio/audio.h>
 #include <gst/video/video.h>
 #include <insanity-gst/insanity-gst.h>
 #include <string.h>
@@ -39,7 +40,7 @@ static GType gst_video_codec_sink_get_type (void);
 /***** Source element that creates buffers with specific caps *****/
 
 #undef parent_class
-#define parent_class caps_src_parent_class
+#define parent_class gst_caps_src_parent_class
 typedef struct _GstCapsSrc GstCapsSrc;
 typedef GstPushSrcClass GstCapsSrcClass;
 
@@ -53,29 +54,30 @@ struct _GstCapsSrc
 };
 
 static GstURIType
-gst_caps_src_uri_get_type (void)
+gst_caps_src_uri_get_type (GType type)
 {
   return GST_URI_SRC;
 }
 
-static gchar **
-gst_caps_src_uri_get_protocols (void)
+static const gchar *const *
+gst_caps_src_uri_get_protocols (GType type)
 {
-  static gchar *protocols[] = { (char *) "caps", NULL };
+  static const gchar *const protocols[] = { (char *) "caps", NULL };
 
   return protocols;
 }
 
-static const gchar *
+static gchar *
 gst_caps_src_uri_get_uri (GstURIHandler * handler)
 {
   GstCapsSrc *src = (GstCapsSrc *) handler;
 
-  return src->uri;
+  return g_strdup (src->uri);
 }
 
 static gboolean
-gst_caps_src_uri_set_uri (GstURIHandler * handler, const gchar * uri)
+gst_caps_src_uri_set_uri (GstURIHandler * handler, const gchar * uri,
+    GError ** err)
 {
   GstCapsSrc *src = (GstCapsSrc *) handler;
 
@@ -103,31 +105,9 @@ gst_caps_src_uri_handler_init (gpointer g_iface, gpointer iface_data)
   iface->set_uri = gst_caps_src_uri_set_uri;
 }
 
-static void
-gst_caps_src_init_type (GType type)
-{
-  static const GInterfaceInfo uri_hdlr_info = {
-    gst_caps_src_uri_handler_init, NULL, NULL
-  };
-
-  g_type_add_interface_static (type, GST_TYPE_URI_HANDLER, &uri_hdlr_info);
-}
-
-GST_BOILERPLATE_FULL (GstCapsSrc, gst_caps_src, GstPushSrc,
-    GST_TYPE_PUSH_SRC, gst_caps_src_init_type);
-
-static void
-gst_caps_src_base_init (gpointer klass)
-{
-  static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src",
-      GST_PAD_SRC, GST_PAD_ALWAYS,
-      GST_STATIC_CAPS_ANY);
-  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
-
-  gst_element_class_add_static_pad_template (element_class, &src_templ);
-  gst_element_class_set_details_simple (element_class,
-      "CapsSource", "Source/Generic", "yep", "me");
-}
+G_DEFINE_TYPE_WITH_CODE (GstCapsSrc, gst_caps_src, GST_TYPE_PUSH_SRC,
+    G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER,
+        gst_caps_src_uri_handler_init));
 
 static void
 gst_caps_src_finalize (GObject * object)
@@ -160,7 +140,6 @@ gst_caps_src_create (GstPushSrc * psrc, GstBuffer ** p_buf)
   }
 
   buf = gst_buffer_new ();
-  gst_buffer_set_caps (buf, src->caps);
   GST_BUFFER_TIMESTAMP (buf) =
       gst_util_uint64_scale (src->nbuffers, GST_SECOND, 25);
   GST_BUFFER_DURATION (buf) =
@@ -175,15 +154,24 @@ gst_caps_src_create (GstPushSrc * psrc, GstBuffer ** p_buf)
 static void
 gst_caps_src_class_init (GstCapsSrcClass * klass)
 {
+  static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src",
+      GST_PAD_SRC, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS_ANY);
   GObjectClass *gobject_class = (GObjectClass *) klass;
   GstPushSrcClass *pushsrc_class = (GstPushSrcClass *) klass;
+  GstElementClass *element_class = (GstElementClass *) klass;
 
   gobject_class->finalize = gst_caps_src_finalize;
   pushsrc_class->create = gst_caps_src_create;
+
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&src_templ));
+  gst_element_class_set_details_simple (element_class, "CapsSource",
+      "Source/Generic", "yep", "me");
 }
 
 static void
-gst_caps_src_init (GstCapsSrc * src, GstCapsSrcClass * klass)
+gst_caps_src_init (GstCapsSrc * src)
 {
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
 }
@@ -191,7 +179,7 @@ gst_caps_src_init (GstCapsSrc * src, GstCapsSrcClass * klass)
 
 /***** Demux element that creates a specific number of streams based on caps *****/
 #undef parent_class
-#define parent_class multiple_stream_demux_parent_class
+#define parent_class gst_multiple_stream_demux_parent_class
 typedef struct _GstMultipleStreamDemux GstMultipleStreamDemux;
 typedef GstElementClass GstMultipleStreamDemuxClass;
 typedef struct _GstMultipleStreamDemuxStream GstMultipleStreamDemuxStream;
@@ -221,35 +209,8 @@ struct _GstMultipleStreamDemux
   GList *pending_events;
 };
 
-GST_BOILERPLATE (GstMultipleStreamDemux, gst_multiple_stream_demux, GstElement,
+G_DEFINE_TYPE (GstMultipleStreamDemux, gst_multiple_stream_demux,
     GST_TYPE_ELEMENT);
-
-static void
-gst_multiple_stream_demux_base_init (gpointer klass)
-{
-  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
-      GST_PAD_SINK, GST_PAD_ALWAYS,
-      GST_STATIC_CAPS ("application/x-multiple-streams, "
-          "n-audio  = (int) [0, 32], "
-          "n-non-raw-audio  = (int) [0, 32], "
-          "n-video  = (int) [0, 32], "
-          "n-non-raw-video  = (int) [0, 32], "
-          "n-text   = (int) [0, 64], " "n-other  = (int) [0, 64]")
-      );
-  static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src_%d",
-      GST_PAD_SRC, GST_PAD_SOMETIMES,
-      GST_STATIC_CAPS
-      ("audio/x-raw-int; audio/x-compressed; "
-          "video/x-raw-rgb; video/x-compressed; "
-          "text/plain; application/x-something")
-      );
-  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
-
-  gst_element_class_add_static_pad_template (element_class, &sink_templ);
-  gst_element_class_add_static_pad_template (element_class, &src_templ);
-  gst_element_class_set_details_simple (element_class,
-      "MultipleStreamDemux", "Codec/Demux", "yep", "me");
-}
 
 static void
 gst_multiple_stream_demux_finalize (GObject * object)
@@ -271,9 +232,34 @@ gst_multiple_stream_demux_finalize (GObject * object)
 static void
 gst_multiple_stream_demux_class_init (GstMultipleStreamDemuxClass * klass)
 {
+  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
+      GST_PAD_SINK, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS ("application/x-multiple-streams, "
+          "n-audio  = (int) [0, 32], "
+          "n-non-raw-audio  = (int) [0, 32], "
+          "n-video  = (int) [0, 32], "
+          "n-non-raw-video  = (int) [0, 32], "
+          "n-text   = (int) [0, 64], " "n-other  = (int) [0, 64]")
+      );
+  static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src_%d",
+      GST_PAD_SRC, GST_PAD_SOMETIMES,
+      GST_STATIC_CAPS
+      ("audio/x-raw; audio/x-compressed; "
+          "video/x-raw; video/x-compressed; "
+          "text/plain; application/x-something")
+      );
   GObjectClass *gobject_class = (GObjectClass *) klass;
+  GstElementClass *element_class = (GstElementClass *) klass;
 
   gobject_class->finalize = gst_multiple_stream_demux_finalize;
+
+
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&sink_templ));
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&src_templ));
+  gst_element_class_set_details_simple (element_class, "MultipleStreamDemux",
+      "Codec/Demux", "yep", "me");
 }
 
 static GstFlowReturn
@@ -297,10 +283,10 @@ done:
 }
 
 static GstFlowReturn
-gst_multiple_stream_demux_chain (GstPad * pad, GstBuffer * buf)
+gst_multiple_stream_demux_chain (GstPad * pad, GstObject * parent,
+    GstBuffer * buf)
 {
-  GstMultipleStreamDemux *demux =
-      (GstMultipleStreamDemux *) GST_PAD_PARENT (pad);
+  GstMultipleStreamDemux *demux = (GstMultipleStreamDemux *) parent;
   GstFlowReturn ret = GST_FLOW_OK;
   gint i;
 
@@ -309,6 +295,7 @@ gst_multiple_stream_demux_chain (GstPad * pad, GstBuffer * buf)
     GstBuffer *outbuf;
     guint size;
     GList *l;
+    GstMapInfo minfo;
 
     for (l = demux->pending_events; l; l = l->next) {
       gst_pad_push_event (stream->srcpad, gst_event_ref (l->data));
@@ -316,38 +303,39 @@ gst_multiple_stream_demux_chain (GstPad * pad, GstBuffer * buf)
 
     switch (stream->type) {
       case STREAM_TYPE_VIDEO:{
-        size = gst_video_format_get_size (GST_VIDEO_FORMAT_xRGB, 800, 600);
-        outbuf = gst_buffer_new_and_alloc (size);
-        gst_buffer_copy_metadata (outbuf, buf,
-            GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS);
-        gst_buffer_set_caps (outbuf, GST_PAD_CAPS (stream->srcpad));
+        GstVideoInfo info;
+
+        gst_video_info_init (&info);
+        gst_video_info_set_format (&info, GST_VIDEO_FORMAT_xRGB, 800, 600);
+        size = GST_VIDEO_INFO_SIZE (&info);
         break;
       }
       case STREAM_TYPE_AUDIO:{
         size =
             gst_util_uint64_scale (GST_BUFFER_DURATION (buf), 48000 * 2,
             GST_SECOND);
-        outbuf = gst_buffer_new_and_alloc (size);
-        gst_buffer_copy_metadata (outbuf, buf,
-            GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS);
-        gst_buffer_set_caps (outbuf, GST_PAD_CAPS (stream->srcpad));
         break;
       }
       case STREAM_TYPE_OTHER:
       case STREAM_TYPE_TEXT:{
         size = 256;
-        outbuf = gst_buffer_new_and_alloc (size);
-        gst_buffer_copy_metadata (outbuf, buf,
-            GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS);
-        gst_buffer_set_caps (outbuf, GST_PAD_CAPS (stream->srcpad));
         break;
       }
       default:
         g_assert_not_reached ();
     }
 
+    outbuf = gst_buffer_new_allocate (NULL, size, NULL);
+    gst_buffer_copy_into (outbuf, buf,
+        GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0, -1);
+
     /* Mark the stream ID of this buffer */
-    memset (GST_BUFFER_DATA (outbuf), i, size);
+    if (!gst_buffer_map (outbuf, &minfo, GST_MAP_WRITE)) {
+      ret = GST_FLOW_ERROR;
+      goto done;
+    }
+    memset (minfo.data, i, size);
+    gst_buffer_unmap (outbuf, &minfo);
 
     ret = gst_pad_push (stream->srcpad, outbuf);
     ret = gst_multiple_stream_demux_combine_flow_ret (demux, stream, ret);
@@ -362,42 +350,6 @@ gst_multiple_stream_demux_chain (GstPad * pad, GstBuffer * buf)
 done:
   gst_buffer_unref (buf);
 
-  return ret;
-}
-
-static gboolean
-gst_multiple_stream_demux_event (GstPad * pad, GstEvent * event)
-{
-  GstMultipleStreamDemux *demux =
-      (GstMultipleStreamDemux *) gst_pad_get_parent (pad);
-  gboolean ret = TRUE;
-
-  if (GST_EVENT_TYPE (event) == GST_EVENT_FLUSH_STOP) {
-    gint i;
-
-    for (i = 0; i < demux->n_streams; i++)
-      demux->streams[i].last_flow = GST_FLOW_OK;
-
-    g_list_foreach (demux->pending_events, (GFunc) gst_event_unref, NULL);
-    g_list_free (demux->pending_events);
-    demux->pending_events = NULL;
-  }
-
-  if (demux->streams) {
-    gint i;
-
-    for (i = 0; i < demux->n_streams; i++)
-      ret = ret
-          && gst_pad_push_event (demux->streams[i].srcpad,
-          gst_event_ref (event));
-  } else if (GST_EVENT_IS_SERIALIZED (event)) {
-    demux->pending_events =
-        g_list_append (demux->pending_events, gst_event_ref (event));
-  }
-
-  gst_event_unref (event);
-
-  gst_object_unref (demux);
   return ret;
 }
 
@@ -423,10 +375,10 @@ create_pad (GstMultipleStreamDemux * demux,
 }
 
 static gboolean
-gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
+gst_multiple_stream_demux_setcaps (GstPad * pad, GstObject * parent,
+    GstCaps * caps)
 {
-  GstMultipleStreamDemux *demux =
-      (GstMultipleStreamDemux *) gst_pad_get_parent (pad);
+  GstMultipleStreamDemux *demux = (GstMultipleStreamDemux *) parent;
   GstStructure *s;
   gint n_audio, n_nonraw_audio, n_video, n_nonraw_video;
   gint n_text, n_other, n;
@@ -456,15 +408,12 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
   j = 0;
   for (i = 0; i < n_audio; i++, j++) {
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
+    GstAudioInfo ainfo;
     GstCaps *caps;
 
-    caps = gst_caps_new_simple ("audio/x-raw-int",
-        "rate", G_TYPE_INT, 48000,
-        "channels", G_TYPE_INT, 1,
-        "width", G_TYPE_INT, 16,
-        "depth", G_TYPE_INT, 16,
-        "endianness", G_TYPE_INT, G_BYTE_ORDER,
-        "signed", G_TYPE_BOOLEAN, TRUE, NULL);
+    gst_audio_info_init (&ainfo);
+    gst_audio_info_set_format (&ainfo, GST_AUDIO_FORMAT_S16, 48000, 1, NULL);
+    caps = gst_audio_info_to_caps (&ainfo);
     create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
@@ -475,7 +424,7 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
 
-    caps = gst_caps_new_simple ("audio/x-compressed", NULL);
+    caps = gst_caps_new_simple ("audio/x-compressed", NULL, NULL);
     create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
@@ -484,11 +433,12 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
 
   for (i = 0; i < n_video; i++, j++) {
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
+    GstVideoInfo vinfo;
     GstCaps *caps;
 
-    caps =
-        gst_video_format_new_caps (GST_VIDEO_FORMAT_xRGB, 800, 600, 25, 1, 1,
-        1);
+    gst_video_info_init (&vinfo);
+    gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_xRGB, 800, 600);
+    caps = gst_video_info_to_caps (&vinfo);
     create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
@@ -499,7 +449,7 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
 
-    caps = gst_caps_new_simple ("video/x-compressed", NULL);
+    caps = gst_caps_new_simple ("video/x-compressed", NULL, NULL);
     create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
@@ -510,7 +460,7 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
 
-    caps = gst_caps_new_simple ("text/plain", NULL);
+    caps = gst_caps_new_simple ("text/plain", NULL, NULL);
     create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
@@ -521,7 +471,7 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
     GstMultipleStreamDemuxStream *stream = &demux->streams[j];
     GstCaps *caps;
 
-    caps = gst_caps_new_simple ("application/x-something", NULL);
+    caps = gst_caps_new_simple ("application/x-something", NULL, NULL);
     create_pad (demux, stream, j, caps);
     gst_caps_unref (caps);
 
@@ -534,16 +484,55 @@ gst_multiple_stream_demux_setcaps (GstPad * pad, GstCaps * caps)
   return TRUE;
 }
 
-static void
-gst_multiple_stream_demux_init (GstMultipleStreamDemux * demux,
-    GstMultipleStreamDemuxClass * klass)
+static gboolean
+gst_multiple_stream_demux_event (GstPad * pad, GstObject * parent,
+    GstEvent * event)
 {
+  GstMultipleStreamDemux *demux = (GstMultipleStreamDemux *) parent;
+  gboolean ret = TRUE;
+
+  if (GST_EVENT_TYPE (event) == GST_EVENT_FLUSH_STOP) {
+    gint i;
+
+    for (i = 0; i < demux->n_streams; i++)
+      demux->streams[i].last_flow = GST_FLOW_OK;
+
+    g_list_foreach (demux->pending_events, (GFunc) gst_event_unref, NULL);
+    g_list_free (demux->pending_events);
+    demux->pending_events = NULL;
+  } else if (GST_EVENT_TYPE (event) == GST_EVENT_CAPS) {
+    GstCaps *caps;
+
+    gst_event_parse_caps (event, &caps);
+    ret = gst_multiple_stream_demux_setcaps (pad, parent, caps);
+    goto done;
+  }
+
+  if (demux->streams) {
+    gint i;
+
+    for (i = 0; i < demux->n_streams; i++)
+      ret = ret
+          && gst_pad_push_event (demux->streams[i].srcpad,
+          gst_event_ref (event));
+  } else if (GST_EVENT_IS_SERIALIZED (event)) {
+    demux->pending_events =
+        g_list_append (demux->pending_events, gst_event_ref (event));
+  }
+
+done:
+  gst_event_unref (event);
+  return ret;
+}
+
+static void
+gst_multiple_stream_demux_init (GstMultipleStreamDemux * demux)
+{
+  GstElementClass *klass = GST_ELEMENT_GET_CLASS (demux);
   GstPadTemplate *templ;
 
   templ = gst_element_class_get_pad_template (klass, "sink");
   demux->sinkpad = gst_pad_new_from_template (templ, "sink");
-  gst_pad_set_setcaps_function (demux->sinkpad,
-      GST_DEBUG_FUNCPTR (gst_multiple_stream_demux_setcaps));
   gst_pad_set_chain_function (demux->sinkpad,
       GST_DEBUG_FUNCPTR (gst_multiple_stream_demux_chain));
   gst_pad_set_event_function (demux->sinkpad,
@@ -552,7 +541,7 @@ gst_multiple_stream_demux_init (GstMultipleStreamDemux * demux,
 }
 
 #undef parent_class
-#define parent_class codec_sink_parent_class
+#define parent_class gst_codec_sink_parent_class
 
 typedef struct _GstCodecSink GstCodecSink;
 typedef GstBaseSinkClass GstCodecSinkClass;
@@ -566,12 +555,7 @@ struct _GstCodecSink
   gint n_raw, n_compressed;
 };
 
-GST_BOILERPLATE (GstCodecSink, gst_codec_sink, GstBaseSink, GST_TYPE_BASE_SINK);
-
-static void
-gst_codec_sink_base_init (gpointer klass)
-{
-}
+G_DEFINE_TYPE (GstCodecSink, gst_codec_sink, GST_TYPE_BASE_SINK);
 
 static gboolean
 gst_codec_sink_start (GstBaseSink * bsink)
@@ -607,33 +591,19 @@ gst_codec_sink_class_init (GstCodecSinkClass * klass)
 }
 
 static void
-gst_codec_sink_init (GstCodecSink * sink, GstCodecSinkClass * klass)
+gst_codec_sink_init (GstCodecSink * sink)
 {
   gst_base_sink_set_sync (GST_BASE_SINK (sink), TRUE);
 }
 
 #undef parent_class
-#define parent_class audio_codec_sink_parent_class
+#define parent_class gst_audio_codec_sink_parent_class
 
 typedef GstCodecSink GstAudioCodecSink;
 typedef GstCodecSinkClass GstAudioCodecSinkClass;
 
-GST_BOILERPLATE (GstAudioCodecSink, gst_audio_codec_sink, GstBaseSink,
+G_DEFINE_TYPE (GstAudioCodecSink, gst_audio_codec_sink,
     gst_codec_sink_get_type ());
-
-static void
-gst_audio_codec_sink_base_init (gpointer klass)
-{
-  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
-      GST_PAD_SINK, GST_PAD_ALWAYS,
-      GST_STATIC_CAPS ("audio/x-raw-int; audio/x-compressed")
-      );
-  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
-
-  gst_element_class_add_static_pad_template (element_class, &sink_templ);
-  gst_element_class_set_details_simple (element_class,
-      "AudioCodecSink", "Sink/Audio", "yep", "me");
-}
 
 static gboolean
 gst_audio_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
@@ -643,7 +613,7 @@ gst_audio_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   s = gst_caps_get_structure (caps, 0);
 
-  if (gst_structure_has_name (s, "audio/x-raw-int")) {
+  if (gst_structure_has_name (s, "audio/x-raw")) {
     sink->raw = TRUE;
   } else if (gst_structure_has_name (s, "audio/x-compressed")) {
     sink->raw = FALSE;
@@ -657,40 +627,35 @@ gst_audio_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 static void
 gst_audio_codec_sink_class_init (GstAudioCodecSinkClass * klass)
 {
+  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
+      GST_PAD_SINK, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS ("audio/x-raw; audio/x-compressed")
+      );
   GstBaseSinkClass *basesink_class = (GstBaseSinkClass *) klass;
+  GstElementClass *element_class = (GstElementClass *) klass;
 
   basesink_class->set_caps = gst_audio_codec_sink_set_caps;
+
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&sink_templ));
+  gst_element_class_set_details_simple (element_class, "AudioCodecSink",
+      "Sink/Audio", "yep", "me");
 }
 
 static void
-gst_audio_codec_sink_init (GstAudioCodecSink * sink,
-    GstAudioCodecSinkClass * klass)
+gst_audio_codec_sink_init (GstAudioCodecSink * sink)
 {
   sink->audio = TRUE;
 }
 
 #undef parent_class
-#define parent_class video_codec_sink_parent_class
+#define parent_class gst_video_codec_sink_parent_class
 
 typedef GstCodecSink GstVideoCodecSink;
 typedef GstCodecSinkClass GstVideoCodecSinkClass;
 
-GST_BOILERPLATE (GstVideoCodecSink, gst_video_codec_sink, GstBaseSink,
+G_DEFINE_TYPE (GstVideoCodecSink, gst_video_codec_sink,
     gst_codec_sink_get_type ());
-
-static void
-gst_video_codec_sink_base_init (gpointer klass)
-{
-  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
-      GST_PAD_SINK, GST_PAD_ALWAYS,
-      GST_STATIC_CAPS ("video/x-raw-rgb; video/x-compressed")
-      );
-  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
-
-  gst_element_class_add_static_pad_template (element_class, &sink_templ);
-  gst_element_class_set_details_simple (element_class,
-      "VideoCodecSink", "Sink/Video", "yep", "me");
-}
 
 static gboolean
 gst_video_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
@@ -700,7 +665,7 @@ gst_video_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   s = gst_caps_get_structure (caps, 0);
 
-  if (gst_structure_has_name (s, "video/x-raw-rgb")) {
+  if (gst_structure_has_name (s, "video/x-raw")) {
     sink->raw = TRUE;
   } else if (gst_structure_has_name (s, "video/x-compressed")) {
     sink->raw = FALSE;
@@ -714,17 +679,28 @@ gst_video_codec_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 static void
 gst_video_codec_sink_class_init (GstVideoCodecSinkClass * klass)
 {
+  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
+      GST_PAD_SINK, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS ("video/x-raw; video/x-compressed")
+      );
+  GstElementClass *element_class = (GstElementClass *) klass;
   GstBaseSinkClass *basesink_class = (GstBaseSinkClass *) klass;
 
   basesink_class->set_caps = gst_video_codec_sink_set_caps;
+
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&sink_templ));
+  gst_element_class_set_details_simple (element_class, "VideoCodecSink",
+      "Sink/Video", "yep", "me");
 }
 
 static void
-gst_video_codec_sink_init (GstVideoCodecSink * sink,
-    GstVideoCodecSinkClass * klass)
+gst_video_codec_sink_init (GstVideoCodecSink * sink)
 {
   sink->audio = FALSE;
 }
+
+#undef parent_class
 
 /***** The actual test *****/
 #define SWITCH_TIMEOUT (15)
@@ -1397,6 +1373,7 @@ probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object,
   GstStructure *s;
   guint8 marker;
   InsanityTest *test = INSANITY_TEST (gtest);
+  GstMapInfo minfo;
 
   insanity_test_ping (test);
 
@@ -1406,12 +1383,12 @@ probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object,
   TEST_LOCK ();
 
   buffer = GST_BUFFER (object);
-  caps = GST_BUFFER_CAPS (object);
+  caps = gst_pad_get_current_caps (pad);
   s = gst_caps_get_structure (caps, 0);
-  if (gst_structure_has_name (s, "video/x-raw-rgb")
+  if (gst_structure_has_name (s, "video/x-raw")
       || gst_structure_has_name (s, "video/x-compressed"))
     type = STREAM_TYPE_VIDEO;
-  else if (gst_structure_has_name (s, "audio/x-raw-int")
+  else if (gst_structure_has_name (s, "audio/x-raw")
       || gst_structure_has_name (s, "audio/x-compressed"))
     type = STREAM_TYPE_AUDIO;
   else if (gst_structure_has_name (s, "text/plain"))
@@ -1419,9 +1396,11 @@ probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object,
   else
     g_assert_not_reached ();
 
-  g_assert (GST_BUFFER_SIZE (buffer) > 0);
-
-  marker = GST_BUFFER_DATA (buffer)[0];
+  if (!gst_buffer_map (buffer, &minfo, GST_MAP_READ))
+    g_assert_not_reached ();
+  g_assert (minfo.size > 0);
+  marker = GST_READ_UINT8 (minfo.data);
+  gst_buffer_unmap (buffer, &minfo);
 
   insanity_test_printf (test,
       "%d: Found marker %d, current marker %d (wait switch: %d)\n", type,

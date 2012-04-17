@@ -182,10 +182,14 @@ free_data_probe_ctx (DataProbeCtx * ctx)
   g_slice_free (DataProbeCtx, ctx);
 }
 
-static gboolean
-data_probe_cb (GstPad * pad, GstMiniObject * obj, DataProbeCtx * ctx)
+static GstPadProbeReturn
+data_probe_cb (GstPad * pad, GstPadProbeInfo * info, DataProbeCtx * ctx)
 {
-  return ctx->func (ctx->test, pad, obj, ctx->user_data);
+  gboolean ret;
+
+  ret = ctx->func (ctx->test, pad, info->data, ctx->user_data);
+
+  return ret ? GST_PAD_PROBE_OK : GST_PAD_PROBE_DROP;
 }
 
 /**
@@ -246,8 +250,8 @@ insanity_gst_test_add_data_probe (InsanityGstTest * test, GstBin * bin,
   ctx->user_data = user_data;
   ctx->dnotify = dnotify;
 
-  *probe_id =
-      gst_pad_add_data_probe_full (*pad, (GCallback) data_probe_cb, ctx,
+  *probe_id = gst_pad_add_probe (*pad, GST_PAD_PROBE_TYPE_ALL_BOTH,
+      (GstPadProbeCallback) data_probe_cb, ctx,
       (GDestroyNotify) free_data_probe_ctx);
 
   if (*probe_id != 0) {
@@ -281,5 +285,5 @@ insanity_gst_test_remove_data_probe (InsanityGstTest * test,
   g_return_if_fail (GST_IS_PAD (pad));
   g_return_if_fail (probe != 0);
 
-  gst_pad_remove_data_probe (pad, probe);
+  gst_pad_remove_probe (pad, probe);
 }

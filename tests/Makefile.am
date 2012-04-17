@@ -25,12 +25,12 @@ insanity_test_gst_seek_CFLAGS=$(common_cflags)
 insanity_test_gst_seek_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
 
 insanity_test_gst_dvd_SOURCES=insanity-test-gst-dvd.c
-insanity_test_gst_dvd_CFLAGS=$(GST_INTERFACES_CFLAGS) $(common_cflags)
-insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_INTERFACES_LIBS) $(common_ldadd)
+insanity_test_gst_dvd_CFLAGS=$(GST_VIDEO_CFLAGS) $(common_cflags)
+insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_VIDEO_LIBS) $(common_ldadd)
 
 insanity_test_gst_stream_switch_SOURCES=insanity-test-gst-stream-switch.c
-insanity_test_gst_stream_switch_CFLAGS=$(GST_VIDEO_CFLAGS) $(GST_BASE_CFLAGS) $(common_cflags)
-insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_VIDEO_LIBS) $(GST_BASE_LIBS) $(common_ldadd)
+insanity_test_gst_stream_switch_CFLAGS=$(GST_AUDIO_CFLAGS) $(GST_VIDEO_CFLAGS) $(GST_BASE_CFLAGS) $(common_cflags)
+insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_AUDIO_LIBS) $(GST_VIDEO_LIBS) $(GST_BASE_LIBS) $(common_ldadd)
 
 insanity_test_gst_discoverer_SOURCES=insanity-test-gst-discoverer.c
 insanity_test_gst_discoverer_CFLAGS=$(GST_PBUTILS_CFLAGS) $(common_cflags)

@@ -65,14 +65,12 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
 static gboolean
 check_position (InsanityTest * test)
 {
-  GstFormat fmt;
   gint64 position;
 
   /* Check if we're changing the position and if we do
    * the test is not dead yet */
-  fmt = GST_FORMAT_TIME;
-  if (gst_element_query_position (global_pipeline, &fmt, &position) &&
-      fmt == GST_FORMAT_TIME && position != -1) {
+  if (gst_element_query_position (global_pipeline, GST_FORMAT_TIME, &position)
+      && position != -1) {
     if (first_position == GST_CLOCK_TIME_NONE)
       first_position = position;
     last_position = position;

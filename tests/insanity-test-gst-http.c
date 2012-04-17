@@ -91,11 +91,8 @@ http_test_get_position (InsanityTest * test)
 {
   gint64 pos = 0;
   gboolean res;
-  GstFormat format = GST_FORMAT_TIME;
 
-  res = gst_element_query_position (global_pipeline, &format, &pos);
-  if (format != GST_FORMAT_TIME)
-    res = FALSE;
+  res = gst_element_query_position (global_pipeline, GST_FORMAT_TIME, &pos);
   insanity_test_validate_checklist_item (test, "position-queried", res, NULL);
   if (!res) {
     pos = GST_CLOCK_TIME_NONE;

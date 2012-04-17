@@ -319,10 +319,9 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
     GstClockTime ts = GST_BUFFER_TIMESTAMP (buffer);
 
     insanity_test_printf (INSANITY_TEST (ptest),
-        "[%d] Got %s buffer at %" GST_TIME_FORMAT ", %u bytes, %s, target %"
+        "[%d] Got buffer at %" GST_TIME_FORMAT ", %u bytes, %s, target %"
         GST_TIME_FORMAT "\n", index,
-        gst_structure_get_name (gst_caps_get_structure (GST_BUFFER_CAPS
-                (buffer), 0)), GST_TIME_ARGS (ts), GST_BUFFER_SIZE (buffer),
+        GST_TIME_ARGS (ts), gst_buffer_get_size (buffer),
         get_waiting_string (global_waiting[index]),
         GST_TIME_ARGS (global_target));
 
@@ -351,7 +350,8 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
     if (GST_CLOCK_TIME_IS_VALID (ts)) {
       gint64 stime_ts;
       GstClockTimeDiff diff;
-      gint64 ts_end, cstart, cstop;
+      gint64 ts_end;
+      guint64 cstart, cstop;
 
       /* Check if buffer is completely outside the segment */
       ts_end = ts;
@@ -428,32 +428,21 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
 
     insanity_test_printf (INSANITY_TEST (ptest), "[%d] %s event\n", index,
         GST_EVENT_TYPE_NAME (event));
-    if (GST_EVENT_TYPE (event) == GST_EVENT_NEWSEGMENT) {
-      GstFormat fmt;
-      gint64 start, stop, position;
-      gdouble rate, applied_rate;
-      gboolean update;
-
-      gst_event_parse_new_segment_full (event, &update, &rate, &applied_rate,
-          &fmt, &start, &stop, &position);
-      gst_segment_set_newsegment_full (&global_segment[index], update, rate,
-          applied_rate, fmt, start, stop, position);
+    if (GST_EVENT_TYPE (event) == GST_EVENT_SEGMENT) {
+      gst_event_copy_segment (event, &global_segment[index]);
 
       /* ignore segment updates */
-      if (update)
-        goto ignore_segment;
-
       if (global_waiting[index] != WAIT_STATE_SEGMENT) {
         insanity_test_printf (INSANITY_TEST (ptest),
             "[%d] Got segment starting at %" GST_TIME_FORMAT
             ", but we are not waiting for segment\n", index,
-            GST_TIME_ARGS (start));
+            GST_TIME_ARGS (global_segment[index].start));
         goto ignore_segment;
       }
 
       insanity_test_printf (INSANITY_TEST (ptest),
           "[%d] Got segment starting at %" GST_TIME_FORMAT ", %s\n",
-          index, GST_TIME_ARGS (start),
+          index, GST_TIME_ARGS (global_segment[index].start),
           get_waiting_string (global_waiting[index]));
 
       /* Only check segment start time against target if we're not expecting EOS,
@@ -465,7 +454,7 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
 
         stime_start =
             gst_segment_to_stream_time (&global_segment[index],
-            global_segment[index].format, start);
+            global_segment[index].format, global_segment[index].start);
 
         diff = GST_CLOCK_DIFF (stime_start, global_target);
         if (diff < 0)

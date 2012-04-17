@@ -35,7 +35,6 @@
 
 #include <glib.h>
 #include <string.h>
-#include <gst/gstmarshal.h>
 #include <libsoup/soup-address.h>
 #include <libsoup/soup-message.h>
 #include <libsoup/soup-misc.h>
@@ -130,6 +129,8 @@ typedef struct
   gsize size;
   const char *contents;
   const char *ptr;
+
+  GstMapInfo minfo;
 } ChunkedTransmitter;
 
 G_DEFINE_TYPE (InsanityHttpServer, insanity_http_server, G_TYPE_OBJECT);
@@ -226,40 +227,6 @@ insanity_http_server_get_property (GObject * gobject,
   }
 }
 
-#define g_marshal_value_peek_object(v)   g_value_get_object (v)
-static void
-insanity_cclosure_user_marshal_GSTBUFFER__VOID (GClosure * closure,
-    GValue * return_value G_GNUC_UNUSED,
-    guint n_param_values,
-    const GValue * param_values,
-    gpointer invocation_hint G_GNUC_UNUSED, gpointer marshal_data)
-{
-  typedef GstBuffer *(*GMarshalFunc_GSTBUFFER__VOID) (gpointer data1,
-      gpointer data2);
-  register GMarshalFunc_GSTBUFFER__VOID callback;
-  register GCClosure *cc = (GCClosure *) closure;
-  register gpointer data1, data2;
-  GstBuffer *v_return;
-
-  g_return_if_fail (return_value != NULL);
-  g_return_if_fail (n_param_values == 1);
-
-  if (G_CCLOSURE_SWAP_DATA (closure)) {
-    data1 = closure->data;
-    data2 = g_value_peek_pointer (param_values + 0);
-  } else {
-    data1 = g_value_peek_pointer (param_values + 0);
-    data2 = closure->data;
-  }
-  callback =
-      (GMarshalFunc_GSTBUFFER__VOID) (marshal_data ? marshal_data :
-      cc->callback);
-
-  v_return = callback (data1, data2);
-
-  gst_value_set_buffer (return_value, v_return);
-}
-
 static void
 insanity_http_server_set_property (GObject * gobject,
     guint prop_id, const GValue * value, GParamSpec * pspec)
@@ -303,8 +270,7 @@ insanity_http_server_class_init (InsanityHttpServerClass * klass)
   signals[SIGNAL_GET_CONTENT] = g_signal_new ("get-content",
       G_TYPE_FROM_CLASS (gobject_class),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
-      0, NULL, NULL, insanity_cclosure_user_marshal_GSTBUFFER__VOID,
-      GST_TYPE_BUFFER, 0, NULL);
+      0, NULL, NULL, NULL, GST_TYPE_BUFFER, 0, NULL);
 
   signals[SIGNAL_WRITING_CHUNK] = g_signal_new ("writing-chunk", G_TYPE_FROM_CLASS (gobject_class), G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL, NULL, NULL, G_TYPE_NONE, 4, G_TYPE_STRING,    /* Path to file */
       G_TYPE_POINTER,           /* Pointer to the data prepared to be written */
@@ -359,8 +325,10 @@ free_chunked_transmitter (ChunkedTransmitter * ct)
   if (ct->f)
     g_mapped_file_unref (ct->f);
 
-  if (ct->buf)
+  if (ct->buf) {
+    gst_buffer_unmap (ct->buf, &ct->minfo);
     gst_buffer_unref (ct->buf);
+  }
 
   g_free (ct->path);
 
@@ -434,7 +402,7 @@ do_get (InsanityHttpServer * srv, SoupServer * server, SoupMessage * msg,
   if (priv->source_folder == NULL) {
     g_signal_emit (srv, signals[SIGNAL_GET_CONTENT], 0, &buf);
 
-    size = GST_BUFFER_SIZE (buf);
+    size = gst_buffer_get_size (buf);
     if (buf == NULL || size == -1) {
       LOG ("Make sure to set a callback to the "
           "\"content-size\" signal or set a local folder");
@@ -461,12 +429,17 @@ do_get (InsanityHttpServer * srv, SoupServer * server, SoupMessage * msg,
     SoupRange *ranges = NULL;
     int nranges = 0;
     goffset start, end;
+    GstMapInfo minfo;
 
     if (size == 0) {
       contents = "";
     } else {
       if (priv->source_folder == NULL) {
-        contents = (gchar *) GST_BUFFER_DATA (buf);
+        if (gst_buffer_map (buf, &minfo, GST_MAP_READ)) {
+          g_assert (size == minfo.size);
+          contents = (gchar *) minfo.data;
+          size = minfo.size;
+        }
       } else
         contents = g_mapped_file_get_contents (f);
     }
@@ -500,6 +473,7 @@ do_get (InsanityHttpServer * srv, SoupServer * server, SoupMessage * msg,
     } else {
       ct->buf = gst_buffer_ref (buf);
       ct->f = NULL;
+      ct->minfo = minfo;
     }
     ct->contents = contents;
     ct->ptr = contents + start;

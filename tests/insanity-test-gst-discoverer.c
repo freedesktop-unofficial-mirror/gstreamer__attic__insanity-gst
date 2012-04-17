@@ -1235,9 +1235,17 @@ search_tag (GQuark field_id, const GValue * value, gpointer user_data)
 
   if (G_VALUE_HOLDS_STRING (value))
     ser = g_value_dup_string (value);
-  else if (GST_VALUE_HOLDS_BUFFER (value)) {
-    GstBuffer *buf = gst_value_get_buffer (value);
-    ser = g_strdup_printf ("<GstBuffer [%d bytes]>", GST_BUFFER_SIZE (buf));
+  else if (GST_VALUE_HOLDS_SAMPLE (value)) {
+    GstSample *smpl = gst_value_get_sample (value);
+    GstBuffer *buf = gst_sample_get_buffer (smpl);
+    GstCaps *caps = gst_sample_get_caps (smpl);
+    gchar *caps_str;
+
+    caps_str = caps ? gst_caps_to_string (caps) : g_strdup ("unknown");
+    ser =
+        g_strdup_printf ("<GstSample [%" G_GSIZE_FORMAT " bytes, type %s]>",
+        gst_buffer_get_size (buf), caps_str);
+    g_free (caps_str);
   } else
     ser = gst_value_serialize (value);
 

@@ -50,11 +50,8 @@ rtsp_test_get_position (InsanityTest * test)
 {
   gint64 pos = 0;
   gboolean res;
-  GstFormat format = GST_FORMAT_TIME;
 
-  res = gst_element_query_position (global_pipeline, &format, &pos);
-  if (format != GST_FORMAT_TIME)
-    res = FALSE;
+  res = gst_element_query_position (global_pipeline, GST_FORMAT_TIME, &pos);
   insanity_test_validate_checklist_item (test, "position-queried", res, NULL);
   if (!res) {
     pos = GST_CLOCK_TIME_NONE;
@@ -153,6 +150,7 @@ rtsp_test_teardown (InsanityTest * test)
   rtsp_test_destroy_server ();
 }
 
+#if 0
 static void
 rtsp_test_reset_server (void)
 {
@@ -162,6 +160,7 @@ rtsp_test_reset_server (void)
   gst_rtsp_media_mapping_remove_factory (mapping, "/test");
   g_object_unref (mapping);
 }
+#endif
 
 static gboolean
 rtsp_test_configure_server_for_uri (const char *uri)
@@ -509,6 +508,7 @@ rtsp_test_wait (InsanityGstPipelineTest * ptest, const char *step,
   return NEXT_STEP_NOW;
 }
 
+#if 0
 static NextStepTrigger
 rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step,
     guintptr data)
@@ -536,6 +536,7 @@ rtsp_test_seek (InsanityGstPipelineTest * ptest, const char *step,
       g_timeout_add (5000, (GSourceFunc) & state_change_timeout, ptest);
   return NEXT_STEP_ON_PLAYING;
 }
+#endif
 
 static NextStepTrigger
 rtsp_test_set_protocols (InsanityGstPipelineTest * ptest, const char *step,

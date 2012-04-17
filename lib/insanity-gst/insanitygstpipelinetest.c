@@ -159,19 +159,19 @@ watch_container (InsanityGstPipelineTest * ptest, GstBin * bin)
 {
   GstIterator *it;
   gboolean done = FALSE;
-  gpointer data;
+  GValue data = { 0, };
   GstElement *e;
 
   it = gst_bin_iterate_elements (bin);
   while (!done) {
     switch (gst_iterator_next (it, &data)) {
       case GST_ITERATOR_OK:
-        e = GST_ELEMENT_CAST (data);
+        e = GST_ELEMENT_CAST (g_value_get_object (&data));
         add_element_used (ptest, e);
         if (GST_IS_BIN (e)) {
           watch_container (ptest, GST_BIN (e));
         }
-        gst_object_unref (e);
+        g_value_reset (&data);
         break;
       case GST_ITERATOR_RESYNC:
         gst_iterator_resync (it);
@@ -182,6 +182,7 @@ watch_container (InsanityGstPipelineTest * ptest, GstBin * bin)
         break;
     }
   }
+  g_value_unset (&data);
   gst_iterator_free (it);
 
   return g_signal_connect (bin, "element-added", (GCallback) on_element_added,
@@ -216,20 +217,24 @@ send_tag (const GstTagList * list, const gchar * tag, gpointer data)
     if (gst_tag_get_type (tag) == G_TYPE_STRING) {
       if (!gst_tag_list_get_string_index (list, tag, i, &str))
         g_assert_not_reached ();
-    } else if (gst_tag_get_type (tag) == GST_TYPE_BUFFER) {
-      GstBuffer *img;
+    } else if (gst_tag_get_type (tag) == GST_TYPE_SAMPLE) {
+      GstSample *img;
 
-      img = gst_value_get_buffer (gst_tag_list_get_value_index (list, tag, i));
+      img = gst_value_get_sample (gst_tag_list_get_value_index (list, tag, i));
       if (img) {
+        GstBuffer *buffer;
+        GstCaps *caps;
         gchar *caps_str;
 
-        caps_str = GST_BUFFER_CAPS (img) ?
-            gst_caps_to_string (GST_BUFFER_CAPS (img)) : g_strdup ("unknown");
-        str = g_strdup_printf ("buffer of %u bytes, type: %s",
-            GST_BUFFER_SIZE (img), caps_str);
+        buffer = gst_sample_get_buffer (img);
+        caps = gst_sample_get_caps (img);
+
+        caps_str = caps ? gst_caps_to_string (caps) : g_strdup ("unknown");
+        str = g_strdup_printf ("sample of %" G_GSIZE_FORMAT " bytes, type: %s",
+            gst_buffer_get_size (buffer), caps_str);
         g_free (caps_str);
       } else {
-        str = g_strdup ("NULL buffer");
+        str = g_strdup ("NULL sample");
       }
     } else if (gst_tag_get_type (tag) == GST_TYPE_DATE_TIME) {
       GstDateTime *dt = NULL;
@@ -297,16 +302,15 @@ insanity_gst_pipeline_test_query_duration (InsanityGstPipelineTest * ptest,
     GstFormat fmt, gint64 * duration)
 {
   gboolean res;
-  GstFormat fmt_tmp = fmt;
   gint64 dur = -1;
 
   g_return_val_if_fail (INSANITY_IS_GST_PIPELINE_TEST (ptest), FALSE);
 
   res =
-      gst_element_query_duration (GST_ELEMENT (ptest->priv->pipeline), &fmt_tmp,
+      gst_element_query_duration (GST_ELEMENT (ptest->priv->pipeline), fmt,
       &dur);
 
-  if (res && fmt == fmt_tmp && dur != -1) {
+  if (res && dur != -1) {
     g_signal_emit (ptest, duration_signal, gst_format_to_quark (fmt), fmt, dur,
         NULL);
     if (duration)
@@ -716,41 +720,6 @@ insanity_gst_pipeline_test_finalize (GObject * gobject)
   G_OBJECT_CLASS (insanity_gst_pipeline_test_parent_class)->finalize (gobject);
 }
 
-#define g_marshal_value_peek_object(v)   g_value_get_object (v)
-static void
-insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT (GClosure * closure,
-    GValue * return_value G_GNUC_UNUSED,
-    guint n_param_values,
-    const GValue * param_values,
-    gpointer invocation_hint G_GNUC_UNUSED, gpointer marshal_data)
-{
-  typedef gboolean (*GMarshalFunc_BOOLEAN__MINIOBJECT) (gpointer data1,
-      gpointer arg_1, gpointer data2);
-  register GMarshalFunc_BOOLEAN__MINIOBJECT callback;
-  register GCClosure *cc = (GCClosure *) closure;
-  register gpointer data1, data2;
-  gboolean v_return;
-
-  g_return_if_fail (return_value != NULL);
-  g_return_if_fail (n_param_values == 2);
-
-  if (G_CCLOSURE_SWAP_DATA (closure)) {
-    data1 = closure->data;
-    data2 = g_value_peek_pointer (param_values + 0);
-  } else {
-    data1 = g_value_peek_pointer (param_values + 0);
-    data2 = closure->data;
-  }
-  callback =
-      (GMarshalFunc_BOOLEAN__MINIOBJECT) (marshal_data ? marshal_data :
-      cc->callback);
-
-  v_return = callback (data1,
-      gst_value_get_mini_object (param_values + 1), data2);
-
-  g_value_set_boolean (return_value, v_return);
-}
-
 static gboolean
 stop_accumulator (GSignalInvocationHint * ihint,
     GValue * return_accu, const GValue * handler_return, gpointer data)
@@ -792,9 +761,7 @@ insanity_gst_pipeline_test_class_init (InsanityGstPipelineTestClass * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
       G_STRUCT_OFFSET (InsanityGstPipelineTestClass, bus_message),
-      &stop_accumulator, NULL,
-      insanity_cclosure_user_marshal_BOOLEAN__MINIOBJECT,
-      G_TYPE_BOOLEAN /* return_type */ ,
+      &stop_accumulator, NULL, NULL, G_TYPE_BOOLEAN /* return_type */ ,
       1, GST_TYPE_MESSAGE, NULL);
   reached_initial_state_signal = g_signal_new ("reached-initial-state",
       G_TYPE_FROM_CLASS (klass),

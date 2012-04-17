@@ -27,7 +27,7 @@
 #include <string.h>
 #include <glib.h>
 #include <glib-object.h>
-#include <gst/interfaces/navigation.h>
+#include <gst/video/navigation.h>
 #include <insanity-gst/insanity-gst.h>
 
 /* Number of random commands to send to move between menus */
@@ -473,7 +473,7 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
       break;
     case GST_MESSAGE_ELEMENT:
     {
-      const GstStructure *s = msg->structure;
+      const GstStructure *s = gst_message_get_structure (msg);
       const char *str;
       gint n, ntitles;
       GstClockTime duration, longest_duration = 0;

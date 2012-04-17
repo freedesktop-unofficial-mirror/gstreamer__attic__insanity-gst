@@ -137,11 +137,8 @@ hls_test_get_position (InsanityTest * test)
 {
   gint64 pos = 0;
   gboolean res;
-  GstFormat format = GST_FORMAT_TIME;
 
-  res = gst_element_query_position (glob_pipeline, &format, &pos);
-  if (format != GST_FORMAT_TIME)
-    res = FALSE;
+  res = gst_element_query_position (glob_pipeline, GST_FORMAT_TIME, &pos);
   LOG ("Position %" GST_TIME_FORMAT " ..queried (success %i)\n",
       GST_TIME_ARGS (pos), res);
 
@@ -263,8 +260,9 @@ buffering_timeout (gpointer data)
 }
 
 static gint
-find_hlsdemux (GstElement * e)
+find_hlsdemux (GValue * value, gpointer user_data)
 {
+  GstElement *e = GST_ELEMENT (g_value_get_object (value));
   GstObject *fact = GST_OBJECT (gst_element_get_factory (e));
   gchar *name = gst_object_get_name (fact);
 
@@ -274,7 +272,6 @@ find_hlsdemux (GstElement * e)
   }
 
   g_free (name);
-  gst_object_unref (e);
 
   return 1;
 }
@@ -323,27 +320,21 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
   } else {
     GstEvent *event = GST_EVENT (object);
 
-    if (GST_EVENT_TYPE (event) == GST_EVENT_NEWSEGMENT) {
-      gint64 start;
-      gboolean update;
+    if (GST_EVENT_TYPE (event) == GST_EVENT_SEGMENT) {
+      GstSegment segment;
 
-      gst_event_parse_new_segment (event, &update, NULL, NULL, &start, NULL,
-          NULL);
-
-      /* ignore segment updates */
-      if (update)
-        goto ignore_segment;
+      gst_event_copy_segment (event, &segment);
 
       /* Not waiting for a segment, ignoring */
       if (!GST_CLOCK_TIME_IS_VALID (glob_target)) {
         LOG ("[%d] Got segment starting at %" GST_TIME_FORMAT
             ", but we are not waiting for segment\n", index,
-            GST_TIME_ARGS (start));
+            GST_TIME_ARGS (segment.start));
         goto ignore_segment;
       }
 
       /* Checking the segment has good timing */
-      diff = GST_CLOCK_DIFF (start, glob_target);
+      diff = GST_CLOCK_DIFF (segment.start, glob_target);
       if (diff < 0)
         diff = -diff;
 
@@ -351,17 +342,17 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
         LOG ("Got segment start %" GST_TIME_FORMAT
             ", expected around %" GST_TIME_FORMAT ", off by %" GST_TIME_FORMAT
             ", method %d\n",
-            GST_TIME_ARGS (start), GST_TIME_ARGS (glob_target),
+            GST_TIME_ARGS (segment.start), GST_TIME_ARGS (glob_target),
             GST_TIME_ARGS (diff), glob_state);
 
       } else {
         LOG ("Got segment start %" GST_TIME_FORMAT
             ", expected around %" GST_TIME_FORMAT ", off by %" GST_TIME_FORMAT
-            ", method %d\n", GST_TIME_ARGS (start), GST_TIME_ARGS (glob_target),
-            GST_TIME_ARGS (diff), glob_state);
+            ", method %d\n", GST_TIME_ARGS (segment.start),
+            GST_TIME_ARGS (glob_target), GST_TIME_ARGS (diff), glob_state);
         seek_targets[glob_seek_nb].segment_received = TRUE;
 
-        glob_segment = start;
+        glob_segment = segment.start;
       }
 
     }
@@ -454,6 +445,7 @@ hls_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
         gst_message_parse_state_changed (msg, &oldstate, &newstate, &pending);
         if (newstate == GST_STATE_PAUSED && oldstate == GST_STATE_READY) {
           GstIterator *it;
+          GValue v = { 0, };
           gboolean queried;
           InsanityTest *test = INSANITY_TEST (ptest);
           GstQuery *query = gst_query_new_latency ();
@@ -485,8 +477,11 @@ hls_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
 
           /* Iterate over the bins to find a hlsdemux */
           it = gst_bin_iterate_recurse (GST_BIN (glob_pipeline));
-          glob_hlsdemux = gst_iterator_find_custom (it,
-              (GCompareFunc) find_hlsdemux, NULL);
+          if (gst_iterator_find_custom (it, (GCompareFunc) find_hlsdemux, &v,
+                  NULL)) {
+            glob_hlsdemux = g_value_dup_object (&v);
+          }
+          g_value_unset (&v);
           gst_iterator_free (it);
 
           if (glob_hlsdemux != NULL) {
