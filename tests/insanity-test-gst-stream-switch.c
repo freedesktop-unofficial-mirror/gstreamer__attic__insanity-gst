@@ -295,7 +295,6 @@ gst_multiple_stream_demux_chain (GstPad * pad, GstObject * parent,
     GstBuffer *outbuf;
     guint size;
     GList *l;
-    GstMapInfo minfo;
 
     for (l = demux->pending_events; l; l = l->next) {
       gst_pad_push_event (stream->srcpad, gst_event_ref (l->data));
@@ -330,12 +329,7 @@ gst_multiple_stream_demux_chain (GstPad * pad, GstObject * parent,
         GST_BUFFER_COPY_FLAGS | GST_BUFFER_COPY_TIMESTAMPS, 0, -1);
 
     /* Mark the stream ID of this buffer */
-    if (!gst_buffer_map (outbuf, &minfo, GST_MAP_WRITE)) {
-      ret = GST_FLOW_ERROR;
-      goto done;
-    }
-    memset (minfo.data, i, size);
-    gst_buffer_unmap (outbuf, &minfo);
+    gst_buffer_memset (outbuf, 0, i, size);
 
     ret = gst_pad_push (stream->srcpad, outbuf);
     ret = gst_multiple_stream_demux_combine_flow_ret (demux, stream, ret);
@@ -1373,7 +1367,6 @@ probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object,
   GstStructure *s;
   guint8 marker;
   InsanityTest *test = INSANITY_TEST (gtest);
-  GstMapInfo minfo;
 
   insanity_test_ping (test);
 
@@ -1396,11 +1389,7 @@ probe (InsanityGstTest * gtest, GstPad * pad, GstMiniObject * object,
   else
     g_assert_not_reached ();
 
-  if (!gst_buffer_map (buffer, &minfo, GST_MAP_READ))
-    g_assert_not_reached ();
-  g_assert (minfo.size > 0);
-  marker = GST_READ_UINT8 (minfo.data);
-  gst_buffer_unmap (buffer, &minfo);
+  gst_buffer_extract (buffer, 0, &marker, 1);
 
   insanity_test_printf (test,
       "%d: Found marker %d, current marker %d (wait switch: %d)\n", type,
