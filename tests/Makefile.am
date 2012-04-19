@@ -18,11 +18,11 @@ insanity_test_gst_generic_pipeline_LDADD=../lib/insanity-gst/libinsanity-gst-@GS
 
 insanity_test_gst_play_SOURCES=insanity-test-gst-play.c
 insanity_test_gst_play_CFLAGS=$(common_cflags)
-insanity_test_gst_play_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
+insanity_test_gst_play_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd) $(GIO_LIBS) libinsanityhelper.la
 
 insanity_test_gst_seek_SOURCES=insanity-test-gst-seek.c
 insanity_test_gst_seek_CFLAGS=$(common_cflags)
-insanity_test_gst_seek_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd)
+insanity_test_gst_seek_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(common_ldadd) $(GIO_LIBS) libinsanityhelper.la
 
 insanity_test_gst_dvd_SOURCES=insanity-test-gst-dvd.c
 insanity_test_gst_dvd_CFLAGS=$(GST_INTERFACES_CFLAGS) $(common_cflags)
@@ -62,8 +62,14 @@ soup_tests=insanity-test-gst-http \
     insanity-test-gst-hls
 endif
 
-noinst_LTLIBRARIES=$(http_noinst_libraries)
-noinst_HEADERS=$(http_noinst_headers)
+libinsanityhelper_la_LIBADD=$(GIO_LIBS) $(common_ldadd)
+libinsanityhelper_la_CFLAGS=$(GIO_CFLAGS) $(common_cflags)
+libinsanityhelper_la_SOURCES = insanity-file-appsrc.c
+appsrc_noinst_libraries=libinsanityhelper.la
+appsrc_noinst_headers=insanity-file-appsrc.h
+
+noinst_LTLIBRARIES=$(http_noinst_libraries) $(appsrc_noinst_libraries)
+noinst_HEADERS=$(http_noinst_headers) $(appsrc_noinst_headers)
 
 BUILT_SOURCES = $(built_headers) $(built_sources)
 EXTRA_DIST = run-insanity-test-gst-generic-pipeline

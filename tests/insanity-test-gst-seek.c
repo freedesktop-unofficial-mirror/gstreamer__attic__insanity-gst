@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <insanity-gst/insanity-gst.h>
+#include "insanity-file-appsrc.h"
 
 /* Various bits and pieces taken/adapted from -base/tests/examples/seek/seek.c */
 
@@ -102,6 +103,39 @@ static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define WAIT_STATE_SEGMENT 2
 #define WAIT_STATE_BUFFER 1
 #define WAIT_STATE_READY 0
+
+static void
+found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
+{
+
+  gchar *uri;
+  const gchar *pluginname;
+  GstElementFactory *factory;
+
+  g_object_get (global_pipeline, "uri", &uri, NULL);
+
+  if (!g_str_has_prefix (uri, "appsrc")) {
+    g_free (uri);
+    return;
+  }
+
+  factory = gst_element_get_factory (appsrc);
+
+  pluginname = gst_plugin_feature_get_name (GST_PLUGIN_FEATURE (factory));
+
+  if (!g_str_equal (pluginname, "appsrc")) {
+    /* Oops - something went very wrong! */
+    g_print ("Requested an appsrc uri but found %s instead!\n", pluginname);
+    insanity_test_done (INSANITY_TEST (ptest));
+    g_free (uri);
+    return;
+  }
+
+  insanity_file_appsrc_prepare (appsrc, uri);
+
+  g_free (uri);
+
+}
 
 static gboolean
 do_seek (InsanityGstPipelineTest * ptest, GstElement * pipeline,
@@ -265,6 +299,9 @@ seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
     g_error_free (error);
     return NULL;
   }
+
+  g_print ("Connecting signal\n");
+  g_signal_connect (pipeline, "source-setup", (GCallback) found_source, ptest);
 
   global_pipeline = pipeline;
 
@@ -814,7 +851,7 @@ seek_test_duration (InsanityGstPipelineTest * ptest, GstFormat fmt,
 
     gst_query_parse_seeking (q, &fmt, &seekable, &sstart, &send);
     insanity_test_printf (INSANITY_TEST (ptest),
-        "Seeking query: %s seekable, %" GST_TIME_FORMAT,
+        "Seeking query: %s seekable, %" GST_TIME_FORMAT
         " -- %" GST_TIME_FORMAT "\n", (seekable ? "" : "not"),
         GST_TIME_ARGS (sstart), GST_TIME_ARGS (send));
     if (seekable && fmt == GST_FORMAT_TIME && sstart != -1 && sstart != send) {
