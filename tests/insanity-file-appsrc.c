@@ -54,6 +54,7 @@ static void
 feed_data (GstElement * appsrc, guint size, App * app)
 {
   GstBuffer *buffer;
+  GstMapInfo minfo;
   gsize len;
   GstFlowReturn ret;
   GError *error = NULL;
@@ -68,12 +69,13 @@ feed_data (GstElement * appsrc, guint size, App * app)
     size = app->length - app->offset;
   }
 
-  buffer = gst_buffer_new_and_alloc (size);
+  buffer = gst_buffer_new_allocate (NULL, size, NULL);
+  gst_buffer_map (buffer, &minfo, GST_MAP_WRITE);
 
   if (g_str_has_prefix (app->mode, "random-access")) {
     /* read the amount of data, we are allowed to return less if we are EOS */
     g_input_stream_read_all (G_INPUT_STREAM (app->stream),
-        GST_BUFFER_DATA (buffer), size, &len, NULL, &error);
+        minfo.data, size, &len, NULL, &error);
     if (error) {
       g_print ("ERROR: %s\n", error->message);
       g_error_free (error);
@@ -84,14 +86,14 @@ feed_data (GstElement * appsrc, guint size, App * app)
   } else {
     /* read any amount of data, we are allowed to return less if we are EOS */
     len = g_input_stream_read (G_INPUT_STREAM (app->stream),
-        GST_BUFFER_DATA (buffer), size, NULL, &error);
+        minfo.data, size, NULL, &error);
     if (error) {
       g_print ("ERROR: %s\n", error->message);
       g_error_free (error);
     }
   }
-
-  GST_BUFFER_SIZE (buffer) = len;
+  gst_buffer_unmap (buffer, &minfo);
+  gst_buffer_set_size (buffer, len);
 
   if (error) {
     GST_DEBUG ("Cannot read file: %s\n", error->message);
