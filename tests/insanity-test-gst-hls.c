@@ -327,8 +327,8 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
 
       /* Not waiting for a segment, ignoring */
       if (!GST_CLOCK_TIME_IS_VALID (glob_target)) {
-        LOG ("[%d] Got segment starting at %" GST_TIME_FORMAT
-            ", but we are not waiting for segment\n", index,
+        LOG ("Got segment starting at %" GST_TIME_FORMAT
+            ", but we are not waiting for segment\n",
             GST_TIME_ARGS (segment.start));
         goto ignore_segment;
       }
