@@ -27,12 +27,46 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <insanity-gst/insanity-gst.h>
+#include "insanity-file-appsrc.h"
 
 static GstElement *global_pipeline = NULL;
 static guint check_position_id = 0;
 static GstClockTime first_position = GST_CLOCK_TIME_NONE;
 static GstClockTime last_position = GST_CLOCK_TIME_NONE;
 static GstClockTime playback_duration = GST_CLOCK_TIME_NONE;
+
+static void
+found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
+{
+
+  gchar *uri;
+  const gchar *pluginname;
+  GstElementFactory *factory;
+
+  g_object_get (global_pipeline, "uri", &uri, NULL);
+
+  if (!g_str_has_prefix (uri, "appsrc")) {
+    g_free (uri);
+    return;
+  }
+
+  factory = gst_element_get_factory (appsrc);
+
+  pluginname = gst_plugin_feature_get_name (GST_PLUGIN_FEATURE (factory));
+
+  if (!g_str_equal (pluginname, "appsrc")) {
+    /* Oops - something went very wrong! */
+    g_print ("Requested an appsrc uri but found %s instead!\n", pluginname);
+    insanity_test_done (INSANITY_TEST (ptest));
+    g_free (uri);
+    return;
+  }
+
+  insanity_file_appsrc_prepare (appsrc, uri);
+
+  g_free (uri);
+
+}
 
 static GstPipeline *
 play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
@@ -57,6 +91,9 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
     g_error_free (error);
     return NULL;
   }
+
+  g_print ("Connecting signal\n");
+  g_signal_connect (pipeline, "source-setup", (GCallback) found_source, ptest);
 
   global_pipeline = pipeline;
   return GST_PIPELINE (pipeline);
