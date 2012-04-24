@@ -34,12 +34,18 @@
 #include <stdlib.h>
 
 #include "insanity-file-appsrc.h"
+#include <insanity-gst/insanity-gst.h>
+
+#define LOG(format, args...) \
+  INSANITY_LOG (app->test, "appsrc", INSANITY_LOG_LEVEL_DEBUG, format, ##args)
 
 typedef struct _App App;
 
 struct _App
 {
   GstElement *appsrc;
+
+  InsanityTest *test;
 
   GFileInputStream *stream;
   gint64 length;
@@ -64,7 +70,6 @@ feed_data (GstElement * appsrc, guint size, App * app)
     return;
   }
   if (app->offset + size > app->length) {
-    g_print ("Reached EOF\n");
     size = app->length - app->offset;
   }
 
@@ -75,7 +80,7 @@ feed_data (GstElement * appsrc, guint size, App * app)
     g_input_stream_read_all (G_INPUT_STREAM (app->stream),
         GST_BUFFER_DATA (buffer), size, &len, NULL, &error);
     if (error) {
-      g_print ("ERROR: %s\n", error->message);
+      LOG ("ERROR: %s\n", error->message);
       g_error_free (error);
     }
     /* we need to set an offset for random access */
@@ -86,7 +91,7 @@ feed_data (GstElement * appsrc, guint size, App * app)
     len = g_input_stream_read (G_INPUT_STREAM (app->stream),
         GST_BUFFER_DATA (buffer), size, NULL, &error);
     if (error) {
-      g_print ("ERROR: %s\n", error->message);
+      LOG ("ERROR: %s\n", error->message);
       g_error_free (error);
     }
   }
@@ -94,13 +99,13 @@ feed_data (GstElement * appsrc, guint size, App * app)
   GST_BUFFER_SIZE (buffer) = len;
 
   if (error) {
-    GST_DEBUG ("Cannot read file: %s\n", error->message);
+    LOG ("Cannot read file: %s\n", error->message);
     /* probably explode? */
     g_error_free (error);
     return;
   }
 
-  GST_DEBUG ("feed buffer %p, offset %" G_GUINT64_FORMAT "-%u", buffer,
+  LOG ("feed buffer %p, offset %" G_GUINT64_FORMAT "-%u", buffer,
       app->offset, len);
   g_signal_emit_by_name (app->appsrc, "push-buffer", buffer, &ret);
   gst_buffer_unref (buffer);
@@ -118,13 +123,13 @@ seek_data (GstElement * appsrc, guint64 position, App * app)
 
   GError *error = NULL;
 
-  GST_DEBUG ("seek to offset %" G_GUINT64_FORMAT, position);
+  LOG ("seek to offset %" G_GUINT64_FORMAT, position);
   app->offset = position;
   g_seekable_seek (G_SEEKABLE (app->stream), position, G_SEEK_SET, NULL,
       &error);
 
   if (error) {
-    GST_DEBUG ("Cannot seek: %s\n", error->message);
+    LOG ("Cannot seek: %s\n", error->message);
     g_error_free (error);
     return FALSE;
   }
@@ -142,8 +147,8 @@ cleanup (App * app)
 
 }
 
-void
-insanity_file_appsrc_prepare (GstElement * appsrc, gchar * uri)
+void insanity_file_appsrc_prepare
+    (GstElement * appsrc, gchar * uri, InsanityTest * test)
 {
 
   App *app;
@@ -154,6 +159,7 @@ insanity_file_appsrc_prepare (GstElement * appsrc, gchar * uri)
   GFile *file = NULL;
 
   app = g_new0 (App, 1);
+  app->test = test;
 
   filename = uri;
   while (!g_str_has_prefix (filename, "/")) {
@@ -165,13 +171,13 @@ insanity_file_appsrc_prepare (GstElement * appsrc, gchar * uri)
   g_strfreev (dump);
   app->appsrc = appsrc;
 
-  GST_DEBUG ("Opening file %s\n", filename);
+  LOG ("Opening file %s\n", filename);
 
   /* try to open the file as an mmapped file */
   file = g_file_new_for_path (filename);
   app->stream = g_file_read (file, NULL, &error);
   if (error) {
-    GST_DEBUG ("failed to open file: %s\n", error->message);
+    LOG ("failed to open file: %s\n", error->message);
     g_error_free (error);
     g_object_unref (file);
     cleanup (app);
@@ -186,7 +192,7 @@ insanity_file_appsrc_prepare (GstElement * appsrc, gchar * uri)
   info = g_file_query_info (file, G_FILE_ATTRIBUTE_STANDARD_SIZE,
       G_FILE_QUERY_INFO_NONE, NULL, &error);
   if (error) {
-    GST_DEBUG ("failed to get file size: %s\n", error->message);
+    LOG ("failed to get file size: %s\n", error->message);
     g_error_free (error);
   } else {
     app->length = g_file_info_get_size (info);

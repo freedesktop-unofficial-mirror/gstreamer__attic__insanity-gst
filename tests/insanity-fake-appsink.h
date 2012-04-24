@@ -3,8 +3,6 @@
  *
  * Copyright (c) 2012, Collabora Ltd
  *    Author: Vivia Nikolaidou <vivia.nikolaidou@collabora.com>
- * appsrc code based on appsrc-stream2, appsrc-seekable and appsrc-ra examples
- * Copyright (C) 2008 Wim Taymans <wim.taymans@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -22,20 +20,21 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef INSANITY_FILE_APPSRC_H
-#define INSANITY_FILE_APPSRC_H
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#ifndef INSANITY_FAKE_APPSINK_H
+#define INSANITY_FAKE_APPSINK_H
 
 #include <gst/gst.h>
-#include <insanity-gst/insanity-gst.h>
 
 G_BEGIN_DECLS
 
-void
-insanity_file_appsrc_prepare (GstElement *appsrc, gchar *uri, InsanityTest *test);
+guint64
+insanity_fake_appsink_get_buffers_received (GstElement * sink);
+
+gboolean
+insanity_fake_appsink_check_bufcount (GstElement * sink);
+
+GstElement *
+insanity_fake_appsink_new (const gchar * name, InsanityTest * test);
 
 G_END_DECLS
 
