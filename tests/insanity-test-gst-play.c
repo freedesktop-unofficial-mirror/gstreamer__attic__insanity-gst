@@ -80,7 +80,6 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
   GstElement *playbin;
   GstElement *audiosink;
   GstElement *videosink;
-  GError *error = NULL;
 
   /* Just try to get the argument, use default if not found */
   insanity_test_get_boolean_argument (INSANITY_TEST (ptest), "appsink",
@@ -99,17 +98,8 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
 
   if (!playbin || !audiosink || !videosink) {
     insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
-        "valid-pipeline", FALSE, error ? error->message : NULL);
-    if (error)
-      g_error_free (error);
+        "valid-pipeline", FALSE, NULL);
     return NULL;
-/*  } else if (error) {
-    // Do we get a dangling pointer here ? gst-launch.c does not unref 
-    pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
-        "valid-pipeline", FALSE, error->message);
-    g_error_free (error);
-    return NULL; */
   }
 
   g_print ("Connecting signal\n");
