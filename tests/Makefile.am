@@ -64,12 +64,12 @@ endif
 
 libinsanityhelper_la_LIBADD=$(GIO_LIBS) $(common_ldadd)
 libinsanityhelper_la_CFLAGS=$(GIO_CFLAGS) $(common_cflags)
-libinsanityhelper_la_SOURCES = insanity-file-appsrc.c
-appsrc_noinst_libraries=libinsanityhelper.la
-appsrc_noinst_headers=insanity-file-appsrc.h
+libinsanityhelper_la_SOURCES = insanity-file-appsrc.c insanity-fake-appsink.c
+helper_noinst_libraries=libinsanityhelper.la
+helper_noinst_headers=insanity-file-appsrc.h insanity-fake-appsink.h
 
-noinst_LTLIBRARIES=$(http_noinst_libraries) $(appsrc_noinst_libraries)
-noinst_HEADERS=$(http_noinst_headers) $(appsrc_noinst_headers)
+noinst_LTLIBRARIES=$(http_noinst_libraries) $(helper_noinst_libraries)
+noinst_HEADERS=$(http_noinst_headers) $(helper_noinst_headers)
 
 BUILT_SOURCES = $(built_headers) $(built_sources)
 EXTRA_DIST = run-insanity-test-gst-generic-pipeline

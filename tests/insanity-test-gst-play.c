@@ -28,12 +28,17 @@
 #include <glib-object.h>
 #include <insanity-gst/insanity-gst.h>
 #include "insanity-file-appsrc.h"
+#include "insanity-fake-appsink.h"
+
+#define LOG(format, args...) \
+  INSANITY_LOG (INSANITY_TEST (ptest), "play", INSANITY_LOG_LEVEL_DEBUG, format, ##args)
 
 static GstElement *global_pipeline = NULL;
 static guint check_position_id = 0;
 static GstClockTime first_position = GST_CLOCK_TIME_NONE;
 static GstClockTime last_position = GST_CLOCK_TIME_NONE;
 static GstClockTime playback_duration = GST_CLOCK_TIME_NONE;
+static gboolean appsink = FALSE;
 
 static void
 found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
@@ -56,13 +61,13 @@ found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
 
   if (!g_str_equal (pluginname, "appsrc")) {
     /* Oops - something went very wrong! */
-    g_print ("Requested an appsrc uri but found %s instead!\n", pluginname);
+    LOG ("Requested an appsrc uri but found %s instead!\n", pluginname);
     insanity_test_done (INSANITY_TEST (ptest));
     g_free (uri);
     return;
   }
 
-  insanity_file_appsrc_prepare (appsrc, uri);
+  insanity_file_appsrc_prepare (appsrc, uri, INSANITY_TEST (ptest));
 
   g_free (uri);
 
@@ -72,31 +77,39 @@ static GstPipeline *
 play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
     gpointer userdata)
 {
-  GstElement *pipeline;
-  const char *launch_line = "playbin audio-sink=fakesink video-sink=fakesink";
-  GError *error = NULL;
+  GstElement *playbin;
+  GstElement *audiosink;
+  GstElement *videosink;
 
-  pipeline = gst_parse_launch (launch_line, &error);
-  if (!pipeline) {
+  /* Just try to get the argument, use default if not found */
+  insanity_test_get_boolean_argument (INSANITY_TEST (ptest), "appsink",
+      &appsink);
+
+  playbin = gst_element_factory_make ("playbin2", "playbin2");
+  global_pipeline = playbin;
+
+  if (appsink) {
+    audiosink = insanity_fake_appsink_new ("audiosink", INSANITY_TEST (ptest));
+    videosink = insanity_fake_appsink_new ("videosink", INSANITY_TEST (ptest));
+  } else {
+    audiosink = gst_element_factory_make ("fakesink", "audiosink");
+    videosink = gst_element_factory_make ("fakesink", "videosink");
+  }
+
+  if (!playbin || !audiosink || !videosink) {
     insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
-        "valid-pipeline", FALSE, error ? error->message : NULL);
-    if (error)
-      g_error_free (error);
-    return NULL;
-  } else if (error) {
-    /* Do we get a dangling pointer here ? gst-launch.c does not unref */
-    pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
-        "valid-pipeline", FALSE, error->message);
-    g_error_free (error);
+        "valid-pipeline", FALSE, NULL);
     return NULL;
   }
 
   g_print ("Connecting signal\n");
-  g_signal_connect (pipeline, "source-setup", (GCallback) found_source, ptest);
 
-  global_pipeline = pipeline;
-  return GST_PIPELINE (pipeline);
+  g_object_set (playbin, "video-sink", videosink, NULL);
+  g_object_set (playbin, "audio-sink", audiosink, NULL);
+
+  g_signal_connect (playbin, "source-setup", (GCallback) found_source, ptest);
+
+  return GST_PIPELINE (playbin);
 }
 
 static gboolean
@@ -128,25 +141,21 @@ check_position (InsanityTest * test)
 static gboolean
 play_test_start (InsanityTest * test)
 {
-  GValue uri = { 0 };
-  GValue duration = { 0 };
+  gchar *uri;
 
-  if (!insanity_test_get_argument (test, "uri", &uri))
+  if (!insanity_test_get_string_argument (test, "uri", &uri))
     return FALSE;
-  if (!strcmp (g_value_get_string (&uri), "")) {
+  if (!strcmp (uri, "")) {
     insanity_test_validate_checklist_item (test, "valid-pipeline", FALSE,
         "No URI to test on");
-    g_value_unset (&uri);
     return FALSE;
   }
 
-  g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
-  g_value_unset (&uri);
+  g_object_set (global_pipeline, "uri", uri, NULL);
 
-  if (!insanity_test_get_argument (test, "playback-duration", &duration))
+  if (!insanity_test_get_uint64_argument (test, "playback-duration",
+          &playback_duration))
     return FALSE;
-  playback_duration = g_value_get_uint64 (&duration);
-  g_value_unset (&duration);
 
   first_position = GST_CLOCK_TIME_NONE;
   last_position = GST_CLOCK_TIME_NONE;
@@ -161,6 +170,22 @@ play_test_stop (InsanityTest * test)
   if (check_position_id)
     g_source_remove (check_position_id);
   check_position_id = 0;
+  if (appsink) {
+    GstElement *audiosink;
+    GstElement *videosink;
+    g_object_get (global_pipeline, "audio-sink", &audiosink, NULL);
+    g_object_get (global_pipeline, "video-sink", &videosink, NULL);
+    if (insanity_fake_appsink_check_bufcount (audiosink) &&
+        insanity_fake_appsink_check_bufcount (videosink)) {
+      insanity_test_validate_checklist_item (test, "all-buffers-received",
+          TRUE, "All sinks received all their buffers");
+    } else {
+      insanity_test_validate_checklist_item (test, "all-buffers-received",
+          FALSE, "Sinks didn't receive all buffers");
+    }
+    gst_object_unref (audiosink);
+    gst_object_unref (videosink);
+  }
   return TRUE;
 }
 
@@ -188,6 +213,15 @@ main (int argc, char **argv)
   insanity_test_add_argument (test, "playback-duration",
       "Stop playback after this many nanoseconds", NULL, FALSE, &vdef);
   g_value_unset (&vdef);
+
+  g_value_init (&vdef, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&vdef, FALSE);
+  insanity_test_add_argument (test, "appsink",
+      "Use appsink instead of fakesink", NULL, TRUE, &vdef);
+  g_value_unset (&vdef);
+
+  insanity_test_add_checklist_item (test, "all-buffers-received",
+      "Appsinks (if used) received all buffers", NULL);
 
   insanity_gst_pipeline_test_set_create_pipeline_function
       (INSANITY_GST_PIPELINE_TEST (test), &play_gst_test_create_pipeline, NULL,

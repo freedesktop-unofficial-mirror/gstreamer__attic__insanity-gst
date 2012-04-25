@@ -29,6 +29,7 @@
 #include <glib-object.h>
 #include <insanity-gst/insanity-gst.h>
 #include "insanity-file-appsrc.h"
+#include "insanity-fake-appsink.h"
 
 /* Various bits and pieces taken/adapted from -base/tests/examples/seek/seek.c */
 
@@ -95,6 +96,7 @@ static guint global_duration_timeout = 0;
 static guint global_idle_timeout = 0;
 static gint64 global_last_probe = 0;
 static GstSegment global_segment[2];
+static gboolean appsink = FALSE;
 
 static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define SEEK_TEST_LOCK() g_static_mutex_lock (&global_mutex)
@@ -131,7 +133,7 @@ found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
     return;
   }
 
-  insanity_file_appsrc_prepare (appsrc, uri);
+  insanity_file_appsrc_prepare (appsrc, uri, INSANITY_TEST (ptest));
 
   g_free (uri);
 
@@ -279,33 +281,37 @@ seek_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
 static GstPipeline *
 seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
 {
-  GstElement *pipeline = NULL;
-  const char *launch_line =
-      "playbin audio-sink=\"fakesink name=asink\" video-sink=\"fakesink name=vsink\"";
-  GError *error = NULL;
+  GstElement *playbin = NULL;
+  GstElement *audiosink;
+  GstElement *videosink;
 
-  pipeline = gst_parse_launch (launch_line, &error);
-  if (!pipeline) {
+  /* Just try to get the argument, use default if not found */
+  insanity_test_get_boolean_argument (INSANITY_TEST (ptest), "appsink",
+      &appsink);
+
+  playbin = gst_element_factory_make ("playbin2", "playbin2");
+  global_pipeline = playbin;
+
+  if (appsink) {
+    audiosink = insanity_fake_appsink_new ("asink", INSANITY_TEST (ptest));
+    videosink = insanity_fake_appsink_new ("vsink", INSANITY_TEST (ptest));
+  } else {
+    audiosink = gst_element_factory_make ("fakesink", "asink");
+    videosink = gst_element_factory_make ("fakesink", "vsink");
+  }
+
+  if (!playbin || !audiosink || !videosink) {
     insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
-        "valid-pipeline", FALSE, error ? error->message : NULL);
-    if (error)
-      g_error_free (error);
-    return NULL;
-  } else if (error) {
-    /* Do we get a dangling pointer here ? gst-launch.c does not unref */
-    pipeline = NULL;
-    insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
-        "valid-pipeline", FALSE, error->message);
-    g_error_free (error);
+        "valid-pipeline", FALSE, NULL);
     return NULL;
   }
 
-  g_print ("Connecting signal\n");
-  g_signal_connect (pipeline, "source-setup", (GCallback) found_source, ptest);
+  g_object_set (playbin, "video-sink", videosink, NULL);
+  g_object_set (playbin, "audio-sink", audiosink, NULL);
 
-  global_pipeline = pipeline;
+  g_signal_connect (playbin, "source-setup", (GCallback) found_source, ptest);
 
-  return GST_PIPELINE (pipeline);
+  return GST_PIPELINE (playbin);
 }
 
 static const char *
@@ -802,6 +808,23 @@ seek_test_stop (InsanityTest * test)
         NULL);
   }
 
+  if (appsink) {
+    GstElement *audiosink;
+    GstElement *videosink;
+    g_object_get (global_pipeline, "audio-sink", &audiosink, NULL);
+    g_object_get (global_pipeline, "video-sink", &videosink, NULL);
+    if (insanity_fake_appsink_get_buffers_received (audiosink) +
+        insanity_fake_appsink_get_buffers_received (videosink) > 0) {
+      insanity_test_validate_checklist_item (test, "buffers-received",
+          TRUE, "Sinks received buffers");
+    } else {
+      insanity_test_validate_checklist_item (test, "buffers-received",
+          FALSE, "Sinks received no buffers");
+    }
+    gst_object_unref (audiosink);
+    gst_object_unref (videosink);
+  }
+
   started = FALSE;
 
   SEEK_TEST_UNLOCK ();
@@ -909,6 +932,12 @@ main (int argc, char **argv)
       NULL, TRUE, &vdef);
   g_value_unset (&vdef);
 
+  g_value_init (&vdef, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&vdef, FALSE);
+  insanity_test_add_argument (test, "appsink",
+      "Use appsink instead of fakesink", NULL, TRUE, &vdef);
+  g_value_unset (&vdef);
+
   insanity_test_add_checklist_item (test, "install-probes",
       "Probes were installed on the sinks", NULL);
   insanity_test_add_checklist_item (test, "duration-known",
@@ -925,6 +954,8 @@ main (int argc, char **argv)
       NULL);
   insanity_test_add_checklist_item (test, "segment-clipping",
       "Buffers were correctly clipped to the configured segment", NULL);
+  insanity_test_add_checklist_item (test, "buffers-received",
+      "Appsinks (if used) received some buffers", NULL);
 
   insanity_test_add_extra_info (test, "max-seek-error",
       "The maximum timestamp difference between a seek target and the buffer received after the seek (absolute value in nanoseconds)");
