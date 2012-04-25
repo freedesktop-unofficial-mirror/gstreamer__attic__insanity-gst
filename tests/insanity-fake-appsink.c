@@ -57,8 +57,8 @@ on_new_buffer (GstElement * appsink, gpointer userdata)
 
 }
 
-static gboolean
-cb_have_data (GstPad * pad, GstBuffer * buffer, gpointer u_data)
+static GstPadProbeReturn
+cb_have_data (GstPad * pad, GstPadProbeInfo * info, gpointer u_data)
 {
 
   App *app = NULL;
@@ -73,8 +73,7 @@ cb_have_data (GstPad * pad, GstBuffer * buffer, gpointer u_data)
 
   gst_object_unref (appsink);
 
-  return TRUE;
-
+  return GST_PAD_PROBE_OK;
 }
 
 static void
@@ -130,8 +129,8 @@ insanity_fake_appsink_new (const gchar * name, InsanityTest * test)
   app->appsink = appsink;
   app->test = test;
 
-  pad = gst_element_get_pad (appsink, "sink");
-  gst_pad_add_buffer_probe (pad, G_CALLBACK (cb_have_data), NULL);
+  pad = gst_element_get_static_pad (appsink, "sink");
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, cb_have_data, NULL, NULL);
   gst_object_unref (pad);
 
   g_object_set_qdata_full ((GObject *) appsink,
