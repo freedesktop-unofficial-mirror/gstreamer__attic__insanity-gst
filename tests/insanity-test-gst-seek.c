@@ -68,9 +68,33 @@ static int seek_targets[] = {
   -1, -1, -1, -1, -1, -1, -1
 };
 
+typedef struct
+{
+  gint start;                   /* percentage */
+  gint stop;                    /* percentage */
+  gfloat rate;
+  const gchar *name;
+
+} TrickDefs;
+
+/* Seek targets for trick modes */
+static TrickDefs trick_targets[] = {
+  {10, 20, -1.0, "Backward playback"},
+  {0, -1, 0.50, "Slow playback"},
+  {35, 45, 2.00, "Fast forward"},
+  {55, 65, -2.0, "Fast backward"},
+  {0, 10, -0.5, "Slow backward"},
+  {-1, -1, -1, "Random trick"},
+  {-1, -1, -1, "Random trick"},
+  {-1, -1, -1, "Random trick"},
+  {-1, -1, -1, "Random trick"},
+};
+
+
 /* Our state. Growing fast. Possibly not locked well enough. */
 static GstElement *global_pipeline = NULL;
 static GstClockTime global_target = 0;
+static GstClockTime global_seek_stop = GST_CLOCK_TIME_NONE;
 static gboolean started = FALSE;
 static char global_waiting[2] = { 0, 0 };
 
@@ -96,6 +120,16 @@ static guint global_duration_timeout = 0;
 static guint global_idle_timeout = 0;
 static gint64 global_last_probe = 0;
 static GstSegment global_segment[2];
+
+static gfloat global_seek_rate = 1.0;
+
+static int global_trick_target_index = 0;
+static gboolean global_test_tricks = TRUE;
+static gboolean global_testing_tricks = FALSE;
+
+
+static gboolean global_trick_failed = FALSE;
+static gboolean global_simple_seek_failed = FALSE;
 static gboolean appsink = FALSE, progressive_download = FALSE;
 
 static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
@@ -105,6 +139,18 @@ static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define WAIT_STATE_SEGMENT 2
 #define WAIT_STATE_BUFFER 1
 #define WAIT_STATE_READY 0
+
+static inline void
+mark_current_as_failed (InsanityTest * test, const gchar * msg)
+{
+  if (global_testing_tricks == TRUE) {
+    global_trick_failed = TRUE;
+    insanity_test_validate_checklist_item (test, "trick-seek", FALSE, msg);
+  } else {
+    global_simple_seek_failed = TRUE;
+    insanity_test_validate_checklist_item (test, "normal-seek", FALSE, msg);
+  }
+}
 
 static void
 found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
@@ -176,8 +222,8 @@ do_seek (InsanityGstPipelineTest * ptest, GstElement * pipeline,
   GST_WARNING ("New seek to %" GST_TIME_FORMAT " with method %d\n",
       GST_TIME_ARGS (t0), global_state);
   insanity_test_ping (INSANITY_TEST (ptest));
-  event = gst_event_new_seek (1.0, GST_FORMAT_TIME, flags,
-      GST_SEEK_TYPE_SET, t0, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+  event = gst_event_new_seek (global_seek_rate, GST_FORMAT_TIME, flags,
+      GST_SEEK_TYPE_SET, t0, GST_SEEK_TYPE_SET, global_seek_stop);
   global_seek_start_time = g_get_monotonic_time ();
   SEEK_TEST_UNLOCK ();
 
@@ -186,6 +232,7 @@ do_seek (InsanityGstPipelineTest * ptest, GstElement * pipeline,
     insanity_test_validate_checklist_item (INSANITY_TEST (ptest), "seek", FALSE,
         "Failed to send seek event");
     global_seek_failed = TRUE;
+    mark_current_as_failed (INSANITY_TEST (ptest), "Failed to send seek event");
     return FALSE;
   }
   if (flags & GST_SEEK_FLAG_FLUSH) {
@@ -195,24 +242,52 @@ do_seek (InsanityGstPipelineTest * ptest, GstElement * pipeline,
   return TRUE;
 }
 
-static gboolean
-do_next_seek (gpointer data)
+static inline gboolean
+set_next_trick (InsanityGstPipelineTest * ptest)
 {
-  InsanityGstPipelineTest *ptest = data;
-  GValue v = { 0 };
-  gboolean next, bounce = FALSE;
-
   SEEK_TEST_LOCK ();
-
-  if (global_seek_start_time) {
-    GstClockTime seek_time =
-        gst_util_uint64_scale (g_get_monotonic_time () - global_seek_start_time,
-        GST_SECOND, 1000000);
-    if (seek_time > global_max_seek_time)
-      global_max_seek_time = seek_time;
-    global_seek_start_time = 0;
+  /* Switch to next target, or next method if we've done them all */
+  global_trick_target_index++;
+  if (global_trick_target_index ==
+      sizeof (trick_targets) / sizeof (trick_targets[0])) {
+    SEEK_TEST_UNLOCK ();
+    return FALSE;
   }
 
+  global_target = global_seek_offset +
+      gst_util_uint64_scale (global_duration,
+      trick_targets[global_trick_target_index].start, 100);
+
+  if (trick_targets[global_trick_target_index].stop != -1) {
+    global_seek_stop = global_seek_offset +
+        gst_util_uint64_scale (global_duration,
+        trick_targets[global_trick_target_index].stop, 100);
+  } else {
+    global_seek_stop = GST_CLOCK_TIME_NONE;
+  }
+
+  global_seek_rate = trick_targets[global_trick_target_index].rate;
+  SEEK_TEST_UNLOCK ();
+
+  insanity_test_printf (INSANITY_TEST (ptest),
+      "Next trick seek: %s is to %d%%, time %" GST_TIME_FORMAT " Stop time %"
+      GST_TIME_FORMAT ", rate %lf, method %d, step %d/%u\n",
+      trick_targets[global_trick_target_index].name,
+      trick_targets[global_trick_target_index].start,
+      GST_TIME_ARGS (global_target), GST_TIME_ARGS (global_seek_stop),
+      global_seek_rate, global_state, global_trick_target_index + 1,
+      (unsigned) (sizeof (trick_targets) / sizeof (trick_targets[0])));
+
+  return TRUE;
+}
+
+static inline gboolean
+set_next_target (InsanityGstPipelineTest * ptest)
+{
+  gboolean next, bounce = FALSE;
+  GValue v = { 0 };
+
+  SEEK_TEST_LOCK ();
   /* Switch to next target, or next method if we've done them all */
   global_seek_target_index++;
   next = FALSE;
@@ -224,10 +299,7 @@ do_next_seek (gpointer data)
     /* Switch to 0 with next seeking method */
     global_state++;
     if (global_state == SEEK_TEST_NUM_STATES) {
-      insanity_test_printf (INSANITY_TEST (ptest),
-          "All seek methods tested, done\n");
       SEEK_TEST_UNLOCK ();
-      insanity_test_done (INSANITY_TEST (ptest));
       return FALSE;
     }
     global_seek_target_index = 0;
@@ -247,20 +319,68 @@ do_next_seek (gpointer data)
      actually get any buffer for short streams. So we accept EOS for that case
      as well as the >= 100% cases. */
   global_expecting_eos = (seek_targets[global_seek_target_index] >= 99);
-  insanity_test_printf (INSANITY_TEST (ptest),
-      "Next seek is to %d%%, time %" GST_TIME_FORMAT
-      ", method %d, step %d/%u%s\n", seek_targets[global_seek_target_index],
-      GST_TIME_ARGS (global_target), global_state, global_seek_target_index + 1,
-      (unsigned) (sizeof (seek_targets) / sizeof (seek_targets[0])),
-      global_expecting_eos ? ", expecting EOS" : "");
-  SEEK_TEST_UNLOCK ();
 
+  SEEK_TEST_UNLOCK ();
   if (bounce) {
     insanity_test_printf (INSANITY_TEST (ptest), "Bouncing through READY\n");
     gst_element_set_state (global_pipeline, GST_STATE_READY);
     gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
     gst_element_set_state (global_pipeline, GST_STATE_PLAYING);
     gst_element_get_state (global_pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
+    insanity_test_printf (INSANITY_TEST (ptest), "Bounced through READY\n");
+  }
+
+  insanity_test_printf (INSANITY_TEST (ptest),
+      "Next seek is to %d%%, time %" GST_TIME_FORMAT
+      ", method %d, step %d/%u%s\n", seek_targets[global_seek_target_index],
+      GST_TIME_ARGS (global_target), global_state, global_seek_target_index + 1,
+      (unsigned) (sizeof (seek_targets) / sizeof (seek_targets[0])),
+      global_expecting_eos ? ", expecting EOS" : "");
+
+  return TRUE;
+}
+
+static gboolean
+do_next_seek (gpointer data)
+{
+  InsanityGstPipelineTest *ptest = data;
+
+  SEEK_TEST_LOCK ();
+
+  if (global_seek_start_time) {
+    GstClockTime seek_time =
+        gst_util_uint64_scale (g_get_monotonic_time () - global_seek_start_time,
+        GST_SECOND, 1000000);
+    if (seek_time > global_max_seek_time)
+      global_max_seek_time = seek_time;
+    global_seek_start_time = 0;
+  }
+
+  SEEK_TEST_UNLOCK ();
+  if (global_testing_tricks == FALSE) {
+    if (set_next_target (ptest) == FALSE) {
+      if (global_test_tricks == TRUE) {
+        insanity_test_printf (INSANITY_TEST (ptest),
+            "All seek methods tested, now testing trick modes\n");
+        global_testing_tricks = TRUE;
+
+        /* Testing the various seek method in when testing trick modes,
+         * do start from the beginning */
+        global_state = SEEK_TEST_STATE_FIRST;
+      } else {
+        insanity_test_printf (INSANITY_TEST (ptest),
+            "All seek methods tested, not testing trick modes... Done\n");
+        insanity_test_done (INSANITY_TEST (ptest));
+        return FALSE;
+      }
+    }
+  }
+
+  if (global_testing_tricks == TRUE) {
+    if (set_next_trick (ptest) == FALSE) {
+      insanity_test_done (INSANITY_TEST (ptest));
+      return FALSE;
+    }
   }
 
   do_seek (ptest, global_pipeline, global_target);
@@ -423,6 +543,7 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
             global_state);
         insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
             "segment-clipping", FALSE, msg);
+        mark_current_as_failed (INSANITY_TEST (ptest), msg);
         g_free (msg);
         global_bad_segment_clipping = TRUE;
         SEEK_TEST_UNLOCK ();
@@ -430,21 +551,32 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
       }
 
       if (CHECK_CORRECT_SEGMENT (global_state)) {
-        ts = cstart;
-        stime_ts =
-            gst_segment_to_stream_time (&global_segment[index],
+        GstClockTime expected_ts;
+
+        if (global_seek_rate < 0) {
+
+          if (GST_CLOCK_TIME_IS_VALID (global_seek_stop))
+            expected_ts = global_seek_stop;
+          else
+            expected_ts = global_duration;
+
+          expected_ts = gst_segment_to_stream_time (&global_segment[index],
+              global_segment[index].format, expected_ts);
+        } else {
+          expected_ts = global_target;
+        }
+
+
+        stime_ts = gst_segment_to_stream_time (&global_segment[index],
             global_segment[index].format, ts);
-        diff = GST_CLOCK_DIFF (stime_ts, global_target);
-        if (diff < 0)
-          diff = -diff;
-        if (diff > global_max_diff)
-          global_max_diff = diff;
+
+        diff = ABS (GST_CLOCK_DIFF (stime_ts, expected_ts));
 
         if (diff <= SEEK_THRESHOLD) {
           if (global_waiting[index] == WAIT_STATE_BUFFER) {
             insanity_test_printf (INSANITY_TEST (ptest),
                 "[%d] target %" GST_TIME_FORMAT ", diff: %" GST_TIME_FORMAT
-                " - GOOD\n", index, GST_TIME_ARGS (global_target),
+                " - GOOD\n", index, GST_TIME_ARGS (expected_ts),
                 GST_TIME_ARGS (diff));
             changed = TRUE;
             global_waiting[index] = WAIT_STATE_READY;
@@ -455,15 +587,16 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
                 g_strdup_printf ("Got timestamp %" GST_TIME_FORMAT
                 ", expected around %" GST_TIME_FORMAT ", off by %"
                 GST_TIME_FORMAT ", method %d",
-                GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (global_target),
+                GST_TIME_ARGS (stime_ts), GST_TIME_ARGS (expected_ts),
                 GST_TIME_ARGS (diff), global_state);
             insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
                 "buffer-seek-time-correct", FALSE, msg);
+            mark_current_as_failed (INSANITY_TEST (ptest), msg);
             g_free (msg);
             global_bad_ts = TRUE;
             insanity_test_printf (INSANITY_TEST (ptest),
                 "[%d] target %" GST_TIME_FORMAT ", diff: %" GST_TIME_FORMAT
-                " - BAD\n", index, GST_TIME_ARGS (global_target),
+                " - BAD\n", index, GST_TIME_ARGS (expected_ts),
                 GST_TIME_ARGS (diff));
             changed = TRUE;
             global_waiting[index] = WAIT_STATE_READY;
@@ -524,15 +657,18 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
         if (diff < 0)
           diff = -diff;
 
-        if (diff > SEEK_THRESHOLD) {
-          char *msg =
-              g_strdup_printf ("Got segment start %" GST_TIME_FORMAT
+        if (diff > SEEK_THRESHOLD || (rate * applied_rate) != global_seek_rate) {
+          char *msg = g_strdup_printf ("Got segment start %" GST_TIME_FORMAT
               ", expected around %" GST_TIME_FORMAT ", off by %" GST_TIME_FORMAT
-              ", method %d",
-              GST_TIME_ARGS (stime_start), GST_TIME_ARGS (global_target),
-              GST_TIME_ARGS (diff), global_state);
+              ", got rate %lf expected rate %lf, method %d",
+              GST_TIME_ARGS (stime_start),
+              GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff),
+              (rate * applied_rate),
+              global_seek_rate, global_state);
+
           insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
               "segment-seek-time-correct", FALSE, msg);
+          mark_current_as_failed (INSANITY_TEST (ptest), msg);
           g_free (msg);
           global_bad_segment_start = TRUE;
         }
@@ -616,6 +752,16 @@ seek_test_setup (InsanityTest * test)
       seek_targets[n] = g_rand_int_range (prg, 0, 100);
     }
   }
+  for (n = 0; n < G_N_ELEMENTS (trick_targets); n++) {
+    if (trick_targets[n].start < 0 && trick_targets[n].stop < 0) {
+      trick_targets[n].start = g_rand_int_range (prg, 0, 100);
+      trick_targets[n].stop =
+          g_rand_int_range (prg, trick_targets[n].start, 100);
+      do {
+        trick_targets[n].rate = g_rand_double_range (prg, -5, 5);
+      } while (trick_targets[n].rate == 0);
+    }
+  }
   g_rand_free (prg);
 
   gst_segment_init (&global_segment[0], GST_FORMAT_UNDEFINED);
@@ -674,6 +820,11 @@ seek_test_start (InsanityTest * test)
   g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
   g_value_unset (&uri);
 
+  insanity_test_get_boolean_argument (test, "test-trick-modes",
+      &global_test_tricks);
+
+  global_trick_failed = FALSE;
+  global_simple_seek_failed = FALSE;
   global_bad_ts = FALSE;
   global_bad_segment_start = FALSE;
   global_seek_failed = FALSE;
@@ -682,6 +833,7 @@ seek_test_start (InsanityTest * test)
   global_target = 0;
   global_state = SEEK_TEST_STATE_FIRST;
   global_seek_target_index = 0;
+  global_seek_stop = GST_CLOCK_TIME_NONE;
   global_last_ts[0] = global_last_ts[1] = GST_CLOCK_TIME_NONE;
   for (n = 0; n < 2; ++n) {
     global_probes[n] = 0;
@@ -689,6 +841,8 @@ seek_test_start (InsanityTest * test)
   }
   global_duration = GST_CLOCK_TIME_NONE;
   global_max_seek_time = 0;
+  global_seek_rate = 1.0;
+  global_testing_tricks = FALSE;
 
   return TRUE;
 }
@@ -828,6 +982,12 @@ seek_test_stop (InsanityTest * test)
     insanity_test_validate_checklist_item (test, "segment-clipping", TRUE,
         NULL);
   }
+  if (!global_simple_seek_failed) {
+    insanity_test_validate_checklist_item (test, "normal-seek", TRUE, NULL);
+  }
+  if (!global_trick_failed && global_test_tricks) {
+    insanity_test_validate_checklist_item (test, "trick-seek", TRUE, NULL);
+  }
 
   if (appsink) {
     GstElement *audiosink;
@@ -845,6 +1005,7 @@ seek_test_stop (InsanityTest * test)
     gst_object_unref (audiosink);
     gst_object_unref (videosink);
   }
+
 
   started = FALSE;
 
@@ -938,6 +1099,9 @@ main (int argc, char **argv)
       FALSE, &vdef);
   g_value_unset (&vdef);
 
+  insanity_test_add_boolean_argument (test, "test-trick-modes", "Whether"
+      " the test should test trick modes or not", NULL, TRUE, TRUE);
+
   g_value_init (&vdef, G_TYPE_UINT);
   g_value_set_uint (&vdef, 0);
   insanity_test_add_argument (test, "seed",
@@ -983,6 +1147,10 @@ main (int argc, char **argv)
       "Buffers were correctly clipped to the configured segment", NULL);
   insanity_test_add_checklist_item (test, "buffers-received",
       "Appsinks (if used) received some buffers", NULL);
+  insanity_test_add_checklist_item (test, "normal-seek",
+      "Normal seeks performed properly", NULL);
+  insanity_test_add_checklist_item (test, "trick-seek",
+      "Trick seeks performed properly", NULL);
 
   insanity_test_add_extra_info (test, "max-seek-error",
       "The maximum timestamp difference between a seek target and the buffer received after the seek (absolute value in nanoseconds)");
