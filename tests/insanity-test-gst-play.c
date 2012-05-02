@@ -38,7 +38,7 @@ static guint check_position_id = 0;
 static GstClockTime first_position = GST_CLOCK_TIME_NONE;
 static GstClockTime last_position = GST_CLOCK_TIME_NONE;
 static GstClockTime playback_duration = GST_CLOCK_TIME_NONE;
-static gboolean appsink = FALSE;
+static gboolean appsink = FALSE, progressive_download = FALSE;
 
 static void
 found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
@@ -80,10 +80,14 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
   GstElement *playbin;
   GstElement *audiosink;
   GstElement *videosink;
+  guint flags;
 
   /* Just try to get the argument, use default if not found */
   insanity_test_get_boolean_argument (INSANITY_TEST (ptest), "appsink",
       &appsink);
+
+  insanity_test_get_boolean_argument (INSANITY_TEST (ptest),
+      "progressive-download", &progressive_download);
 
   playbin = gst_element_factory_make ("playbin2", "playbin2");
   global_pipeline = playbin;
@@ -106,6 +110,12 @@ play_gst_test_create_pipeline (InsanityGstPipelineTest * ptest,
 
   g_object_set (playbin, "video-sink", videosink, NULL);
   g_object_set (playbin, "audio-sink", audiosink, NULL);
+
+  if (progressive_download) {
+    g_object_get (playbin, "flags", &flags, NULL);
+    flags |= 0x00000080;
+    g_object_set (playbin, "flags", flags, NULL);
+  }
 
   g_signal_connect (playbin, "source-setup", (GCallback) found_source, ptest);
 
@@ -220,6 +230,12 @@ main (int argc, char **argv)
   g_value_set_boolean (&vdef, FALSE);
   insanity_test_add_argument (test, "appsink",
       "Use appsink instead of fakesink", NULL, TRUE, &vdef);
+  g_value_unset (&vdef);
+
+  g_value_init (&vdef, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&vdef, FALSE);
+  insanity_test_add_argument (test, "progressive-download",
+      "Enable progressive download mode", NULL, TRUE, &vdef);
   g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "all-buffers-received",
