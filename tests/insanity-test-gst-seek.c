@@ -46,6 +46,9 @@
    before deciding the pipeline is wedged. Second precision. */
 #define IDLE_TIMEOUT (GST_SECOND*60)
 
+/* The maximum time to play when setting a seek_stop */
+#define MAX_PLAYING_TIME (GST_SECOND * 5)
+
 typedef enum
 {
   SEEK_TEST_STATE_FIRST,
@@ -136,6 +139,7 @@ static GStaticMutex global_mutex = G_STATIC_MUTEX_INIT;
 #define SEEK_TEST_LOCK() g_static_mutex_lock (&global_mutex)
 #define SEEK_TEST_UNLOCK() g_static_mutex_unlock (&global_mutex)
 
+#define WAIT_STATE_EOS 3
 #define WAIT_STATE_SEGMENT 2
 #define WAIT_STATE_BUFFER 1
 #define WAIT_STATE_READY 0
@@ -262,6 +266,33 @@ set_next_trick (InsanityGstPipelineTest * ptest)
     global_seek_stop = global_seek_offset +
         gst_util_uint64_scale (global_duration,
         trick_targets[global_trick_target_index].stop, 100);
+
+    if (ABS (GST_CLOCK_DIFF (global_seek_stop,
+                global_target)) > MAX_PLAYING_TIME) {
+      trick_targets[global_trick_target_index].stop =
+          trick_targets[global_trick_target_index].start +
+          (100 * MAX_PLAYING_TIME / global_duration);
+
+      global_seek_stop = global_target + MAX_PLAYING_TIME;
+
+    } else if (ABS (GST_CLOCK_DIFF (global_seek_stop,
+                global_target)) < 1 * GST_SECOND) {
+
+      if (global_duration > MAX_PLAYING_TIME) {
+        trick_targets[global_trick_target_index].stop =
+            trick_targets[global_trick_target_index].start +
+            (100 * MAX_PLAYING_TIME / global_duration);
+
+        global_seek_stop = global_target + MAX_PLAYING_TIME;
+      }
+    }
+
+    /* And clamp it */
+    if (global_seek_stop > global_duration) {
+      global_seek_stop = global_duration;
+      trick_targets[global_trick_target_index].stop = 100;
+    }
+
   } else {
     global_seek_stop = GST_CLOCK_TIME_NONE;
   }
@@ -276,7 +307,7 @@ set_next_trick (InsanityGstPipelineTest * ptest)
       trick_targets[global_trick_target_index].start,
       GST_TIME_ARGS (global_target), GST_TIME_ARGS (global_seek_stop),
       global_seek_rate, global_state, global_trick_target_index + 1,
-      (unsigned) (sizeof (trick_targets) / sizeof (trick_targets[0])));
+      G_N_ELEMENTS (trick_targets));
 
   return TRUE;
 }
@@ -448,6 +479,8 @@ static const char *
 get_waiting_string (int w)
 {
   switch (w) {
+    case WAIT_STATE_EOS:
+      return "waiting for EOS";
     case WAIT_STATE_SEGMENT:
       return "waiting for segment";
     case WAIT_STATE_BUFFER:
@@ -496,7 +529,8 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
         GST_TIME_FORMAT "\n", index,
         GST_TIME_ARGS (ts), gst_buffer_get_size (buffer),
         get_waiting_string (global_waiting[index]),
-        GST_TIME_ARGS (global_target));
+        GST_TIME_ARGS (global_seek_rate >
+            0 ? global_seek_stop : global_target));
 
     /* drop if we need a segment first, or if we're already done */
     for (n = 0; n < global_nsinks; ++n) {
@@ -550,18 +584,19 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
         return TRUE;
       }
 
-      if (CHECK_CORRECT_SEGMENT (global_state)) {
+      if (CHECK_CORRECT_SEGMENT (global_state) &&
+          global_waiting[index] != WAIT_STATE_EOS) {
         GstClockTime expected_ts;
 
         if (global_seek_rate < 0) {
 
-          if (GST_CLOCK_TIME_IS_VALID (global_seek_stop))
+          if (GST_CLOCK_TIME_IS_VALID (global_seek_stop)) {
             expected_ts = global_seek_stop;
-          else
-            expected_ts = global_duration;
 
-          expected_ts = gst_segment_to_stream_time (&global_segment[index],
-              global_segment[index].format, expected_ts);
+            expected_ts = gst_segment_to_stream_time (&global_segment[index],
+                global_segment[index].format, expected_ts);
+          } else
+            expected_ts = global_duration;
         } else {
           expected_ts = global_target;
         }
@@ -579,7 +614,13 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
                 " - GOOD\n", index, GST_TIME_ARGS (expected_ts),
                 GST_TIME_ARGS (diff));
             changed = TRUE;
-            global_waiting[index] = WAIT_STATE_READY;
+
+            if (GST_CLOCK_TIME_IS_VALID (global_seek_stop) == FALSE)
+              global_waiting[index] = WAIT_STATE_READY;
+            else {
+              global_waiting[index] = WAIT_STATE_EOS;
+              global_expecting_eos = TRUE;
+            }
           }
         } else {
           if (global_waiting[index] == WAIT_STATE_BUFFER) {
