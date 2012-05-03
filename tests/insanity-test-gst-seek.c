@@ -646,13 +646,16 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
         if (diff < 0)
           diff = -diff;
 
-        if (diff > SEEK_THRESHOLD || (rate * applied_rate) != global_seek_rate) {
-          char *msg = g_strdup_printf ("Got segment start %" GST_TIME_FORMAT
+        if (diff > SEEK_THRESHOLD
+            || (global_segment[index].rate *
+                global_segment[index].applied_rate) != global_seek_rate) {
+          char *msg =
+              g_strdup_printf ("Got segment start %" GST_TIME_FORMAT
               ", expected around %" GST_TIME_FORMAT ", off by %" GST_TIME_FORMAT
               ", got rate %lf expected rate %lf, method %d",
               GST_TIME_ARGS (stime_start),
               GST_TIME_ARGS (global_target), GST_TIME_ARGS (diff),
-              (rate * applied_rate),
+              (global_segment[index].rate * global_segment[index].applied_rate),
               global_seek_rate, global_state);
 
           insanity_test_validate_checklist_item (INSANITY_TEST (ptest),
