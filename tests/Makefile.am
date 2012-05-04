@@ -47,6 +47,10 @@ insanity_test_gst_discoverer_SOURCES=insanity-test-gst-discoverer.c
 insanity_test_gst_discoverer_CFLAGS=$(GST_PBUTILS_CFLAGS) $(common_cflags)
 insanity_test_gst_discoverer_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_PBUTILS_LIBS) $(common_ldadd)
 
+insanity_test_gst_subtitles_SOURCES=insanity-test-gst-subtitles.c
+insanity_test_gst_subtitles_CFLAGS=$(GST_VIDEO_CFLAGS) $(GST_PBUTILS_CFLAGS) $(common_cflags)
+insanity_test_gst_subtitles_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libtestsxmlhelper.la $(GST_PBUTILS_LIBS) $(GST_VIDEO_LIBS) $(common_ldadd)
+
 if HAVE_GST_RTSP_SERVER
 insanity_test_gst_rtsp_SOURCES=insanity-test-gst-rtsp.c
 insanity_test_gst_rtsp_CFLAGS=$(GST_RTSP_SERVER_CFLAGS) $(common_cflags)
@@ -94,6 +98,7 @@ test_PROGRAMS=\
     insanity-test-gst-stream-switch \
     insanity-test-gst-discoverer \
     insanity-test-gst-demuxer \
+    insanity-test-gst-subtitles \
     $(soup_tests) \
     $(rtsp_test)
 
