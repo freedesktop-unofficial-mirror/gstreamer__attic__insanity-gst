@@ -580,7 +580,7 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
     /* First check clipping */
     if (glob_testing_parser == FALSE && GST_CLOCK_TIME_IS_VALID (ts) &&
         glob_waiting_segment == FALSE) {
-      gint64 ts_end, cstart, cstop;
+      GstClockTime ts_end, cstart, cstop;
 
       /* Check if buffer is completely outside the segment */
       ts_end = ts;
@@ -691,24 +691,16 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
     }
 
     switch (GST_EVENT_TYPE (event)) {
-      case GST_EVENT_NEWSEGMENT:
+      case GST_EVENT_SEGMENT:
       {
-        GstFormat fmt;
-        gint64 start, stop, position;
-        gdouble rate, applied_rate;
-        gboolean update;
-
-        gst_event_parse_new_segment_full (event, &update, &rate,
-            &applied_rate, &fmt, &start, &stop, &position);
-        gst_segment_set_newsegment_full (&glob_last_segment, update, rate,
-            applied_rate, fmt, start, stop, position);
+        gst_event_copy_segment (event, &glob_last_segment);
 
         if (glob_waiting_segment == FALSE)
           /* Cache the segment as it will be our reference but don't look
            * further */
           goto done;
 
-        glob_last_segment_start_time = start;
+        glob_last_segment_start_time = glob_last_segment.start;
         if (glob_waiting_first_segment == TRUE) {
           insanity_test_validate_checklist_item (test, "first-segment", TRUE,
               NULL);
@@ -721,17 +713,22 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
           GstClockTimeDiff wdiff, rdiff;
 
           rdiff =
-              ABS (GST_CLOCK_DIFF (stop, start)) * ABS (rate * applied_rate);
-          wdiff = ABS (GST_CLOCK_DIFF (glob_seek_stop_ts,
+              ABS (GST_CLOCK_DIFF (glob_last_segment.stop,
+                  glob_last_segment.start)) * ABS (glob_last_segment.rate *
+              glob_last_segment.applied_rate);
+          wdiff =
+              ABS (GST_CLOCK_DIFF (glob_seek_stop_ts,
                   glob_seek_segment_seektime));
 
-          diff = GST_CLOCK_DIFF (position, glob_seek_segment_seektime);
+          diff =
+              GST_CLOCK_DIFF (glob_last_segment.position,
+              glob_seek_segment_seektime);
           if (diff < 0)
             diff = -diff;
 
           /* Now compare with the expected segment */
-          if ((rate * applied_rate) == glob_seek_rate && diff <= SEEK_THRESHOLD
-              && valid_stop) {
+          if ((glob_last_segment.rate * glob_last_segment.applied_rate) ==
+              glob_seek_rate && diff <= SEEK_THRESHOLD && valid_stop) {
             glob_seek_got_segment = TRUE;
           } else {
             GstClockTime stopdiff = ABS (GST_CLOCK_DIFF (rdiff, wdiff));
@@ -739,7 +736,9 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
             gchar *validate_msg =
                 g_strdup_printf ("Wrong segment received, Rate %f expected "
                 "%f, start time diff %" GST_TIME_FORMAT " stop diff %"
-                GST_TIME_FORMAT, (rate * applied_rate), glob_seek_rate,
+                GST_TIME_FORMAT,
+                (glob_last_segment.rate * glob_last_segment.applied_rate),
+                glob_seek_rate,
                 GST_TIME_ARGS (diff), GST_TIME_ARGS (stopdiff));
 
             validate_current_test (test, FALSE, validate_msg);
@@ -779,7 +778,7 @@ pad_added_cb (GstElement * element, GstPad * new_pad, InsanityTest * test)
   DECODER_TEST_LOCK ();
 
   /* First check if the pad caps are compatible with the decoder */
-  caps = gst_pad_get_caps (new_pad);
+  caps = gst_pad_get_current_caps (new_pad);
   decodesinkpad = gst_element_get_compatible_pad (glob_decoder, new_pad, caps);
 
   if (decodesinkpad == NULL)
@@ -969,7 +968,6 @@ bus_message_cb (InsanityGstPipelineTest * ptest, GstMessage * msg)
 static GstPipeline *
 create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
 {
-  gboolean uri_set;
   GstElementFactory *decofactory = NULL;
 
   GError *err = NULL;
@@ -1007,8 +1005,9 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
     uri = tmpuri;
   }
 
-  uri_set = gst_uri_handler_set_uri (GST_URI_HANDLER (glob_src), uri);
-  if (uri_set == FALSE) {
+  gst_uri_handler_set_uri (GST_URI_HANDLER (glob_src), uri, &err);
+  if (err != NULL) {
+    ERROR (test, "Error setting uri %s", err->message);
     goto failed;
   }
 
