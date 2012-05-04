@@ -141,7 +141,8 @@ static gboolean glob_unlinked_pad = FALSE;
 static guint glob_unlinked_buf_timeout = 0;
 static gboolean glob_buf_on_linked_pad = FALSE;
 
-static void block_pad_cb (GstPad * pad, gboolean blocked, InsanityTest * test);
+static GstPadProbeReturn block_pad_cb (GstPad * pad, gboolean blocked,
+    InsanityTest * test);
 static gboolean next_test (InsanityTest * test);
 
 static void
@@ -365,8 +366,8 @@ test_unlink_pad (InsanityTest * test)
     return;
   }
 
-  gst_pad_set_blocked_async (glob_prob_ctxs[0].pad, TRUE,
-      (GstPadBlockCallback) block_pad_cb, test);
+  gst_pad_add_probe (glob_prob_ctxs[0].pad, GST_PAD_PROBE_TYPE_BLOCK,
+      (GstPadProbeCallback) block_pad_cb, test, NULL);
   DEMUX_TEST_UNLOCK ();
 }
 
@@ -810,7 +811,7 @@ fakesink_handoff_cb (GstElement * fsink, GstBuffer * buf, GstPad * pad,
   g_signal_handlers_disconnect_by_func (fsink, fakesink_handoff_cb, test);
 }
 
-static void
+static GstPadProbeReturn
 block_pad_cb (GstPad * pad, gboolean blocked, InsanityTest * test)
 {
   ProbeContext *probectx;
@@ -840,49 +841,48 @@ block_pad_cb (GstPad * pad, gboolean blocked, InsanityTest * test)
     gst_element_set_state (probectx->fakesink, GST_STATE_NULL);
     if (gst_element_get_state (probectx->fakesink, &state, NULL,
             GST_CLOCK_TIME_NONE) == GST_STATE_CHANGE_SUCCESS) {
-      gst_object_unref (probectx->fakesink);
-      gst_pad_set_blocked_async (probectx->pad, FALSE,
-          (GstPadBlockCallback) block_pad_cb, test);
 
+      gst_object_unref (probectx->fakesink);
+      probectx->unlinked = TRUE;
+      glob_unlinked_pad = TRUE;
+
+      if (glob_nb_pads > 1) {
+        guint i;
+
+        for (i = 0; i < glob_nb_pads; i++) {
+          if (glob_prob_ctxs[i].unlinked == FALSE) {
+            g_object_set (glob_prob_ctxs[i].fakesink, "signal-handoffs", TRUE,
+                NULL);
+            g_signal_connect (glob_prob_ctxs[i].fakesink, "handoff",
+                G_CALLBACK (fakesink_handoff_cb), test);
+            break;
+          }
+        }
+
+        /*Seek if possible to avoid hitting EOS */
+        if (glob_seekable) {
+          GstEvent *event;
+
+          event = gst_event_new_seek (1, GST_FORMAT_TIME,
+              GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_NONE,
+              GST_CLOCK_TIME_NONE);
+          set_waiting_segment ();
+          glob_seqnum_found = FALSE;
+          glob_seqnum = gst_util_seqnum_next ();
+          gst_event_set_seqnum (event, glob_seqnum);
+          gst_element_send_event (glob_pipeline, event);
+
+          /* ret is not really important here */
+        }
+      }
+      /* Else waiting error on the bus */
     } else {
       validate_current_test (test, FALSE, "Could not set sink to STATE_NULL");
       next_test (test);
     }
-  } else {
-    probectx->unlinked = TRUE;
-    glob_unlinked_pad = TRUE;
-
-    if (glob_nb_pads > 1) {
-      guint i;
-
-      for (i = 0; i < glob_nb_pads; i++) {
-        if (glob_prob_ctxs[i].unlinked == FALSE) {
-          g_object_set (glob_prob_ctxs[i].fakesink, "signal-handoffs", TRUE,
-              NULL);
-          g_signal_connect (glob_prob_ctxs[i].fakesink, "handoff",
-              G_CALLBACK (fakesink_handoff_cb), test);
-          break;
-        }
-      }
-
-      /*Seek if possible to avoid hitting EOS */
-      if (glob_seekable) {
-        GstEvent *event;
-
-        event = gst_event_new_seek (1, GST_FORMAT_TIME,
-            GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_NONE,
-            GST_CLOCK_TIME_NONE);
-        set_waiting_segment ();
-        glob_seqnum_found = FALSE;
-        glob_seqnum = gst_util_seqnum_next ();
-        gst_event_set_seqnum (event, glob_seqnum);
-        gst_element_send_event (glob_pipeline, event);
-
-        /* ret is not really important here */
-      }
-    }
-    /* Else waiting error on the bus */
   }
+
+  return GST_PAD_PROBE_REMOVE;
 }
 
 static inline void
@@ -1053,23 +1053,15 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
         }
         break;
       }
-      case GST_EVENT_NEWSEGMENT:
+      case GST_EVENT_SEGMENT:
       {
-        GstFormat fmt;
-        gint64 start, stop, position;
-        gdouble rate, applied_rate;
-        gboolean update;
-
         if (glob_seqnum == 0 && glob_seqnum_found == FALSE) {
           /* This should only happen for the first segment */
           glob_seqnum = gst_event_get_seqnum (event);
           glob_seqnum_found = TRUE;
         }
 
-        gst_event_parse_new_segment_full (event, &update, &rate,
-            &applied_rate, &fmt, &start, &stop, &position);
-        gst_segment_set_newsegment_full (&probectx->last_segment, update, rate,
-            applied_rate, fmt, start, stop, position);
+        gst_event_copy_segment (event, &probectx->last_segment);
 
         if (probectx->waiting_segment == FALSE)
           /* Cache the segment as it will be our reference but don't look
@@ -1086,22 +1078,31 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
           GstClockTimeDiff wdiff, rdiff;
 
           rdiff =
-              ABS (GST_CLOCK_DIFF (stop, start)) * ABS (rate * applied_rate);
+              ABS (GST_CLOCK_DIFF (probectx->last_segment.stop,
+                  probectx->last_segment.start)) *
+              ABS (probectx->last_segment.rate *
+              probectx->last_segment.applied_rate);
           wdiff =
               ABS (GST_CLOCK_DIFF (glob_seek_stop_ts,
                   glob_seek_segment_seektime));
 
-          diff = GST_CLOCK_DIFF (position, glob_seek_segment_seektime);
+          diff =
+              GST_CLOCK_DIFF (probectx->last_segment.position,
+              glob_seek_segment_seektime);
 
           /* Now compare with the expected segment */
-          if (((rate * applied_rate) == glob_seek_rate
-                  && position == glob_seek_segment_seektime) == FALSE) {
+          if (((probectx->last_segment.rate *
+                      probectx->last_segment.applied_rate) == glob_seek_rate
+                  && probectx->last_segment.position ==
+                  glob_seek_segment_seektime) == FALSE) {
             GstClockTime stopdiff = ABS (GST_CLOCK_DIFF (rdiff, wdiff));
 
             gchar *validate_msg =
                 g_strdup_printf ("Wrong segment received, Rate %lf expected "
                 "%f, start time diff %" GST_TIME_FORMAT " stop diff %"
-                GST_TIME_FORMAT, (rate * applied_rate), glob_seek_rate,
+                GST_TIME_FORMAT,
+                (probectx->last_segment.rate *
+                    probectx->last_segment.applied_rate), glob_seek_rate,
                 GST_TIME_ARGS (diff), GST_TIME_ARGS (stopdiff));
 
             validate_current_test (test, FALSE, validate_msg);
@@ -1301,6 +1302,8 @@ demux_test_create_pipeline (InsanityGstPipelineTest * ptest,
   GstElementFactory *decofactory = NULL;
   gchar *demuxname = NULL, *uri = NULL, *location = NULL;
 
+  GError *error = NULL;
+
   InsanityTest *test = INSANITY_TEST (ptest);
 
   DEMUX_TEST_LOCK ();
@@ -1333,8 +1336,11 @@ demux_test_create_pipeline (InsanityGstPipelineTest * ptest,
     uri = tmpuri;
   }
 
-  if (gst_uri_handler_set_uri (GST_URI_HANDLER (glob_src), uri) == FALSE)
+  gst_uri_handler_set_uri (GST_URI_HANDLER (glob_src), uri, &error);
+  if (error != NULL) {
+    ERROR (test, "Error setting uri %s", error->message);
     goto failed;
+  }
 
   /* ... create the demuxer */
   if (!insanity_test_get_string_argument (test, "demuxer", &demuxname) ||
@@ -1382,6 +1388,7 @@ demux_test_create_pipeline (InsanityGstPipelineTest * ptest,
 done:
   DEMUX_TEST_UNLOCK ();
 
+  g_clear_error (&error);
   g_free (demuxname);
   g_free (uri);
   g_free (location);
