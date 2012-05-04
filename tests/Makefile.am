@@ -39,6 +39,10 @@ insanity_test_gst_demuxer_SOURCES=insanity-test-gst-demuxer.c
 insanity_test_gst_demuxer_CFLAGS=$(GST_PBUTILS_CFLAGS) $(GST_INTERFACES_CFLAGS) $(common_cflags)
 insanity_test_gst_demuxer_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libtestsxmlhelper.la $(GST_INTERFACES_LIBS) $(GST_PBUTILS_LIBS) $(common_ldadd)
 
+insanity_test_gst_decoder_SOURCES=insanity-test-gst-decoder.c
+insanity_test_gst_decoder_CFLAGS=$(GST_INTERFACES_CFLAGS) $(common_cflags)
+insanity_test_gst_decoder_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libtestsxmlhelper.la $(GST_INTERFACES_LIBS) $(common_ldadd)
+
 insanity_test_gst_stream_switch_SOURCES=insanity-test-gst-stream-switch.c
 insanity_test_gst_stream_switch_CFLAGS=$(GST_VIDEO_CFLAGS) $(GST_BASE_CFLAGS) $(common_cflags)
 insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_VIDEO_LIBS) $(GST_BASE_LIBS) $(common_ldadd)
@@ -98,6 +102,7 @@ test_PROGRAMS=\
     insanity-test-gst-stream-switch \
     insanity-test-gst-discoverer \
     insanity-test-gst-demuxer \
+    insanity-test-gst-decoder \
     insanity-test-gst-subtitles \
     $(soup_tests) \
     $(rtsp_test)
