@@ -194,7 +194,7 @@ media_descriptor_writer_add_stream (MediaDescriptorWriter * writer,
   g_return_val_if_fail (IS_MEDIA_DESCRIPTOR_WRITER (writer), FALSE);
   g_return_val_if_fail (writer->priv->filenode, FALSE);
 
-  caps = gst_pad_get_caps (pad);
+  caps = gst_pad_get_current_caps (pad);
   for (tmp = writer->priv->filenode->streams; tmp; tmp = tmp->next) {
     StreamNode *streamnode = (StreamNode *) tmp->data;
 

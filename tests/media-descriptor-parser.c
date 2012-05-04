@@ -116,7 +116,7 @@ deserialize_tagnode (const gchar ** names, const gchar ** values)
 
   for (i = 0; names[i] != NULL; i++) {
     if (g_strcmp0 (names[i], "content") == 0)
-      tagnode->taglist = gst_structure_from_string (values[i], NULL);
+      tagnode->taglist = gst_tag_list_new_from_string (values[i]);
   }
 
   return tagnode;
@@ -366,7 +366,7 @@ media_descriptor_parser_add_stream (MediaDescriptorParser * parser,
   g_return_val_if_fail (IS_MEDIA_DESCRIPTOR_PARSER (parser), FALSE);
   g_return_val_if_fail (parser->priv->filenode, FALSE);
 
-  caps = gst_pad_get_caps (pad);
+  caps = gst_pad_query_caps (pad, NULL);
   for (tmp = parser->priv->filenode->streams; tmp; tmp = tmp->next) {
     StreamNode *streamnode = (StreamNode *) tmp->data;
 
