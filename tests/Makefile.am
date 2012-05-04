@@ -9,6 +9,13 @@ AM_CPPFLAGS=-I $(top_srcdir)/lib
 
 testdir=$(libexecdir)/insanity-gst/tests
 
+xml_noisnt_libraries=libtestsxmlhelper.la
+xml_noinst_headers=media-descriptor-parser.h media-descriptor-writer.h  media-descriptor-common.h
+libtestsxmlhelper_la_LIBADD=$(common_ldadd)
+libtestsxmlhelper_la_CFLAGS=$(common_cflags)
+libtestsxmlhelper_la_SOURCES=media-descriptor-parser.c media-descriptor-writer.c media-descriptor-common.c
+
+
 common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(WARNING_CFLAGS)
 common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
 
@@ -68,8 +75,8 @@ libinsanityhelper_la_SOURCES = insanity-file-appsrc.c insanity-fake-appsink.c
 helper_noinst_libraries=libinsanityhelper.la
 helper_noinst_headers=insanity-file-appsrc.h insanity-fake-appsink.h
 
-noinst_LTLIBRARIES=$(http_noinst_libraries) $(helper_noinst_libraries)
-noinst_HEADERS=$(http_noinst_headers) $(helper_noinst_headers)
+noinst_LTLIBRARIES=$(http_noinst_libraries) $(helper_noinst_libraries) $(xml_noisnt_libraries)
+noinst_HEADERS=$(http_noinst_headers) $(helper_noinst_headers)  $(xml_noinst_headers)
 
 BUILT_SOURCES = $(built_headers) $(built_sources)
 EXTRA_DIST = run-insanity-test-gst-generic-pipeline
