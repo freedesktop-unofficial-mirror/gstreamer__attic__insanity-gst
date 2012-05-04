@@ -9,6 +9,13 @@ AM_CPPFLAGS=-I $(top_srcdir)/lib
 
 testdir=$(libexecdir)/insanity-gst/tests
 
+xml_noisnt_libraries=libtestsxmlhelper.la
+xml_noinst_headers=media-descriptor-parser.h media-descriptor-writer.h  media-descriptor-common.h
+libtestsxmlhelper_la_LIBADD=$(common_ldadd)
+libtestsxmlhelper_la_CFLAGS=$(common_cflags)
+libtestsxmlhelper_la_SOURCES=media-descriptor-parser.c media-descriptor-writer.c media-descriptor-common.c
+
+
 common_cflags=$(INSANITY_CFLAGS) $(GST_CFLAGS) $(GLIB_CFLAGS) $(GOBJECT_CFLAGS) $(GTHREAD_CFLAGS) $(WARNING_CFLAGS)
 common_ldadd=$(INSANITY_LIBS) $(GST_LIBS) $(GLIB_LIBS) $(GOBJECT_LIBS) $(GTHREAD_LIBS)
 
@@ -28,6 +35,14 @@ insanity_test_gst_dvd_SOURCES=insanity-test-gst-dvd.c
 insanity_test_gst_dvd_CFLAGS=$(GST_VIDEO_CFLAGS) $(common_cflags)
 insanity_test_gst_dvd_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_VIDEO_LIBS) $(common_ldadd)
 
+insanity_test_gst_demuxer_SOURCES=insanity-test-gst-demuxer.c
+insanity_test_gst_demuxer_CFLAGS=$(GST_PBUTILS_CFLAGS) $(GST_INTERFACES_CFLAGS) $(common_cflags)
+insanity_test_gst_demuxer_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libtestsxmlhelper.la $(GST_INTERFACES_LIBS) $(GST_PBUTILS_LIBS) $(common_ldadd)
+
+insanity_test_gst_decoder_SOURCES=insanity-test-gst-decoder.c
+insanity_test_gst_decoder_CFLAGS=$(GST_INTERFACES_CFLAGS) $(common_cflags)
+insanity_test_gst_decoder_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libtestsxmlhelper.la $(GST_INTERFACES_LIBS) $(common_ldadd)
+
 insanity_test_gst_stream_switch_SOURCES=insanity-test-gst-stream-switch.c
 insanity_test_gst_stream_switch_CFLAGS=$(GST_AUDIO_CFLAGS) $(GST_VIDEO_CFLAGS) $(GST_BASE_CFLAGS) $(common_cflags)
 insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_AUDIO_LIBS) $(GST_VIDEO_LIBS) $(GST_BASE_LIBS) $(common_ldadd)
@@ -35,6 +50,10 @@ insanity_test_gst_stream_switch_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_T
 insanity_test_gst_discoverer_SOURCES=insanity-test-gst-discoverer.c
 insanity_test_gst_discoverer_CFLAGS=$(GST_PBUTILS_CFLAGS) $(common_cflags)
 insanity_test_gst_discoverer_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la $(GST_PBUTILS_LIBS) $(common_ldadd)
+
+insanity_test_gst_subtitles_SOURCES=insanity-test-gst-subtitles.c
+insanity_test_gst_subtitles_CFLAGS=$(GST_VIDEO_CFLAGS) $(GST_PBUTILS_CFLAGS) $(common_cflags)
+insanity_test_gst_subtitles_LDADD=../lib/insanity-gst/libinsanity-gst-@GST_TARGET@.la libtestsxmlhelper.la $(GST_PBUTILS_LIBS) $(GST_VIDEO_LIBS) $(common_ldadd)
 
 if HAVE_GST_RTSP_SERVER
 insanity_test_gst_rtsp_SOURCES=insanity-test-gst-rtsp.c
@@ -68,8 +87,8 @@ libinsanityhelper_la_SOURCES = insanity-file-appsrc.c insanity-fake-appsink.c
 helper_noinst_libraries=libinsanityhelper.la
 helper_noinst_headers=insanity-file-appsrc.h insanity-fake-appsink.h
 
-noinst_LTLIBRARIES=$(http_noinst_libraries) $(helper_noinst_libraries)
-noinst_HEADERS=$(http_noinst_headers) $(helper_noinst_headers)
+noinst_LTLIBRARIES=$(http_noinst_libraries) $(helper_noinst_libraries) $(xml_noisnt_libraries)
+noinst_HEADERS=$(http_noinst_headers) $(helper_noinst_headers)  $(xml_noinst_headers)
 
 BUILT_SOURCES = $(built_headers) $(built_sources)
 EXTRA_DIST = run-insanity-test-gst-generic-pipeline
@@ -82,6 +101,9 @@ test_PROGRAMS=\
     insanity-test-gst-dvd \
     insanity-test-gst-stream-switch \
     insanity-test-gst-discoverer \
+    insanity-test-gst-demuxer \
+    insanity-test-gst-decoder \
+    insanity-test-gst-subtitles \
     $(soup_tests) \
     $(rtsp_test)
 
