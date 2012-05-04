@@ -97,6 +97,7 @@ static GstElement *glob_videotestsrc = NULL;
 /* Gloabl fields */
 static MediaDescriptorParser *glob_parser = NULL;
 static GList *glob_subtitled_frames = NULL;
+static GstVideoInfo glob_video_info;
 
 /* Media descriptor writer context */
 static MediaDescriptorWriter *glob_writer = NULL;
@@ -422,22 +423,13 @@ renderer_probe_cb (InsanityGstTest * ptest, GstPad * pad,
     GstEvent *event = GST_EVENT (object);
 
     switch (GST_EVENT_TYPE (event)) {
-      case GST_EVENT_NEWSEGMENT:
+      case GST_EVENT_SEGMENT:
       {
-        GstFormat fmt;
-        gint64 start, stop, position;
-        gdouble rate, applied_rate;
-        gboolean update;
-
         /* We do not care about event during subtitle generation */
         if (glob_in_progress == TEST_SUBTTILE_DESCRIPTOR_GENERATION)
           goto done;
 
-        gst_event_parse_new_segment_full (event, &update, &rate,
-            &applied_rate, &fmt, &start, &stop, &position);
-        gst_segment_set_newsegment_full
-            (&glob_renderer_sink_probe->last_segment, update, rate,
-            applied_rate, fmt, start, stop, position);
+        gst_event_copy_segment (event, &glob_renderer_sink_probe->last_segment);
 
         if (glob_renderer_sink_probe->waiting_segment == FALSE)
           /* Cache the segment as it will be our reference but don't look
@@ -465,12 +457,15 @@ done:
 static gboolean
 frame_contains_subtitles (GstBuffer * buff)
 {
+  GstVideoFrame frame;
   guint x, y, first_sub_pix_x = 0, first_sub_pix_y = 0, last_sub_y = 0;
+  guint8 *data;
 
-  guint8 *data = GST_BUFFER_DATA (buff);
+  gst_video_frame_map (&frame, &glob_video_info, buff, GST_MAP_READ);
+  data = frame.data[0];
 
-  for (y = 0; y < 1080; y++) {
-    for (x = 0; x < 1920 * 3; x += 3) {
+  for (y = 0; y < GST_VIDEO_INFO_HEIGHT (&glob_video_info); y++) {
+    for (x = 0; x < GST_VIDEO_INFO_WIDTH (&glob_video_info) * 3; x += 3) {
       if ((data[x + y * 1920 * 3] != 0x00) ||
           (data[x + y * 1920 * 3 + 1] != 0x00) ||
           (data[x + y * 1920 * 3 + 2] != 0x00)) {
@@ -601,18 +596,10 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
     GstEvent *event = GST_EVENT (object);
 
     switch (GST_EVENT_TYPE (event)) {
-      case GST_EVENT_NEWSEGMENT:
+      case GST_EVENT_SEGMENT:
       {
-        GstFormat fmt;
-        gint64 start, stop, position;
-        gdouble rate, applied_rate;
-        gboolean update;
-
-        gst_event_parse_new_segment_full (event, &update, &rate,
-            &applied_rate, &fmt, &start, &stop, &position);
-        gst_segment_set_newsegment_full
-            (&glob_suboverlay_src_probe->last_segment, update, rate,
-            applied_rate, fmt, start, stop, position);
+        gst_event_copy_segment (event,
+            &glob_suboverlay_src_probe->last_segment);
 
         if (glob_suboverlay_src_probe->waiting_first_segment == TRUE) {
           insanity_test_validate_checklist_item (test, "first-segment", TRUE,
@@ -646,7 +633,7 @@ done:
 static gint
 find_renderer_subtitle_sinkpad (GstPad * pad)
 {
-  GstCaps *caps = gst_pad_get_caps (pad);
+  GstCaps *caps = gst_pad_get_current_caps (pad);
   GstStructure *stru = gst_caps_get_structure (caps, 0);
 
   gst_object_unref (pad);
@@ -664,11 +651,12 @@ static void
 suboverlay_child_added_cb (GstElement * suboverlay, GstElement * child,
     InsanityTest * test)
 {
-  GstIterator *it;
+  GstIterator *it = NULL;
   GstPad *render_sub_sink, *tmppad;
   GstElementFactory *fact;
   const gchar *klass, *name;
   gulong probe_id;
+  GValue value = { 0, };
 
   gboolean is_renderer = FALSE;
 
@@ -690,15 +678,18 @@ suboverlay_child_added_cb (GstElement * suboverlay, GstElement * child,
     is_renderer = TRUE;
 
   if (is_renderer == FALSE)
-    return;
+    goto done;
 
   LOG (test, "Renderer found: %s", name);
 
   /* Now adding the probe to the renderer "subtitle" sink pad */
   it = gst_element_iterate_sink_pads (child);
-  render_sub_sink = gst_iterator_find_custom (it,
-      (GCompareFunc) find_renderer_subtitle_sinkpad, NULL);
-  gst_iterator_free (it);
+  if (gst_iterator_find_custom (it,
+          (GCompareFunc) find_renderer_subtitle_sinkpad, &value, NULL)) {
+    render_sub_sink = g_value_get_object (&value);
+  } else {
+    goto done;
+  }
 
   if (insanity_gst_test_add_data_probe (INSANITY_GST_TEST (test),
           GST_BIN (glob_pipeline), GST_OBJECT_NAME (child),
@@ -718,8 +709,12 @@ suboverlay_child_added_cb (GstElement * suboverlay, GstElement * child,
         "Failed to attach probe to fakesink");
     insanity_test_done (test);
 
-    return;
+    goto done;
   }
+
+done:
+  if (it)
+    gst_iterator_free (it);
 
 }
 
@@ -738,7 +733,7 @@ pad_added_cb (GstElement * element, GstPad * new_pad, InsanityTest * test)
   SUBTITLES_TEST_LOCK ();
 
   /* First check if the pad caps are compatible with the suboverlay */
-  caps = gst_pad_get_caps (new_pad);
+  caps = gst_pad_get_current_caps (new_pad);
   suboverlaysinkpad = gst_element_get_compatible_pad (glob_suboverlay, new_pad,
       caps);
 
@@ -881,8 +876,10 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
   if (capsfilter == NULL)
     goto creation_failed;
 
-  caps = gst_video_format_new_caps (GST_VIDEO_FORMAT_RGB, 1920, 1080, 25, 1,
-      1, 1);
+  gst_video_info_init (&glob_video_info);
+  gst_video_info_set_format (&glob_video_info, GST_VIDEO_FORMAT_RGB, 1920,
+      1080);
+  caps = gst_video_info_to_caps (&glob_video_info);
 
   g_object_set (capsfilter, "caps", caps, NULL);
 
@@ -892,15 +889,13 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
 
   /* We want the last frame that we will "parse" to check if it contains
    * subtitles to be in RGB to make simpler for us */
-  caps = gst_caps_from_string ("video/x-raw-rgb, bpp=24, height=(gint)1080,"
-      "width=(gint)1920;");
   g_object_set (capsfilter1, "caps", caps, NULL);
 
-  colorspace = gst_element_factory_make ("ffmpegcolorspace", NULL);
+  colorspace = gst_element_factory_make ("videoconvert", NULL);
   if (colorspace == NULL)
     goto creation_failed;
 
-  colorspace1 = gst_element_factory_make ("ffmpegcolorspace", NULL);
+  colorspace1 = gst_element_factory_make ("videoconvert", NULL);
   if (colorspace1 == NULL)
     goto creation_failed;
 
