@@ -1068,8 +1068,8 @@ main (int argc, char **argv)
 
   g_type_init ();
 
-  ptest = insanity_gst_pipeline_test_new ("stream-switch-test", "Tests stream "
-      "switching inside playbin2", NULL);
+  ptest = insanity_gst_pipeline_test_new ("subtitles-test",
+      "Tests subtitles behaviour in various conditions", NULL);
   test = INSANITY_TEST (ptest);
   insanity_gst_pipeline_test_set_create_pipeline_in_start (ptest, TRUE);
 

@@ -1518,8 +1518,9 @@ main (int argc, char **argv)
 
   g_type_init ();
 
-  ptest = insanity_gst_pipeline_test_new ("stream-switch-test", "Tests stream "
-      "switching inside playbin2", NULL);
+  ptest = insanity_gst_pipeline_test_new ("demuxer-test", "Tests demuxer"
+      " checks that it behaves sainly, and checks the demuxer behaviour"
+      " against previously stored results", NULL);
   test = INSANITY_TEST (ptest);
   insanity_gst_pipeline_test_set_create_pipeline_in_start (ptest, TRUE);
 
@@ -1539,8 +1540,8 @@ main (int argc, char **argv)
 
   /* Checklist */
   insanity_test_add_checklist_item (test, "testing-demuxer",
-      "Whether the element we are testing (referenced with \"decoder-name\""
-      "is indeed a demuxer", NULL);
+      "Whether the element we are testing (referenced with the demuxer "
+      "argument) is indeed a demuxer and thus can be tested here", NULL);
   insanity_test_add_checklist_item (test, "stream-detection", "The demuxer "
       "detects the various stream and sets the caps properly", NULL);
   insanity_test_add_checklist_item (test, "frames-detection", "The demuxer "
