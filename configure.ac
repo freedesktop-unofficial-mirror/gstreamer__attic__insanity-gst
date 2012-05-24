@@ -33,7 +33,8 @@ AC_SUBST(LIBINSANITY_GST_API_VERSION)
 GST_TARGET=0.10
 AC_SUBST(GST_TARGET)
 
-AM_PROG_AR
+# automake 1.12 seems to require this, but automake 1.11 doesn't recognize it
+m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
 AC_PROG_CC
 AC_PROG_CC_STDC
