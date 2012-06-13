@@ -40,6 +40,7 @@ typedef enum
   NEXT_STEP_NOW,
   NEXT_STEP_ON_PLAYING,
   NEXT_STEP_RESTART_ON_PLAYING,
+  NEXT_STEP_RESTART_SOON,
 } NextStepTrigger;
 
 static GstElement *global_pipeline = NULL;
@@ -58,6 +59,7 @@ static int global_longest_title = -1;
 static GstClockTime global_wait_time = GST_CLOCK_TIME_NONE;
 static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
 static guint global_timer_id = 0;
+static gboolean global_have_commands = FALSE;
 
 static void on_ready_for_next_state (InsanityGstPipelineTest * ptest,
     gboolean timeout);
@@ -121,6 +123,9 @@ static NextStepTrigger
 send_dvd_command (InsanityGstPipelineTest * ptest, const char *step,
     guintptr data)
 {
+  if (!global_have_commands)
+    return NEXT_STEP_RESTART_SOON;
+
   gst_navigation_send_command (global_nav, data);
   return NEXT_STEP_ON_PLAYING;
 }
@@ -257,6 +262,9 @@ cycle_angles (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 {
   guint n;
 
+  if (!global_have_commands)
+    return NEXT_STEP_RESTART_SOON;
+
   /* First retrieve amount of angles, will be saved globally */
   retrieve_angles (ptest, step, (guintptr) NULL);
 
@@ -281,6 +289,9 @@ cycle_unused_commands (InsanityGstPipelineTest * ptest, const char *step,
 {
   InsanityTest *test = INSANITY_TEST (ptest);
   guint n, i;
+
+  if (!global_have_commands)
+    return NEXT_STEP_RESTART_SOON;
 
   /* First retrieve allowed commands, will be saved globally */
   retrieve_commands (ptest, step, (guintptr) NULL);
@@ -362,6 +373,9 @@ send_random_commands (InsanityGstPipelineTest * ptest, const char *step,
   InsanityTest *test = INSANITY_TEST (ptest);
   GstNavigationCommand cmd;
   guint *counter = (guint *) data;
+
+  if (!global_have_commands)
+    return NEXT_STEP_RESTART_SOON;
 
   /* First retrieve allowed commands, will be saved globally */
   retrieve_commands (ptest, step, (guintptr) NULL);
@@ -454,6 +468,9 @@ do_next_step (gpointer data)
       global_state++;
       g_idle_add ((GSourceFunc) & do_next_step, ptest);
       break;
+    case NEXT_STEP_RESTART_SOON:
+      g_timeout_add (100, (GSourceFunc) & do_next_step, ptest);
+      break;
     case NEXT_STEP_ON_PLAYING:
       global_next_state = global_state + 1;
       global_waiting_on_playing = TRUE;
@@ -512,6 +529,9 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
           global_state_change_timeout = 0;
         }
 
+        if (newstate == GST_STATE_READY)
+          global_have_commands = FALSE;
+
         if (newstate == GST_STATE_PLAYING && pending == GST_STATE_VOID_PENDING
             && global_waiting_on_playing) {
           on_ready_for_next_state (ptest, FALSE);
@@ -528,41 +548,49 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
       int longest_title = -1;
 
       str = gst_structure_get_name (s);
-      if (!str || strcmp (str, "application/x-gst-dvd"))
-        break;
-      str = gst_structure_get_string (s, "event");
-      if (!str || strcmp (str, "dvd-title-info"))
-        break;
-      array = gst_structure_get_value (s, "title-durations");
-      if (!array || !GST_VALUE_HOLDS_ARRAY (array))
+      if (!str)
         break;
 
-      ntitles = gst_value_array_get_size (array);
-      for (n = 0; n < ntitles; n++) {
-        value = gst_value_array_get_value (array, n);
-        if (value && G_VALUE_HOLDS_UINT64 (value)) {
-          duration = g_value_get_uint64 (value);
-          insanity_test_printf (INSANITY_TEST (ptest),
-              "Title %d has duration %" GST_TIME_FORMAT "\n", n,
-              GST_TIME_ARGS (duration));
-          if (GST_CLOCK_TIME_IS_VALID (duration)
-              && duration >= longest_duration) {
-            longest_duration = duration;
-            longest_title = n;
+      if (!strcmp (str, "application/x-gst-dvd")) {
+        str = gst_structure_get_string (s, "event");
+        if (!str || strcmp (str, "dvd-title-info"))
+          break;
+        array = gst_structure_get_value (s, "title-durations");
+        if (!array || !GST_VALUE_HOLDS_ARRAY (array))
+          break;
+
+        ntitles = gst_value_array_get_size (array);
+        for (n = 0; n < ntitles; n++) {
+          value = gst_value_array_get_value (array, n);
+          if (value && G_VALUE_HOLDS_UINT64 (value)) {
+            duration = g_value_get_uint64 (value);
+            insanity_test_printf (INSANITY_TEST (ptest),
+                "Title %d has duration %" GST_TIME_FORMAT "\n", n,
+                GST_TIME_ARGS (duration));
+            if (GST_CLOCK_TIME_IS_VALID (duration)
+                && duration >= longest_duration) {
+              longest_duration = duration;
+              longest_title = n;
+            }
           }
         }
+        global_longest_title = longest_title;
+        if (longest_title >= 0) {
+          GValue v = { 0 };
+          g_value_init (&v, G_TYPE_UINT64);
+          g_value_set_uint64 (&v, longest_duration);
+          insanity_test_set_extra_info (INSANITY_TEST (ptest),
+              "longest-title-duration", &v);
+          g_value_unset (&v);
+        }
+      } else if (!strcmp (str, "GstNavigationMessage")) {
+        str = gst_structure_get_string (s, "type");
+        if (!str || strcmp (str, "commands-changed"))
+          break;
+        global_have_commands = TRUE;
       }
-      global_longest_title = longest_title;
-      if (longest_title >= 0) {
-        GValue v = { 0 };
-        g_value_init (&v, G_TYPE_UINT64);
-        g_value_set_uint64 (&v, longest_duration);
-        insanity_test_set_extra_info (INSANITY_TEST (ptest),
-            "longest-title-duration", &v);
-        g_value_unset (&v);
-      }
-    }
       break;
+    }
     default:
       break;
   }
@@ -649,6 +677,7 @@ dvd_test_start (InsanityTest * test)
   global_random_command_counter = 0;
   global_longest_title = -1;
   global_waiting_on_playing = TRUE;
+  global_have_commands = FALSE;
 
   return TRUE;
 }
