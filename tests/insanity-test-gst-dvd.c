@@ -55,6 +55,9 @@ static guint global_random_command_counter = 0;
 static GRand *global_prg = NULL;
 static guint global_state_change_timeout = 0;
 static int global_longest_title = -1;
+static GstClockTime global_wait_time = GST_CLOCK_TIME_NONE;
+static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
+static guint global_timer_id = 0;
 
 static void on_ready_for_next_state (InsanityGstPipelineTest * ptest,
     gboolean timeout);
@@ -85,6 +88,33 @@ dvd_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
   global_pipeline = pipeline;
 
   return GST_PIPELINE (pipeline);
+}
+
+static GstClockTime
+dvd_test_get_position (InsanityTest * test)
+{
+  gint64 pos = 0;
+  gboolean res;
+  GstFormat format = GST_FORMAT_TIME;
+
+  res = gst_element_query_position (global_pipeline, &format, &pos);
+  if (format != GST_FORMAT_TIME)
+    res = FALSE;
+  insanity_test_validate_checklist_item (test, "position-queried", res, NULL);
+  if (!res) {
+    pos = GST_CLOCK_TIME_NONE;
+  }
+  return pos;
+}
+
+static GstClockTime
+dvd_test_get_wait_time (InsanityTest * test)
+{
+  gint64 pos = dvd_test_get_position (test);
+  if (GST_CLOCK_TIME_IS_VALID (pos)) {
+    pos += global_playback_time * GST_SECOND;
+  }
+  return pos;
 }
 
 static NextStepTrigger
@@ -437,6 +467,19 @@ do_next_step (gpointer data)
   return FALSE;
 }
 
+static gboolean
+wait_and_do_next_step (gpointer data)
+{
+  InsanityTest *test = INSANITY_TEST (data);
+
+  if (GST_CLOCK_TIME_IS_VALID (global_wait_time)
+      && dvd_test_get_position (test) < global_wait_time)
+    return TRUE;
+
+  g_idle_add ((GSourceFunc) & do_next_step, test);
+  return FALSE;
+}
+
 static void
 on_ready_for_next_state (InsanityGstPipelineTest * ptest, gboolean timeout)
 {
@@ -446,9 +489,13 @@ on_ready_for_next_state (InsanityGstPipelineTest * ptest, gboolean timeout)
         steps[global_state].step, TRUE, NULL);
     global_state = global_next_state;
   }
-  insanity_test_printf (INSANITY_TEST (ptest), "Got %s, going to next step\n",
+  insanity_test_printf (INSANITY_TEST (ptest),
+      "Got %s, waiting a bit before going to next step\n",
       timeout ? "timeout" : "playing");
-  g_idle_add ((GSourceFunc) & do_next_step, ptest);
+  global_wait_time = dvd_test_get_wait_time (INSANITY_TEST (ptest));
+  global_timer_id =
+      g_timeout_add (250, (GSourceFunc) & wait_and_do_next_step,
+      INSANITY_TEST (ptest));
 }
 
 static gboolean
@@ -564,7 +611,8 @@ dvd_test_teardown (InsanityTest * test)
 static gboolean
 dvd_test_start (InsanityTest * test)
 {
-  GValue uri = { 0 };
+  GValue uri = { 0 }, ival = {
+  0};
   const char *protocol;
 
   if (!insanity_test_get_argument (test, "uri", &uri))
@@ -592,6 +640,10 @@ dvd_test_start (InsanityTest * test)
   g_object_set (global_pipeline, "uri", g_value_get_string (&uri), NULL);
   g_value_unset (&uri);
 
+  insanity_test_get_argument (test, "playback-time", &ival);
+  global_playback_time = g_value_get_int (&ival);
+  g_value_unset (&ival);
+
   global_state = 0;
   global_next_state = 0;
   global_random_command_counter = 0;
@@ -604,6 +656,10 @@ dvd_test_start (InsanityTest * test)
 static void
 dvd_test_stop (InsanityTest * test)
 {
+  if (global_timer_id) {
+    g_source_remove (global_timer_id);
+    global_timer_id = 0;
+  }
   if (global_nav) {
     gst_object_unref (global_nav);
     global_nav = NULL;
@@ -647,6 +703,13 @@ main (int argc, char **argv)
       TRUE, &vdef);
   g_value_unset (&vdef);
 
+  g_value_init (&vdef, G_TYPE_INT);
+  g_value_set_int (&vdef, 5);
+  insanity_test_add_argument (test, "playback-time",
+      "Stream time to playback for before seeking, in seconds", NULL, TRUE,
+      &vdef);
+  g_value_unset (&vdef);
+
 
   insanity_test_add_checklist_item (test, "uri-is-dvd",
       "The URI is a DVD specific URI", NULL);
@@ -667,6 +730,8 @@ main (int argc, char **argv)
       NULL);
   insanity_test_add_checklist_item (test, "send-random-commands",
       "Send random valid commands, going through menus at random", NULL);
+  insanity_test_add_checklist_item (test, "position-queried",
+      "Stream position could be determined", NULL);
 
   insanity_test_add_extra_info (test, "seed",
       "The seed used to generate random commands");
