@@ -35,6 +35,10 @@
 
 #define SEEK_TIMEOUT GST_SECOND
 
+/* How much time in milliseconds to wait for menu commands that may
+   never come (they may come late when there is a video transition) */
+#define MENU_WAIT_DELAY 8000
+
 typedef enum
 {
   NEXT_STEP_NOW,
@@ -42,6 +46,17 @@ typedef enum
   NEXT_STEP_RESTART_ON_PLAYING,
   NEXT_STEP_RESTART_SOON,
 } NextStepTrigger;
+
+typedef enum
+{
+  AVC_NONE = 0,                 /* waiting to get commands set */
+  AVC_SOME,                     /* got some, but no menu commands, but they might come later */
+  AVC_NONMENU,                  /* timeout and no menu commands seen */
+  AVC_MENU,                     /* got menu commands */
+} AvailableCommands;
+
+static const char *const available_command_names[] =
+    { "none", "some", "non-menu", "menu" };
 
 static GstElement *global_pipeline = NULL;
 static GstNavigation *global_nav = NULL;
@@ -59,7 +74,8 @@ static int global_longest_title = -1;
 static GstClockTime global_wait_time = GST_CLOCK_TIME_NONE;
 static GstClockTime global_playback_time = GST_CLOCK_TIME_NONE;
 static guint global_timer_id = 0;
-static gboolean global_have_commands = FALSE;
+static AvailableCommands global_available_commands = AVC_NONE;
+static gboolean global_menu_wait_timer_id = 0;
 
 static void on_ready_for_next_state (InsanityGstPipelineTest * ptest,
     gboolean timeout);
@@ -123,7 +139,8 @@ static NextStepTrigger
 send_dvd_command (InsanityGstPipelineTest * ptest, const char *step,
     guintptr data)
 {
-  if (!global_have_commands)
+  if (global_available_commands == AVC_NONE
+      || global_available_commands == AVC_SOME)
     return NEXT_STEP_RESTART_SOON;
 
   gst_navigation_send_command (global_nav, data);
@@ -262,7 +279,8 @@ cycle_angles (InsanityGstPipelineTest * ptest, const char *step, guintptr data)
 {
   guint n;
 
-  if (!global_have_commands)
+  if (global_available_commands == AVC_NONE
+      || global_available_commands == AVC_SOME)
     return NEXT_STEP_RESTART_SOON;
 
   /* First retrieve amount of angles, will be saved globally */
@@ -290,7 +308,8 @@ cycle_unused_commands (InsanityGstPipelineTest * ptest, const char *step,
   InsanityTest *test = INSANITY_TEST (ptest);
   guint n, i;
 
-  if (!global_have_commands)
+  if (global_available_commands == AVC_NONE
+      || global_available_commands == AVC_SOME)
     return NEXT_STEP_RESTART_SOON;
 
   /* First retrieve allowed commands, will be saved globally */
@@ -374,7 +393,8 @@ send_random_commands (InsanityGstPipelineTest * ptest, const char *step,
   GstNavigationCommand cmd;
   guint *counter = (guint *) data;
 
-  if (!global_have_commands)
+  if (global_available_commands == AVC_NONE
+      || global_available_commands == AVC_SOME)
     return NEXT_STEP_RESTART_SOON;
 
   /* First retrieve allowed commands, will be saved globally */
@@ -516,6 +536,72 @@ on_ready_for_next_state (InsanityGstPipelineTest * ptest, gboolean timeout)
 }
 
 static gboolean
+dvd_test_no_menu_commands (gpointer data)
+{
+  InsanityTest *test = INSANITY_TEST (data);
+
+  /* if we had some commands, and were waiting for menu commands,
+     we won't receive any now */
+  insanity_test_printf (test,
+      "Menu command wait timed out, no menu commands, we were at %s",
+      available_command_names[global_available_commands]);
+  if (global_available_commands == AVC_SOME)
+    global_available_commands = AVC_NONMENU;
+
+  return FALSE;
+}
+
+static AvailableCommands
+dvd_test_get_available_commands (InsanityGstPipelineTest * ptest)
+{
+  GstQuery *q;
+  gboolean res;
+  AvailableCommands avc = AVC_NONE;
+  guint n, n_commands;
+  GstNavigationCommand cmd;
+
+  if (!global_nav)
+    return AVC_NONE;
+
+  q = gst_navigation_query_new_commands ();
+  res = gst_element_query (GST_ELEMENT (global_nav), q);
+  if (res) {
+    res = gst_navigation_query_parse_commands_length (q, &n_commands);
+    if (res) {
+      for (n = 0; n < n_commands; ++n) {
+        res = gst_navigation_query_parse_commands_nth (q, n, &cmd);
+        if (res) {
+          switch (cmd) {
+            case GST_NAVIGATION_COMMAND_UP:
+            case GST_NAVIGATION_COMMAND_DOWN:
+            case GST_NAVIGATION_COMMAND_ACTIVATE:
+            case GST_NAVIGATION_COMMAND_LEFT:
+            case GST_NAVIGATION_COMMAND_RIGHT:
+              avc = AVC_MENU;
+              break;
+            default:
+              if (avc == AVC_NONE)
+                avc = AVC_SOME;
+              break;
+          }
+        }
+      }
+    }
+  }
+  gst_query_unref (q);
+  insanity_test_printf (INSANITY_TEST (ptest), "Got available commands: %s\n",
+      available_command_names[avc]);
+
+
+  /* if we did not get menu commands, it might be we're in a transition
+     and they'll come later, so wait a wee bit */
+  global_menu_wait_timer_id = g_timeout_add (MENU_WAIT_DELAY,
+      (GSourceFunc) & dvd_test_no_menu_commands, ptest);
+
+  return avc;
+}
+
+static gboolean
 dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
 {
   switch (GST_MESSAGE_TYPE (msg)) {
@@ -530,7 +616,7 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
         }
 
         if (newstate == GST_STATE_READY)
-          global_have_commands = FALSE;
+          global_available_commands = AVC_NONE;
 
         if (newstate == GST_STATE_PLAYING && pending == GST_STATE_VOID_PENDING
             && global_waiting_on_playing) {
@@ -587,7 +673,16 @@ dvd_test_bus_message (InsanityGstPipelineTest * ptest, GstMessage * msg)
         str = gst_structure_get_string (s, "type");
         if (!str || strcmp (str, "commands-changed"))
           break;
-        global_have_commands = TRUE;
+
+        global_available_commands = dvd_test_get_available_commands (ptest);
+
+        /* if we have menu commands, we can stop the wait */
+        if (global_available_commands == AVC_MENU) {
+          if (global_menu_wait_timer_id) {
+            g_source_remove (global_menu_wait_timer_id);
+            global_menu_wait_timer_id = 0;
+          }
+        }
       }
       break;
     }
@@ -677,7 +772,7 @@ dvd_test_start (InsanityTest * test)
   global_random_command_counter = 0;
   global_longest_title = -1;
   global_waiting_on_playing = TRUE;
-  global_have_commands = FALSE;
+  global_available_commands = AVC_NONE;
 
   return TRUE;
 }
@@ -685,6 +780,10 @@ dvd_test_start (InsanityTest * test)
 static void
 dvd_test_stop (InsanityTest * test)
 {
+  if (global_menu_wait_timer_id) {
+    g_source_remove (global_menu_wait_timer_id);
+    global_menu_wait_timer_id = 0;
+  }
   if (global_timer_id) {
     g_source_remove (global_timer_id);
     global_timer_id = 0;
@@ -699,6 +798,7 @@ static gboolean
 dvd_test_reached_initial_state (InsanityGstPipelineTest * ptest)
 {
   global_nav = GST_NAVIGATION (gst_object_ref (global_pipeline));
+  global_available_commands = dvd_test_get_available_commands (ptest);
 
   return TRUE;
 }
