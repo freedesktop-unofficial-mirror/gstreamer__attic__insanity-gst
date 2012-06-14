@@ -239,10 +239,7 @@ main (int argc, char **argv)
   g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "all-buffers-received",
-      "Appsinks (if used) received all buffers", NULL);
-  insanity_test_add_shared_checklist_item (test, "reached-initial-state");
-  insanity_test_add_shared_checklist_item (test, "pipeline-change-state");
-
+      "Appsinks (if used) received all buffers", NULL, FALSE);
 
   insanity_gst_pipeline_test_set_create_pipeline_function
       (INSANITY_GST_PIPELINE_TEST (test), &play_gst_test_create_pipeline, NULL,

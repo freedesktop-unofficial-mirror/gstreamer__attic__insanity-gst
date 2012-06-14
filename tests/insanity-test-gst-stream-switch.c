@@ -1554,15 +1554,15 @@ main (int argc, char **argv)
   g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "install-probes",
-      "Probes were installed on the sinks", NULL);
+      "Probes were installed on the sinks", NULL, FALSE);
   insanity_test_add_checklist_item (test, "found-all-streams",
-      "Streams were successfully detected by playbin2", NULL);
+      "Streams were successfully detected by playbin2", NULL, FALSE);
   insanity_test_add_checklist_item (test, "stream-switch",
-      "Streams were successfully switched", NULL);
+      "Streams were successfully switched", NULL, FALSE);
   insanity_test_add_checklist_item (test, "streams-constant",
-      "Streams didn't switch without requesting", NULL);
+      "Streams didn't switch without requesting", NULL, FALSE);
   insanity_test_add_checklist_item (test, "unique-markers",
-      "Streams all had unique markers", NULL);
+      "Streams all had unique markers", NULL, FALSE);
 
   insanity_test_add_extra_info (test, "max-stream-switch-time",
       "The maximum amount of time taken to perform a stream switch (in nanoseconds)");

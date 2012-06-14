@@ -649,24 +649,24 @@ main (int argc, char **argv)
 
 
   insanity_test_add_checklist_item (test, "uri-is-dvd",
-      "The URI is a DVD specific URI", NULL);
+      "The URI is a DVD specific URI", NULL, FALSE);
   insanity_test_add_checklist_item (test, "select-root-menu",
-      "Root menu selection succeded", NULL);
+      "Root menu selection succeded", NULL, FALSE);
   insanity_test_add_checklist_item (test, "select-first-menu",
-      "First menu selection succeded", NULL);
+      "First menu selection succeded", NULL, FALSE);
   insanity_test_add_checklist_item (test, "retrieve-angles",
-      "The DVD gave a list of supported angles", NULL);
+      "The DVD gave a list of supported angles", NULL, FALSE);
   insanity_test_add_checklist_item (test, "retrieve-commands",
-      "The DVD gave a list of supported commands", NULL);
+      "The DVD gave a list of supported commands", NULL, FALSE);
   insanity_test_add_checklist_item (test, "seek-to-main-title",
-      "Seek in title format to the main title", NULL);
+      "Seek in title format to the main title", NULL, FALSE);
   insanity_test_add_checklist_item (test, "cycle-angles",
-      "Cycle through each angle of the selected title in turn", NULL);
+      "Cycle through each angle of the selected title in turn", NULL, FALSE);
   insanity_test_add_checklist_item (test, "cycle-unused-commands",
       "Cycle through a list of unused commands, which should have no effect",
-      NULL);
+      NULL, FALSE);
   insanity_test_add_checklist_item (test, "send-random-commands",
-      "Send random valid commands, going through menus at random", NULL);
+      "Send random valid commands, going through menus at random", NULL, FALSE);
 
   insanity_test_add_extra_info (test, "seed",
       "The seed used to generate random commands");

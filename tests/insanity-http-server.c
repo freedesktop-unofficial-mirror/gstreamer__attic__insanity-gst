@@ -628,7 +628,7 @@ http_server_start (InsanityHttpServer * srv)
 
   /* We add the server-started as a checklist item of the test */
   insanity_test_add_checklist_item (test, "server-started",
-      "The internal HTTP server was started", NULL);
+      "The internal HTTP server was started", NULL, FALSE);
 
   priv->port = 0;
   priv->ssl_port = 0;

@@ -1171,27 +1171,27 @@ main (int argc, char **argv)
   g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "install-probes",
-      "Probes were installed on the sinks", NULL);
+      "Probes were installed on the sinks", NULL, FALSE);
   insanity_test_add_checklist_item (test, "duration-known",
-      "Stream duration could be determined", NULL);
+      "Stream duration could be determined", NULL, FALSE);
   insanity_test_add_checklist_item (test, "seekable",
-      "Stream detected as seekable", NULL);
+      "Stream detected as seekable", NULL, FALSE);
   insanity_test_add_checklist_item (test, "seek",
-      "Seek events were accepted by the pipeline", NULL);
+      "Seek events were accepted by the pipeline", NULL, FALSE);
   insanity_test_add_checklist_item (test, "buffer-seek-time-correct",
       "Buffers were seen after a seek at or near the expected seek target",
-      NULL);
+      NULL, FALSE);
   insanity_test_add_checklist_item (test, "segment-seek-time-correct",
       "Segments were seen after a seek at or near the expected seek target",
-      NULL);
+      NULL, FALSE);
   insanity_test_add_checklist_item (test, "segment-clipping",
-      "Buffers were correctly clipped to the configured segment", NULL);
+      "Buffers were correctly clipped to the configured segment", NULL, FALSE);
   insanity_test_add_checklist_item (test, "buffers-received",
-      "Appsinks (if used) received some buffers", NULL);
+      "Appsinks (if used) received some buffers", NULL, FALSE);
   insanity_test_add_checklist_item (test, "normal-seek",
-      "Normal seeks performed properly", NULL);
+      "Normal seeks performed properly", NULL, FALSE);
   insanity_test_add_checklist_item (test, "trick-seek",
-      "Trick seeks performed properly", NULL);
+      "Trick seeks performed properly", NULL, FALSE);
 
   insanity_test_add_extra_info (test, "max-seek-error",
       "The maximum timestamp difference between a seek target and the buffer received after the seek (absolute value in nanoseconds)");

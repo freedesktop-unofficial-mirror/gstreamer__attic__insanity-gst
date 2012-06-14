@@ -1541,37 +1541,37 @@ main (int argc, char **argv)
   /* Checklist */
   insanity_test_add_checklist_item (test, "testing-demuxer",
       "Whether the element we are testing (referenced with the demuxer "
-      "argument) is indeed a demuxer and thus can be tested here", NULL);
+      "argument) is indeed a demuxer and thus can be tested here", NULL, FALSE);
   insanity_test_add_checklist_item (test, "stream-detection", "The demuxer "
-      "detects the various stream and sets the caps properly", NULL);
+      "detects the various stream and sets the caps properly", NULL, FALSE);
   insanity_test_add_checklist_item (test, "frames-detection", "The demuxer "
-      "detects the frames and its metadatas properly", NULL);
+      "detects the frames and its metadatas properly", NULL, FALSE);
   insanity_test_add_checklist_item (test, "install-probes",
-      "Probes were installed on the sinks", NULL);
+      "Probes were installed on the sinks", NULL, FALSE);
   insanity_test_add_checklist_item (test, "seekable-detection",
-      "The demuxer detects if a stream is seekable or not", NULL);
+      "The demuxer detects if a stream is seekable or not", NULL, FALSE);
   insanity_test_add_checklist_item (test, "duration-detection",
-      "The demuxer detects duration of the stream properly", NULL);
+      "The demuxer detects duration of the stream properly", NULL, FALSE);
   insanity_test_add_checklist_item (test, "position-detection",
-      "The demuxer detects the position in the stream properly", NULL);
+      "The demuxer detects the position in the stream properly", NULL, FALSE);
   insanity_test_add_checklist_item (test, "tag-detection",
-      "The demuxer detects the tags in the stream properly", NULL);
+      "The demuxer detects the tags in the stream properly", NULL, FALSE);
   insanity_test_add_checklist_item (test, "first-segment", "The demuxer sends a"
-      " first segment with proper values before " "first buffers", NULL);
+      " first segment with proper values before " "first buffers", NULL, FALSE);
   insanity_test_add_checklist_item (test, "seqnum-management", "The events"
-      "we receive have the seqnum it should have", NULL);
+      "we receive have the seqnum it should have", NULL, FALSE);
   insanity_test_add_checklist_item (test, "fast-forward", "The demuxer could "
-      " properly play the stream fast-forward" "first buffers", NULL);
+      " properly play the stream fast-forward" "first buffers", NULL, FALSE);
   insanity_test_add_checklist_item (test, "fast-backward", "The demuxer could "
-      " properly play the stream fast-backward" "first buffers", NULL);
+      " properly play the stream fast-backward" "first buffers", NULL, FALSE);
   insanity_test_add_checklist_item (test, "segment-seek", "The demuxer could "
-      " properly segment seeking", NULL);
+      " properly segment seeking", NULL, FALSE);
   insanity_test_add_checklist_item (test, "backward-playback",
       "The demuxer could " " properly play the stream backward" "first buffers",
-      NULL);
+      NULL, FALSE);
   insanity_test_add_checklist_item (test, "unlink-pad-handling", "The demuxer"
       "properly handles pad is unlinking (errors out if only 1 source pad, keep"
-      "pushing buffer on other pad otherwize)" "first buffers", NULL);
+      "pushing buffer on other pad otherwize)" "first buffers", NULL, FALSE);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &demux_test_create_pipeline, NULL, NULL);

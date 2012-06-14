@@ -438,13 +438,14 @@ main (int argc, char **argv)
   g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "uri-is-file",
-      "The URI is a file URI", NULL);
+      "The URI is a file URI", NULL, FALSE);
 
-  insanity_test_add_checklist_item (test, "seek", "A seek succeeded", NULL);
+  insanity_test_add_checklist_item (test, "seek", "A seek succeeded", NULL,
+      FALSE);
   insanity_test_add_checklist_item (test, "duration-known",
-      "Stream duration could be determined", NULL);
+      "Stream duration could be determined", NULL, FALSE);
   insanity_test_add_checklist_item (test, "position-queried",
-      "Stream position could be determined", NULL);
+      "Stream position could be determined", NULL, FALSE);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &http_test_create_pipeline, NULL, NULL);

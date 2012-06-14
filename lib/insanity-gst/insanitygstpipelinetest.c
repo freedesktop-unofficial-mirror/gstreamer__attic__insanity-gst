@@ -690,13 +690,13 @@ insanity_gst_pipeline_test_init (InsanityGstPipelineTest * gsttest)
 
   /* Add our own items, etc */
   insanity_test_add_checklist_item (test, "valid-pipeline",
-      "The test pipeline was properly created", NULL);
+      "The test pipeline was properly created", NULL, TRUE);
   insanity_test_add_checklist_item (test, "pipeline-change-state",
-      "The initial state_change happened succesfully", NULL);
+      "The initial state_change happened succesfully", NULL, TRUE);
   insanity_test_add_checklist_item (test, "reached-initial-state",
-      "The pipeline reached the initial GstElementState", NULL);
+      "The pipeline reached the initial GstElementState", NULL, TRUE);
   insanity_test_add_checklist_item (test, "no-errors-seen",
-      "No errors were emitted from the pipeline", NULL);
+      "No errors were emitted from the pipeline", NULL, FALSE);
 
   insanity_test_add_extra_info (test, "errors",
       "List of errors emitted by the pipeline");
