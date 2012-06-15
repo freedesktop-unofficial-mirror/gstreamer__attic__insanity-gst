@@ -60,14 +60,11 @@ init_gstreamer (void)
 static gboolean
 insanity_gst_test_setup (InsanityTest * test)
 {
-  const char *debuglog, *registry;
+  const char *registry;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
 
-  /* Set GST_DEBUG_FILE to the target filename */
-  debuglog = insanity_test_get_output_filename (test, "gst-debug-log");
-  g_setenv ("GST_DEBUG_FILE", debuglog, TRUE);
 
   /* Set GST_REGISTRY to the target filename */
   registry = insanity_test_get_output_filename (test, "gst-registry");
@@ -119,8 +116,6 @@ insanity_gst_test_init (InsanityGstTest * gsttest)
   gsttest->priv = priv;
 
   /* Add our own items, etc */
-  insanity_test_add_output_file (test, "gst-debug-log",
-      "The GStreamer debug log", TRUE);
   insanity_test_add_output_file (test, "gst-registry",
       "The GStreamer registry file", TRUE);
 }
