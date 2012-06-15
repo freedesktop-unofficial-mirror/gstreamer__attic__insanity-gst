@@ -61,10 +61,13 @@ static gboolean
 insanity_gst_test_setup (InsanityTest * test)
 {
   const char *registry;
+  gchar *loglevel;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
 
+  insanity_test_get_string_argument (test, "global-gst-debug-level", &loglevel);
+  g_setenv ("GST_DEBUG", loglevel, TRUE);
 
   /* Set GST_REGISTRY to the target filename */
   registry = insanity_test_get_output_filename (test, "gst-registry");
@@ -86,6 +89,17 @@ insanity_gst_test_setup (InsanityTest * test)
 static gboolean
 insanity_gst_test_start (InsanityTest * test)
 {
+  gchar *loglevel;
+
+  insanity_test_get_string_argument (test, "gst-debug-level", &loglevel);
+  if (g_strcmp0 (loglevel, "-1") != 0)
+    g_setenv ("GST_DEBUG", loglevel, TRUE);
+  else {
+    insanity_test_get_string_argument (test, "global-gst-debug-level",
+        &loglevel);
+    g_setenv ("GST_DEBUG", loglevel, TRUE);
+  }
+
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->start (test))
     return FALSE;
 
@@ -114,6 +128,17 @@ insanity_gst_test_init (InsanityGstTest * gsttest)
       INSANITY_TYPE_GST_TEST, InsanityGstTestPrivateData);
 
   gsttest->priv = priv;
+
+  /* Add our argument */
+  insanity_test_add_string_argument (test, "global-gst-debug-level",
+      "Default GStreamer debug level to be used for the test",
+      "This argument is used when no debug log level has been specified"
+      " between the various iteration of start/stop", TRUE, "0");
+  insanity_test_add_string_argument (test, "gst-debug-level",
+      "The GStreamer debug level to be used for the test",
+      "This argument is used when you need more control over the debug logs"
+      " and want to set it between iterations of start/stop ('-1' means that"
+      " 'global-gst-debug-level' should be used instead)", FALSE, "-1");
 
   /* Add our own items, etc */
   insanity_test_add_output_file (test, "gst-registry",
