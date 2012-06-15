@@ -197,6 +197,9 @@ play_test_stop (InsanityTest * test)
     }
     gst_object_unref (audiosink);
     gst_object_unref (videosink);
+  } else {
+    insanity_test_validate_checklist_item (test, "all-buffers-received",
+        TRUE, "All sinks received all their buffers");
   }
   return TRUE;
 }
