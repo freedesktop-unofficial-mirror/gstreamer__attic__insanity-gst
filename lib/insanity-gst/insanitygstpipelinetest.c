@@ -541,6 +541,9 @@ insanity_gst_pipeline_test_stop (InsanityTest * test)
       INSANITY_GST_PIPELINE_TEST (test)->priv;
   GstState state, pending;
 
+  insanity_test_validate_checklist_item (test, "no-errors-seen",
+      priv->error_count == 0, NULL);
+
   if (priv->wait_timeout_id) {
     g_source_remove (priv->wait_timeout_id);
     priv->wait_timeout_id = 0;
@@ -583,9 +586,6 @@ insanity_gst_pipeline_test_teardown (InsanityTest * test)
 {
   InsanityGstPipelineTest *ptest = INSANITY_GST_PIPELINE_TEST (test);
   InsanityGstPipelineTestPrivateData *priv = ptest->priv;
-
-  insanity_test_validate_checklist_item (test, "no-errors-seen",
-      priv->error_count == 0, NULL);
 
   if (priv->bus) {
     gst_object_unref (priv->bus);
