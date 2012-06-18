@@ -745,27 +745,27 @@ main (int argc, char **argv)
       "Stream time to playback for before seeking, in seconds", NULL, TRUE, 5);
 
   insanity_test_add_checklist_item (test, "valid-setup",
-      "The setup given in arguments makes sense", NULL);
+      "The setup given in arguments makes sense", NULL, FALSE);
   insanity_test_add_checklist_item (test, "server-created",
-      "The RTSP server was created succesfully", NULL);
+      "The RTSP server was created succesfully", NULL, FALSE);
   insanity_test_add_checklist_item (test, "pause",
-      "The pipeline could be paused", NULL);
+      "The pipeline could be paused", NULL, FALSE);
   insanity_test_add_checklist_item (test, "play",
-      "The pipeline could be played", NULL);
+      "The pipeline could be played", NULL, FALSE);
   insanity_test_add_checklist_item (test, "wait",
-      "The pipeline could stay in playback mode", NULL);
+      "The pipeline could stay in playback mode", NULL, FALSE);
   insanity_test_add_checklist_item (test, "seek", "The pipeline could seek",
-      NULL);
+      NULL, FALSE);
   insanity_test_add_checklist_item (test, "protocol-udp-unicast",
-      "The RTP transport could be set to UDP unicast", NULL);
+      "The RTP transport could be set to UDP unicast", NULL, FALSE);
   insanity_test_add_checklist_item (test, "protocol-udp-multicast",
-      "The RTP transport could be set to UDP multicast", NULL);
+      "The RTP transport could be set to UDP multicast", NULL, FALSE);
   insanity_test_add_checklist_item (test, "protocol-tcp",
-      "The RTP transport could be set to TCP", NULL);
+      "The RTP transport could be set to TCP", NULL, FALSE);
   insanity_test_add_checklist_item (test, "protocol-http",
-      "The RTP transport could be set to HTTP", NULL);
+      "The RTP transport could be set to HTTP", NULL, FALSE);
   insanity_test_add_checklist_item (test, "position-queried",
-      "Stream position could be determined", NULL);
+      "Stream position could be determined", NULL, FALSE);
 
   insanity_test_add_extra_info (test, "launch-line",
       "The launch line gst-rtsp-server was configued with");
