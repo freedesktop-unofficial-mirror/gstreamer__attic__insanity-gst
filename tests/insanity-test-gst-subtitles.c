@@ -1087,13 +1087,13 @@ main (int argc, char **argv)
 
   /* Checklist */
   insanity_test_add_checklist_item (test, "testing-subtitles",
-      "Whether we found subtitle in @sublocation", NULL);
+      "Whether we found subtitle in @sublocation", NULL, FALSE);
   insanity_test_add_checklist_item (test, "install-probes",
-      "Probes were installed on the sinks", NULL);
+      "Probes were installed on the sinks", NULL, FALSE);
   insanity_test_add_checklist_item (test, "subtitle-rendered",
-      "The subtitles are properly rendered on top of the video", NULL);
+      "The subtitles are properly rendered on top of the video", NULL, FALSE);
   insanity_test_add_checklist_item (test, "first-segment", "The demuxer sends a"
-      " first segment with proper values before " "first buffers", NULL);
+      " first segment with proper values before " "first buffers", NULL, FALSE);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &create_pipeline, NULL, NULL);

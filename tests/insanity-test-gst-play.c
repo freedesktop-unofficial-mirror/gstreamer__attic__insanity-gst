@@ -197,6 +197,9 @@ play_test_stop (InsanityTest * test)
     }
     gst_object_unref (audiosink);
     gst_object_unref (videosink);
+  } else {
+    insanity_test_validate_checklist_item (test, "all-buffers-received",
+        TRUE, "All sinks received all their buffers");
   }
   return TRUE;
 }
@@ -239,7 +242,7 @@ main (int argc, char **argv)
   g_value_unset (&vdef);
 
   insanity_test_add_checklist_item (test, "all-buffers-received",
-      "Appsinks (if used) received all buffers", NULL);
+      "Appsinks (if used) received all buffers", NULL, FALSE);
 
   insanity_gst_pipeline_test_set_create_pipeline_function
       (INSANITY_GST_PIPELINE_TEST (test), &play_gst_test_create_pipeline, NULL,

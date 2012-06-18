@@ -755,31 +755,32 @@ main (int argc, char **argv)
   insanity_test_add_string_argument (test, "ssl-key-file",
       "Key file for SSL server", NULL, TRUE, ssl_key_file);
   insanity_test_add_checklist_item (test, "uri-is-file",
-      "The URI is a file URI", NULL);
+      "The URI is a file URI", NULL, FALSE);
 
-  insanity_test_add_checklist_item (test, "seek", "A seek succeeded", NULL);
+  insanity_test_add_checklist_item (test, "seek", "A seek succeeded", NULL,
+      FALSE);
   insanity_test_add_checklist_item (test, "duration-known",
-      "Stream duration could be determined", NULL);
+      "Stream duration could be determined", NULL, FALSE);
   insanity_test_add_checklist_item (test, "protocol-is-hls",
-      "The protocol in use is HLS", NULL);
+      "The protocol in use is HLS", NULL, FALSE);
   insanity_test_add_checklist_item (test, "install-probes",
-      "Probes were installed on the sinks", NULL);
+      "Probes were installed on the sinks", NULL, FALSE);
   insanity_test_add_checklist_item (test, "queried-live",
-      "The stream is live", NULL);
+      "The stream is live", NULL, FALSE);
   insanity_test_add_checklist_item (test, "queried-seekable",
-      "The stream is seekable", NULL);
+      "The stream is seekable", NULL, FALSE);
   insanity_test_add_checklist_item (test, "position-queried",
-      "Stream position could be determined", NULL);
+      "Stream position could be determined", NULL, FALSE);
   insanity_test_add_checklist_item (test, "done-buffering",
-      "Got a buffering message", NULL);
+      "Got a buffering message", NULL, FALSE);
   insanity_test_add_checklist_item (test, "segment-seek-time-correct",
       "Segments were seen after a seek at or near the expected seek target",
-      NULL);
+      NULL, FALSE);
   insanity_test_add_checklist_item (test, "buffer-seek-time-correct",
       "Buffers were seen after a seek at or near the expected seek target",
-      NULL);
+      NULL, FALSE);
   insanity_test_add_checklist_item (test, "play-in-time",
-      "Wether the playing time are accurate", NULL);
+      "Wether the playing time are accurate", NULL, FALSE);
 
   insanity_gst_pipeline_test_set_create_pipeline_function (ptest,
       &hls_test_create_pipeline, NULL, NULL);

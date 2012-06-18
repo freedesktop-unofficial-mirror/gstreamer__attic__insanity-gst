@@ -1610,13 +1610,13 @@ main (int argc, char **argv)
           "Check gst-discoverer's output against previously stored expected results"));
 
   insanity_test_add_checklist_item (test, "discoverer-returned-results",
-      "Discoverer returned something", "Discoverer returned nothing");
+      "Discoverer returned something", "Discoverer returned nothing", FALSE);
   insanity_test_add_checklist_item (test, "comparison-file-parsed",
       "File with expected values parsed",
-      "Unable to parse file with expected values");
+      "Unable to parse file with expected values", FALSE);
   insanity_test_add_checklist_item (test, "discoverer-correct",
       "Discoverer returned correct results",
-      "Discoverer returned something wrong");
+      "Discoverer returned something wrong", FALSE);
 
   insanity_test_add_string_argument (test, "uri", "Input file",
       "URI of file to process", TRUE, "file:///home/user/video.avi");
