@@ -132,12 +132,17 @@ insanity_gst_test_setup (InsanityTest * test)
 {
   const char *registry;
   gchar *loglevel;
+  gboolean color;
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->setup (test))
     return FALSE;
 
   insanity_test_get_string_argument (test, "global-gst-debug-level", &loglevel);
   g_setenv ("GST_DEBUG", loglevel, TRUE);
+
+  insanity_test_get_boolean_argument (test, "gst-debug-color", &color);
+  if (color == FALSE)
+    g_setenv ("GST_DEBUG_NO_COLOR", "1", TRUE);
 
   /* Set GST_REGISTRY to the target filename */
   registry = insanity_test_get_output_filename (test, "gst-registry");
@@ -204,6 +209,8 @@ insanity_gst_test_init (InsanityGstTest * gsttest)
       "Default GStreamer debug level to be used for the test",
       "This argument is used when no debug log level has been specified"
       " between the various iteration of start/stop", TRUE, "0");
+  insanity_test_add_boolean_argument (test, "gst-debug-color",
+      "Switch on colouring in GST_DEBUG output", NULL, TRUE, FALSE);
   insanity_test_add_string_argument (test, "gst-debug-level",
       "The GStreamer debug level to be used for the test",
       "This argument is used when you need more control over the debug logs"
