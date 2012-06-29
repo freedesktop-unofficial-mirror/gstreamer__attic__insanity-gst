@@ -58,6 +58,76 @@ init_gstreamer (void)
 }
 
 static gboolean
+parse_debug_category (gchar * str, const gchar ** category)
+{
+  if (!str)
+    return FALSE;
+
+  /* works in place */
+  g_strstrip (str);
+
+  if (str[0] != '\0') {
+    *category = str;
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static gboolean
+parse_debug_level (gchar * str, GstDebugLevel * level)
+{
+  if (!str)
+    return FALSE;
+
+  /* works in place */
+  g_strstrip (str);
+
+  if (str[0] != '\0' && str[1] == '\0'
+      && str[0] >= '0' && str[0] < '0' + GST_LEVEL_COUNT) {
+    *level = (GstDebugLevel) (str[0] - '0');
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void
+parse_debug_list (const gchar * list)
+{
+  gchar **split;
+  gchar **walk;
+
+  g_assert (list);
+
+  split = g_strsplit (list, ",", 0);
+
+  for (walk = split; *walk; walk++) {
+    if (strchr (*walk, ':')) {
+      gchar **values = g_strsplit (*walk, ":", 2);
+
+      if (values[0] && values[1]) {
+        GstDebugLevel level;
+        const gchar *category;
+
+        if (parse_debug_category (values[0], &category)
+            && parse_debug_level (values[1], &level))
+          gst_debug_set_threshold_for_name (category, level);
+      }
+
+      g_strfreev (values);
+    } else {
+      GstDebugLevel level;
+
+      if (parse_debug_level (*walk, &level))
+        gst_debug_set_default_threshold (level);
+    }
+  }
+
+  g_strfreev (split);
+}
+
+static gboolean
 insanity_gst_test_setup (InsanityTest * test)
 {
   const char *registry;
@@ -93,11 +163,11 @@ insanity_gst_test_start (InsanityTest * test)
 
   insanity_test_get_string_argument (test, "gst-debug-level", &loglevel);
   if (g_strcmp0 (loglevel, "-1") != 0)
-    g_setenv ("GST_DEBUG", loglevel, TRUE);
+    parse_debug_list (loglevel);
   else {
     insanity_test_get_string_argument (test, "global-gst-debug-level",
         &loglevel);
-    g_setenv ("GST_DEBUG", loglevel, TRUE);
+    parse_debug_list (loglevel);
   }
 
   if (!INSANITY_TEST_CLASS (insanity_gst_test_parent_class)->start (test))
