@@ -895,6 +895,76 @@ error:
   goto done;
 }
 
+static gboolean
+connect_element (InsanityTest * test, GstElement * demux)
+{
+  GList *pads;
+  gboolean res = TRUE;
+  gboolean dynamic = FALSE;
+  GList *to_connect = NULL;
+
+  /* 1. Loop over pad templates, grabbing existing pads along the way */
+  for (pads = GST_ELEMENT_GET_CLASS (demux)->padtemplates; pads;
+      pads = g_list_next (pads)) {
+    GstPadTemplate *templ = GST_PAD_TEMPLATE (pads->data);
+    const gchar *templ_name;
+
+    /* we are only interested in source pads */
+    if (GST_PAD_TEMPLATE_DIRECTION (templ) != GST_PAD_SRC)
+      continue;
+
+    templ_name = GST_PAD_TEMPLATE_NAME_TEMPLATE (templ);
+
+    /* figure out what kind of pad this is */
+    switch (GST_PAD_TEMPLATE_PRESENCE (templ)) {
+      case GST_PAD_ALWAYS:
+      {
+        GstPad *pad = gst_element_get_static_pad (demux, templ_name);
+
+        /* We concider the demuxer is not broken, and thus always
+         * pads are always here */
+        to_connect = g_list_prepend (to_connect, pad);
+        break;
+      }
+      case GST_PAD_SOMETIMES:
+      {
+        /* try to get the pad to see if it is already created or
+         * not */
+        GstPad *pad = gst_element_get_static_pad (demux, templ_name);
+
+        if (pad) {
+          /* the pad is created, we need to try to link to it */
+          to_connect = g_list_prepend (to_connect, pad);
+        } else {
+          /* we have an element that will create dynamic pads */
+          dynamic = TRUE;
+        }
+        break;
+      }
+      case GST_PAD_REQUEST:
+        /* ignore request pads */
+        break;
+    }
+  }
+
+  /* 2. if there are more potential pads, connect to signal */
+  if (dynamic) {
+    g_signal_connect (glob_demuxer, "pad-added", G_CALLBACK (pad_added_cb),
+        test);
+  }
+
+  /* 3. for every available pad, check if we can connect it */
+  for (pads = to_connect; pads; pads = g_list_next (pads)) {
+    GstPad *pad = GST_PAD_CAST (pads->data);
+
+    pad_added_cb (demux, pad, test);
+    gst_object_unref (pad);
+  }
+  g_list_free (to_connect);
+
+  return res;
+}
+
 static void
 type_found_cb (GstElement * typefind, guint probability,
     GstCaps * caps, InsanityTest * test)
@@ -932,7 +1002,7 @@ type_found_cb (GstElement * typefind, guint probability,
   gst_element_link (glob_typefinder, glob_demuxer);
   gst_element_sync_state_with_parent (glob_demuxer);
 
-  g_signal_connect (glob_demuxer, "pad-added", G_CALLBACK (pad_added_cb), test);
+  connect_element (test, glob_demuxer);
 
 done:
   gst_plugin_feature_list_free (demuxers);
