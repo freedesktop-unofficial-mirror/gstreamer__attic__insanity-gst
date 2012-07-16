@@ -221,7 +221,7 @@ test_position (InsanityTest * test, GstBuffer * buf)
 
   query = gst_query_new_position (GST_FORMAT_TIME);
 
-  if (gst_element_query (glob_decoder, query)) {
+  if (gst_element_query (glob_pipeline, query)) {
     gint64 pos;
     GstFormat fmt;
     GstClockTimeDiff diff;
@@ -341,7 +341,7 @@ test_queries (InsanityTest * test)
 {
   GstQuery *query = gst_query_new_seeking (GST_FORMAT_TIME);
 
-  if (gst_element_query (glob_demuxer, query)) {
+  if (gst_element_query (glob_pipeline, query)) {
     GstFormat fmt;
     gboolean seekable, known_seekable;
 
@@ -370,7 +370,7 @@ test_queries (InsanityTest * test)
 
   gst_query_unref (query);
   query = gst_query_new_duration (GST_FORMAT_TIME);
-  if (gst_element_query (glob_demuxer, query)) {
+  if (gst_element_query (glob_pipeline, query)) {
     GstFormat fmt;
     gchar *validate_msg = NULL;
     gint64 duration;
