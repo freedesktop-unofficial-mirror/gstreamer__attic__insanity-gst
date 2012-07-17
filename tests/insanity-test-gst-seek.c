@@ -164,7 +164,7 @@ found_source (GstElement * playbin, GstElement * appsrc, gpointer ptest)
   const gchar *pluginname;
   GstElementFactory *factory;
 
-  g_object_get (global_pipeline, "uri", &uri, NULL);
+  g_object_get (global_pipeline, "current-uri", &uri, NULL);
 
   if (!g_str_has_prefix (uri, "appsrc")) {
     g_free (uri);
@@ -444,7 +444,7 @@ seek_test_create_pipeline (InsanityGstPipelineTest * ptest, gpointer userdata)
   insanity_test_get_boolean_argument (INSANITY_TEST (ptest),
       "progressive-download", &progressive_download);
 
-  playbin = gst_element_factory_make ("playbin2", "playbin2");
+  playbin = gst_element_factory_make ("playbin", "playbin");
   global_pipeline = playbin;
 
   if (appsink) {
