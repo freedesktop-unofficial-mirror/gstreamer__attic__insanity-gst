@@ -42,19 +42,17 @@ struct _App
 static void
 on_new_buffer (GstElement * appsink, gpointer userdata)
 {
-
-  GstBuffer *buffer = NULL;
+  GstSample *sample = NULL;
   App *app = NULL;
 
   app = (App *) g_object_get_qdata ((GObject *) appsink,
       g_quark_from_static_string ("app"));
 
-  g_signal_emit_by_name (appsink, "pull-buffer", &buffer);
-  if (buffer) {
-    gst_buffer_unref (buffer);
+  g_signal_emit_by_name (appsink, "pull-sample", &sample);
+  if (sample) {
     app->bufcount++;
+    gst_sample_unref (sample);
   }
-
 }
 
 static GstPadProbeReturn
@@ -121,7 +119,7 @@ insanity_fake_appsink_new (const gchar * name, InsanityTest * test)
 
   appsink = gst_element_factory_make ("appsink", name);
   g_object_set (G_OBJECT (appsink), "emit-signals", TRUE, "sync", FALSE, NULL);
-  g_signal_connect (appsink, "new-buffer", G_CALLBACK (on_new_buffer), NULL);
+  g_signal_connect (appsink, "new-sample", G_CALLBACK (on_new_buffer), NULL);
 
   app = g_new0 (App, 1);
   app->bufcount = 0;
