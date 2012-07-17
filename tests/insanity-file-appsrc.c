@@ -142,8 +142,8 @@ seek_data (GstElement * appsrc, guint64 position, App * app)
 static void
 cleanup (App * app)
 {
-
-  g_object_unref (app->stream);
+  if (app->stream)
+    g_object_unref (app->stream);
   g_free (app->mode);
   g_free (app);
 
