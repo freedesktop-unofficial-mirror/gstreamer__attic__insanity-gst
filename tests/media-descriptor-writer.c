@@ -269,7 +269,6 @@ media_descriptor_writer_add_taglist (MediaDescriptorWriter * writer,
 
   tagnode = g_slice_new0 (TagNode);
   tagnode->taglist = gst_tag_list_copy (taglist);
-  gst_structure_remove_field (tagnode->taglist, "source-pad");
   str_str = gst_tag_list_to_string (tagnode->taglist);
   tagnode->str_open =
       g_markup_printf_escaped ("<tag content=\"%s\"/>", str_str);
