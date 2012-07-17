@@ -425,7 +425,7 @@ do_get (InsanityHttpServer * srv, SoupServer * server, SoupMessage * msg,
   }
 
   if (msg->method == SOUP_METHOD_GET) {
-    const char *contents;
+    const char *contents = NULL;
     SoupRange *ranges = NULL;
     int nranges = 0;
     goffset start, end;
