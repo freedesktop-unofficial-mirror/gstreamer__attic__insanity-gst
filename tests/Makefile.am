@@ -7,7 +7,7 @@ LIBTOOLFLAGS=--silent
 
 AM_CPPFLAGS=-I $(top_srcdir)/lib
 
-testdir=$(libexecdir)/insanity-gst/tests
+testdir=$(libexecdir)/insanity-1.0/tests
 
 xml_noisnt_libraries=libtestsxmlhelper.la
 xml_noinst_headers=media-descriptor-parser.h media-descriptor-writer.h  media-descriptor-common.h
