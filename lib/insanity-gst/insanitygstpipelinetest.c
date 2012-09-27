@@ -71,6 +71,9 @@ struct _InsanityGstPipelineTestPrivateData
   gboolean done;
 };
 
+static const GstFormat duration_query_formats[] =
+    { GST_FORMAT_BYTES, GST_FORMAT_TIME, GST_FORMAT_DEFAULT };
+
 static void
 add_element_used (InsanityGstPipelineTest * ptest, GstElement * element)
 {
@@ -352,12 +355,11 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
             &pending);
 
         if (newstate >= GST_STATE_PAUSED) {
-          insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_TIME,
-              NULL);
-          insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_BYTES,
-              NULL);
-          insanity_gst_pipeline_test_query_duration (ptest, GST_FORMAT_DEFAULT,
-              NULL);
+          gint i;
+
+          for (i = 0; i < G_N_ELEMENTS (duration_query_formats); i++)
+            insanity_gst_pipeline_test_query_duration (ptest,
+                duration_query_formats[i], NULL);
         }
 
         if (newstate == ptest->priv->initial_state
@@ -386,11 +388,12 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
       gst_tag_list_free (tags);
       break;
     }
-    case GST_MESSAGE_DURATION:{
-      GstFormat fmt;
+    case GST_MESSAGE_DURATION_CHANGED:{
+      gint i;
 
-      gst_message_parse_duration (message, &fmt, NULL);
-      insanity_gst_pipeline_test_query_duration (ptest, fmt, NULL);
+      for (i = 0; i < G_N_ELEMENTS (duration_query_formats); i++)
+        insanity_gst_pipeline_test_query_duration (ptest,
+            duration_query_formats[i], NULL);
       break;
     }
     case GST_MESSAGE_EOS:
