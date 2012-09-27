@@ -98,7 +98,8 @@ add_element_used (InsanityGstPipelineTest * ptest, GstElement * element)
 
   factory = gst_element_get_factory (element);
   factory_name =
-      factory ? gst_element_factory_get_longname (factory) : "(no factory)";
+      factory ? gst_element_factory_get_metadata (factory,
+      GST_ELEMENT_METADATA_LONGNAME) : "(no factory)";
 
   g_value_take_string (&string_value, element_name);
   snprintf (label, sizeof (label), "elements-used.%u.name",
@@ -385,7 +386,7 @@ handle_message (InsanityGstPipelineTest * ptest, GstMessage * message)
       GstTagList *tags;
       gst_message_parse_tag (message, &tags);
       gst_tag_list_foreach (tags, &send_tag, (gpointer) ptest);
-      gst_tag_list_free (tags);
+      gst_tag_list_unref (tags);
       break;
     }
     case GST_MESSAGE_DURATION_CHANGED:{
