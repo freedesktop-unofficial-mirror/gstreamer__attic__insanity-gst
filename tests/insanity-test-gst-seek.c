@@ -520,9 +520,7 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
 
   if (GST_IS_BUFFER (object)) {
     GstBuffer *buffer = GST_BUFFER (object);
-
-    /* Should work in both 0.10 and 0.11 */
-    GstClockTime ts = GST_BUFFER_TIMESTAMP (buffer);
+    GstClockTime ts = GST_BUFFER_PTS (buffer);
 
     insanity_test_printf (INSANITY_TEST (ptest),
         "[%d] Got buffer at %" GST_TIME_FORMAT ", %u bytes, %s, target %"

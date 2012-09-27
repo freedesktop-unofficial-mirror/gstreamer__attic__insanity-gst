@@ -138,8 +138,10 @@ deserialize_framenode (const gchar ** names, const gchar ** values)
       framenode->offset_end = g_ascii_strtoull (values[i], NULL, 0);
     else if (g_strcmp0 (names[i], "duration") == 0)
       framenode->duration = g_ascii_strtoull (values[i], NULL, 0);
-    else if (g_strcmp0 (names[i], "timestamp") == 0)
-      framenode->timestamp = g_ascii_strtoull (values[i], NULL, 0);
+    else if (g_strcmp0 (names[i], "pts") == 0)
+      framenode->pts = g_ascii_strtoull (values[i], NULL, 0);
+    else if (g_strcmp0 (names[i], "dts") == 0)
+      framenode->dts = g_ascii_strtoull (values[i], NULL, 0);
     else if (g_strcmp0 (names[i], "is-keyframe") == 0)
       framenode->is_keyframe = g_ascii_strtoull (values[i], NULL, 0);
   }
@@ -149,7 +151,8 @@ deserialize_framenode (const gchar ** names, const gchar ** values)
   GST_BUFFER_OFFSET (framenode->buf) = framenode->offset;
   GST_BUFFER_OFFSET_END (framenode->buf) = framenode->offset_end;
   GST_BUFFER_DURATION (framenode->buf) = framenode->duration;
-  GST_BUFFER_TIMESTAMP (framenode->buf) = framenode->timestamp;
+  GST_BUFFER_PTS (framenode->buf) = framenode->pts;
+  GST_BUFFER_DTS (framenode->buf) = framenode->dts;
 
   if (framenode->is_keyframe == FALSE)
     GST_BUFFER_FLAG_SET (framenode->buf, GST_BUFFER_FLAG_DELTA_UNIT);
@@ -165,7 +168,8 @@ frame_node_compare (FrameNode * fnode, GstBuffer * buf, GstBuffer * expected)
     GST_BUFFER_OFFSET (expected) = fnode->offset;
     GST_BUFFER_OFFSET_END (expected) = fnode->offset_end;
     GST_BUFFER_DURATION (expected) = fnode->duration;
-    GST_BUFFER_TIMESTAMP (expected) = fnode->timestamp;
+    GST_BUFFER_PTS (expected) = fnode->pts;
+    GST_BUFFER_DTS (expected) = fnode->dts;
     if (fnode->is_keyframe)
       GST_BUFFER_FLAG_SET (expected, GST_BUFFER_FLAG_DELTA_UNIT);
   }
@@ -173,7 +177,8 @@ frame_node_compare (FrameNode * fnode, GstBuffer * buf, GstBuffer * expected)
   if ((fnode->offset == GST_BUFFER_OFFSET (buf) &&
           fnode->offset_end == GST_BUFFER_OFFSET_END (buf) &&
           fnode->duration == GST_BUFFER_DURATION (buf) &&
-          fnode->timestamp == GST_BUFFER_TIMESTAMP (buf) &&
+          fnode->pts == GST_BUFFER_PTS (buf) &&
+          fnode->dts == GST_BUFFER_DTS (buf) &&
           fnode->is_keyframe == GST_BUFFER_FLAG_IS_SET (buf,
               GST_BUFFER_FLAG_DELTA_UNIT)) == FALSE) {
     return TRUE;

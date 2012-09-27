@@ -301,16 +301,18 @@ media_descriptor_writer_add_frame (MediaDescriptorWriter * writer,
       fnode->offset = GST_BUFFER_OFFSET (buf);
       fnode->offset_end = GST_BUFFER_OFFSET_END (buf);
       fnode->duration = GST_BUFFER_DURATION (buf);
-      fnode->timestamp = GST_BUFFER_TIMESTAMP (buf);
+      fnode->pts = GST_BUFFER_PTS (buf);
+      fnode->dts = GST_BUFFER_DTS (buf);
       fnode->is_keyframe = (GST_BUFFER_FLAG_IS_SET (buf,
               GST_BUFFER_FLAG_DELTA_UNIT) == FALSE);
 
       fnode->str_open =
           g_markup_printf_escaped (" <frame duration=\"%" G_GUINT64_FORMAT
           "\" id=\"%i\" is-keyframe=\"%i\" offset=\"%" G_GUINT64_FORMAT
-          "\" offset-end=\"%" G_GUINT64_FORMAT "\" timestamp=\"%"
-          G_GUINT64_FORMAT "\" />", fnode->duration, id, fnode->is_keyframe,
-          fnode->offset, fnode->offset_end, fnode->timestamp);
+          "\" offset-end=\"%" G_GUINT64_FORMAT "\" pts=\"%"
+          G_GUINT64_FORMAT "\"  dts=\"%" G_GUINT64_FORMAT "\" />",
+          fnode->duration, id, fnode->is_keyframe,
+          fnode->offset, fnode->offset_end, fnode->pts, fnode->dts);
 
       fnode->str_close = NULL;
 

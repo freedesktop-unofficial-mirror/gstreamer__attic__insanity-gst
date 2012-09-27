@@ -289,14 +289,14 @@ probe (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
   if (GST_IS_BUFFER (object)) {
     if (GST_CLOCK_TIME_IS_VALID (glob_target) &&
         GST_CLOCK_TIME_IS_VALID (glob_segment)) {
-      diff = GST_CLOCK_DIFF (GST_BUFFER_TIMESTAMP (object), glob_target);
+      diff = GST_CLOCK_DIFF (GST_BUFFER_PTS (object), glob_target);
       if (diff < 0)
         diff = -diff;
 
       LOG ("Got buffer start %" GST_TIME_FORMAT
           ", expected around %" GST_TIME_FORMAT ", off by %" GST_TIME_FORMAT
           ", method %d\n",
-          GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (object)),
+          GST_TIME_ARGS (GST_BUFFER_PTS (object)),
           GST_TIME_ARGS (glob_target), GST_TIME_ARGS (diff), glob_state);
 
       if (diff < SEEK_THRESHOLD) {

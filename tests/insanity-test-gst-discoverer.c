@@ -1500,7 +1500,7 @@ free_topology (Topology * local_topology)
 
   gst_caps_unref (local_topology->caps);
   if (local_topology->tags != NULL)
-    gst_tag_list_free (local_topology->tags);
+    gst_tag_list_unref (local_topology->tags);
   g_free (local_topology->language);
   g_list_free (local_topology->contained_topologies);
   g_free (local_topology->unknown);

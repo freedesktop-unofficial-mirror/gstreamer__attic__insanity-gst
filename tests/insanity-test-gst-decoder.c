@@ -203,16 +203,16 @@ test_position (InsanityTest * test, GstBuffer * buf)
   GstQuery *query;
   GstClockTimeDiff diff;
 
-  if (GST_BUFFER_TIMESTAMP_IS_VALID (buf) == FALSE)
+  if (GST_BUFFER_PTS_IS_VALID (buf) == FALSE)
     return;
 
   if (GST_CLOCK_TIME_IS_VALID (glob_first_pos_point) == FALSE) {
     glob_first_pos_point = gst_segment_to_stream_time (&glob_last_segment,
-        glob_last_segment.format, GST_BUFFER_TIMESTAMP (buf));
+        glob_last_segment.format, GST_BUFFER_PTS (buf));
   }
 
   glob_expected_pos = gst_segment_to_stream_time (&glob_last_segment,
-      glob_last_segment.format, GST_BUFFER_TIMESTAMP (buf));
+      glob_last_segment.format, GST_BUFFER_PTS (buf));
 
   diff = ABS (GST_CLOCK_DIFF (glob_expected_pos, glob_first_pos_point));
 
@@ -245,8 +245,8 @@ test_position (InsanityTest * test, GstBuffer * buf)
   } else {
     LOG (test,
         "%s Does not handle position queries (position-detection \"SKIP\")",
-        gst_element_factory_get_longname (gst_element_get_factory
-            (glob_demuxer)));
+        gst_element_factory_get_metadata (gst_element_get_factory
+            (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME));
   }
 
   next_test (test);
@@ -364,8 +364,8 @@ test_queries (InsanityTest * test)
 
     LOG (test,
         "%s Does not handle seeking queries (seekable-detection \"SKIP\")",
-        gst_element_factory_get_longname (gst_element_get_factory
-            (glob_demuxer)));
+        gst_element_factory_get_metadata (gst_element_get_factory
+            (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME));
   }
 
   gst_query_unref (query);
@@ -413,8 +413,8 @@ test_queries (InsanityTest * test)
 
     LOG (test, "%s Does not handle duration queries "
         "(duration-detection \"SKIP\")",
-        gst_element_factory_get_longname (gst_element_get_factory
-            (glob_demuxer)));
+        gst_element_factory_get_metadata (gst_element_get_factory
+            (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME));
   }
 
   if (GST_CLOCK_TIME_IS_VALID (glob_duration) &&
@@ -443,8 +443,9 @@ static void
 unvalidate_seeking_tests (InsanityTest * test)
 {
   gchar *message = g_strdup_printf ("%s not seekable in %s mode",
-      gst_element_factory_get_longname (gst_element_get_factory
-          (glob_demuxer)), pipeline_mode_get_name (glob_push_mode));
+      gst_element_factory_get_metadata (gst_element_get_factory
+          (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME),
+      pipeline_mode_get_name (glob_push_mode));
 
   insanity_test_validate_checklist_item (test, "fast-forward", TRUE, message);
   insanity_test_validate_checklist_item (test, "fast-backward", TRUE, message);
@@ -575,7 +576,7 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
     GstClockTime ts;
 
     buf = GST_BUFFER (object);
-    ts = GST_BUFFER_TIMESTAMP (buf);
+    ts = GST_BUFFER_PTS (buf);
 
     /* First check clipping */
     if (glob_testing_parser == FALSE && GST_CLOCK_TIME_IS_VALID (ts) &&
@@ -1095,7 +1096,9 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
 
   /* We check wether the element is a parser or not */
   decofactory = gst_element_get_factory (glob_decoder);
-  klass = gst_element_factory_get_klass (decofactory);
+  klass =
+      gst_element_factory_get_metadata (decofactory,
+      GST_ELEMENT_METADATA_KLASS);
   glob_testing_parser = g_strrstr (klass, "Parser") ? TRUE : FALSE;
 
   if (glob_testing_parser == FALSE && g_strrstr (klass, "Decoder") == NULL) {

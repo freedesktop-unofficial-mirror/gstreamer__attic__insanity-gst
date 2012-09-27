@@ -28,7 +28,7 @@ free_tagnode (TagNode * tagnode)
   g_free (tagnode->str_open);
   g_free (tagnode->str_close);
   if (tagnode->taglist)
-    gst_tag_list_free (tagnode->taglist);
+    gst_tag_list_unref (tagnode->taglist);
 
   g_slice_free (TagNode, tagnode);
 }

@@ -423,17 +423,17 @@ test_position (InsanityTest * test, GstBuffer * buf, GstPad * pad)
   else if (glob_position_check_pad != pad)
     return;
 
-  if (GST_BUFFER_TIMESTAMP_IS_VALID (buf) == FALSE)
+  if (GST_BUFFER_PTS_IS_VALID (buf) == FALSE)
     return;
 
   probectx = find_probe_context (pad);
   if (GST_CLOCK_TIME_IS_VALID (glob_first_pos_point) == FALSE) {
     glob_first_pos_point = gst_segment_to_stream_time (&probectx->last_segment,
-        probectx->last_segment.format, GST_BUFFER_TIMESTAMP (buf));
+        probectx->last_segment.format, GST_BUFFER_PTS (buf));
   }
 
   glob_expected_pos = gst_segment_to_stream_time (&probectx->last_segment,
-      probectx->last_segment.format, GST_BUFFER_TIMESTAMP (buf));
+      probectx->last_segment.format, GST_BUFFER_PTS (buf));
 
   diff = ABS (GST_CLOCK_DIFF (glob_expected_pos, glob_first_pos_point));
 
@@ -465,8 +465,8 @@ test_position (InsanityTest * test, GstBuffer * buf, GstPad * pad)
   } else {
     LOG (test,
         "%s Does not handle position queries (position-detection \"SKIP\")\n",
-        gst_element_factory_get_longname (gst_element_get_factory
-            (glob_demuxer)));
+        gst_element_factory_get_metadata (gst_element_get_factory
+            (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME));
   }
   gst_query_unref (query);
 
@@ -575,8 +575,8 @@ test_queries (InsanityTest * test)
       glob_seekable = media_descriptor_parser_get_seekable (glob_parser);
 
     LOG (test, "%s Does not handle seeking queries (seekable-detection "
-        "\"SKIP\")\n", gst_element_factory_get_longname (gst_element_get_factory
-            (glob_demuxer)));
+        "\"SKIP\")\n", gst_element_factory_get_metadata (gst_element_get_factory
+            (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME));
   }
   gst_query_unref (query);
 
@@ -622,8 +622,8 @@ test_queries (InsanityTest * test)
       glob_duration = media_descriptor_parser_get_seekable (glob_parser);
 
     LOG (test, "%s Does not handle duration queries (duration-detection "
-        "\"SKIP\")\n", gst_element_factory_get_longname (gst_element_get_factory
-            (glob_demuxer)));
+        "\"SKIP\")\n", gst_element_factory_get_metadata (gst_element_get_factory
+            (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME));
   }
 
   if (GST_CLOCK_TIME_IS_VALID (glob_duration) &&
@@ -681,8 +681,9 @@ next_test (InsanityTest * test)
       if (glob_seekable == FALSE) {
         /* Do not enter seek mode tests and jump to the unlink pad test */
         LOG (test, "%s not seekable in %s mode \n",
-            gst_element_factory_get_longname (gst_element_get_factory
-                (glob_demuxer)), pipeline_mode_get_name (glob_push_mode));
+            gst_element_factory_get_metadata (gst_element_get_factory
+                (glob_demuxer), GST_ELEMENT_METADATA_LONGNAME),
+            pipeline_mode_get_name (glob_push_mode));
 
         glob_in_progress = TEST_UNLINK_PAD;
         test_unlink_pad (test);
@@ -911,7 +912,7 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
 
   if (GST_IS_BUFFER (object)) {
     GstBuffer *buf = GST_BUFFER (object);
-    GstClockTime ts = GST_BUFFER_TIMESTAMP (buf);
+    GstClockTime ts = GST_BUFFER_PTS (buf);
 
     if (glob_detecting_frame == TRUE) {
       if (media_descriptor_parser_add_frame (glob_parser, pad, buf,
@@ -927,7 +928,7 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
             GST_BUFFER_OFFSET_END (buf),
             GST_TIME_ARGS (GST_BUFFER_DURATION (glob_parsing_buf)),
             GST_TIME_ARGS (GST_BUFFER_DURATION (buf)),
-            GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (glob_parsing_buf)),
+            GST_TIME_ARGS (GST_BUFFER_PTS (glob_parsing_buf)),
             GST_TIME_ARGS (ts), GST_BUFFER_FLAG_IS_SET (glob_parsing_buf,
                 GST_BUFFER_FLAG_DELTA_UNIT) == FALSE,
             GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_DELTA_UNIT) == FALSE);
@@ -1369,7 +1370,9 @@ demux_test_create_pipeline (InsanityGstPipelineTest * ptest,
 
   /* We check wether the element is a parser or not */
   decofactory = gst_element_get_factory (glob_demuxer);
-  klass = gst_element_factory_get_klass (decofactory);
+  klass =
+      gst_element_factory_get_metadata (decofactory,
+      GST_ELEMENT_METADATA_KLASS);
 
   if (g_strrstr (klass, "Demuxer") == NULL) {
     gchar *val_test = g_strdup_printf ("%s not a demuxer as "

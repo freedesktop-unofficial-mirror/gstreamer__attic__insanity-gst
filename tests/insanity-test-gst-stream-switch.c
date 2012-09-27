@@ -140,11 +140,10 @@ gst_caps_src_create (GstPushSrc * psrc, GstBuffer ** p_buf)
   }
 
   buf = gst_buffer_new ();
-  GST_BUFFER_TIMESTAMP (buf) =
-      gst_util_uint64_scale (src->nbuffers, GST_SECOND, 25);
+  GST_BUFFER_PTS (buf) = gst_util_uint64_scale (src->nbuffers, GST_SECOND, 25);
   GST_BUFFER_DURATION (buf) =
       gst_util_uint64_scale (src->nbuffers + 1, GST_SECOND, 25)
-      - GST_BUFFER_TIMESTAMP (buf);
+      - GST_BUFFER_PTS (buf);
   src->nbuffers++;
 
   *p_buf = buf;
@@ -166,7 +165,7 @@ gst_caps_src_class_init (GstCapsSrcClass * klass)
 
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&src_templ));
-  gst_element_class_set_details_simple (element_class, "CapsSource",
+  gst_element_class_set_static_metadata (element_class, "CapsSource",
       "Source/Generic", "yep", "me");
 }
 
@@ -258,7 +257,7 @@ gst_multiple_stream_demux_class_init (GstMultipleStreamDemuxClass * klass)
       gst_static_pad_template_get (&sink_templ));
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&src_templ));
-  gst_element_class_set_details_simple (element_class, "MultipleStreamDemux",
+  gst_element_class_set_static_metadata (element_class, "MultipleStreamDemux",
       "Codec/Demux", "yep", "me");
 }
 
@@ -363,7 +362,7 @@ create_pad (GstMultipleStreamDemux * demux,
   gst_pad_set_active (stream->srcpad, TRUE);
   gst_pad_use_fixed_caps (stream->srcpad);
 
-  gst_pad_set_caps (stream->srcpad, caps);
+  gst_pad_push_event (stream->srcpad, gst_event_new_caps (caps));
 
   gst_element_add_pad (GST_ELEMENT (demux), stream->srcpad);
 }
@@ -632,7 +631,7 @@ gst_audio_codec_sink_class_init (GstAudioCodecSinkClass * klass)
 
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&sink_templ));
-  gst_element_class_set_details_simple (element_class, "AudioCodecSink",
+  gst_element_class_set_static_metadata (element_class, "AudioCodecSink",
       "Sink/Audio", "yep", "me");
 }
 
@@ -684,7 +683,7 @@ gst_video_codec_sink_class_init (GstVideoCodecSinkClass * klass)
 
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&sink_templ));
-  gst_element_class_set_details_simple (element_class, "VideoCodecSink",
+  gst_element_class_set_static_metadata (element_class, "VideoCodecSink",
       "Sink/Video", "yep", "me");
 }
 

@@ -95,7 +95,7 @@ typedef struct
   guint64 offset;
   guint64 offset_end;
   GstClockTime duration;
-  GstClockTime timestamp;
+  GstClockTime pts, dts;
   gboolean is_keyframe;
 
   GstBuffer *buf;

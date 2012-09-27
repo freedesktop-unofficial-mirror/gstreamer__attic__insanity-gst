@@ -215,7 +215,7 @@ idle_restart_pipeline (void)
 static gint
 sort_subtitle_bufs (GstBuffer * buf1, GstBuffer * buf2)
 {
-  if (GST_BUFFER_TIMESTAMP (buf1) <= GST_BUFFER_TIMESTAMP (buf2))
+  if (GST_BUFFER_PTS (buf1) <= GST_BUFFER_PTS (buf2))
     return -1;
 
   return 1;
@@ -258,8 +258,7 @@ next_test (InsanityTest * test)
 
         goto done;
       } else
-        glob_first_subtitle_ts =
-            GST_BUFFER_TIMESTAMP (glob_subtitled_frames->data);
+        glob_first_subtitle_ts = GST_BUFFER_PTS (glob_subtitled_frames->data);
 
       /* We reset the test so it starts again from the beginning */
       glob_in_progress = TEST_NONE;
@@ -406,14 +405,13 @@ renderer_probe_cb (InsanityGstTest * ptest, GstPad * pad,
       /* Avoid using xml descriptor when not needed */
       stime_ts =
           gst_segment_to_stream_time (&glob_renderer_sink_probe->last_segment,
-          glob_renderer_sink_probe->last_segment.format,
-          GST_BUFFER_TIMESTAMP (buf));
+          glob_renderer_sink_probe->last_segment.format, GST_BUFFER_PTS (buf));
 
       if (GST_CLOCK_TIME_IS_VALID (glob_first_subtitle_ts) == FALSE)
         glob_first_subtitle_ts = stime_ts;
 
       nbuf = gst_buffer_new ();
-      GST_BUFFER_TIMESTAMP (nbuf) = stime_ts;
+      GST_BUFFER_PTS (nbuf) = stime_ts;
       GST_BUFFER_DURATION (nbuf) = GST_BUFFER_DURATION (buf);
 
       glob_subtitled_frames = g_list_insert_sorted (glob_subtitled_frames, nbuf,
@@ -500,8 +498,7 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
 
     buf_start =
         gst_segment_to_stream_time (&glob_suboverlay_src_probe->last_segment,
-        glob_suboverlay_src_probe->last_segment.format,
-        GST_BUFFER_TIMESTAMP (buf));
+        glob_suboverlay_src_probe->last_segment.format, GST_BUFFER_PTS (buf));
     buf_end = buf_start + GST_BUFFER_DURATION (buf);
 
     if (glob_in_progress == TEST_SUBTTILE_DESCRIPTOR_GENERATION) {
@@ -519,7 +516,7 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
           if (has_subs == FALSE) {
             GstBuffer *nbuf = gst_buffer_new ();
 
-            GST_BUFFER_TIMESTAMP (nbuf) = glob_last_subtitled_frame;
+            GST_BUFFER_PTS (nbuf) = glob_last_subtitled_frame;
             GST_BUFFER_DURATION (nbuf) = buf_end - glob_last_subtitled_frame;
             media_descriptor_writer_add_frame (glob_writer, pad, nbuf);
 
@@ -560,7 +557,7 @@ probe_cb (InsanityGstTest * ptest, GstPad * pad, GstMiniObject * object,
 
       next_sub = GST_BUFFER (glob_subtitled_frames->data);
 
-      sub_start = GST_BUFFER_TIMESTAMP (next_sub);
+      sub_start = GST_BUFFER_PTS (next_sub);
       sub_end = GST_BUFFER_DURATION_IS_VALID (next_sub) ?
           GST_BUFFER_DURATION (next_sub) + sub_start : -1;
 
@@ -663,7 +660,7 @@ suboverlay_child_added_cb (GstElement * suboverlay, GstElement * child,
 
   /* cc-ed from -base/gstsubtitleoveraly.c */
   fact = gst_element_get_factory (child);
-  klass = gst_element_factory_get_klass (fact);
+  klass = gst_element_factory_get_metadata (fact, GST_ELEMENT_METADATA_KLASS);
 
   if (GST_IS_BIN (child))
     return;
@@ -1001,8 +998,7 @@ start_cb (InsanityTest * test)
 
       goto done;
     } else
-      glob_first_subtitle_ts =
-          GST_BUFFER_TIMESTAMP (glob_subtitled_frames->data);
+      glob_first_subtitle_ts = GST_BUFFER_PTS (glob_subtitled_frames->data);
   }
 
 done:
