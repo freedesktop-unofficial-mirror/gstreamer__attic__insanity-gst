@@ -76,6 +76,7 @@ typedef enum
 static GstElement *glob_src = NULL;
 static GstElement *glob_typefinder = NULL;
 static GstElement *glob_demuxer = NULL;
+static GstElement *glob_parser = NULL;
 static GstElement *glob_decoder = NULL;
 static GstElement *glob_pipeline = NULL;
 static GstElement *glob_multiqueue = NULL;
@@ -782,9 +783,13 @@ pad_added_cb (GstElement * element, GstPad * new_pad, InsanityTest * test)
 
   DECODER_TEST_LOCK ();
 
-  /* First check if the pad caps are compatible with the decoder */
+  /* First check if the pad caps are compatible with the decoder or the parser */
   caps = gst_pad_get_caps (new_pad);
-  decodesinkpad = gst_element_get_compatible_pad (glob_decoder, new_pad, caps);
+  if (glob_parser)
+    decodesinkpad = gst_element_get_compatible_pad (glob_parser, new_pad, caps);
+  else
+    decodesinkpad =
+        gst_element_get_compatible_pad (glob_decoder, new_pad, caps);
 
   if (decodesinkpad == NULL)
     goto error;
@@ -828,15 +833,22 @@ pad_added_cb (GstElement * element, GstPad * new_pad, InsanityTest * test)
     goto error;
   }
 
+  if (glob_parser) {
+    if (!gst_element_link (glob_parser, glob_decoder)) {
+      ERROR (test, "Linking parser with decoder");
+      goto error;
+    }
+  }
+
   /* Now link to the faksink */
   decodesrcpad = gst_element_get_static_pad (glob_decoder, "src");
-  if (linkret != GST_PAD_LINK_OK) {
+  if (decodesrcpad == NULL) {
     ERROR (test, "Getting decoder srcpad");
     goto error;
   }
 
   ssinkpad = gst_element_get_static_pad (fakesink, "sink");
-  if (linkret != GST_PAD_LINK_OK) {
+  if (ssinkpad == NULL) {
     ERROR (test, "Getting fakesink sinkpad");
     goto error;
   }
@@ -1039,6 +1051,21 @@ bus_message_cb (InsanityGstPipelineTest * ptest, GstMessage * msg)
   return TRUE;
 }
 
+static gboolean
+filter_parsers (GstElementFactory * factory, gpointer user_data)
+{
+  if (GST_IS_ELEMENT_FACTORY (factory) == FALSE)
+    return FALSE;
+
+  if (g_strrstr (gst_element_factory_get_klass (factory), "Parser")) {
+    if (gst_plugin_feature_get_rank (GST_PLUGIN_FEATURE (factory)) >=
+        GST_RANK_PRIMARY)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
 /* Test Callbacks  and vmethods*/
 static GstPipeline *
 create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
@@ -1118,6 +1145,38 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
         TRUE, NULL);
   }
 
+  if (glob_testing_parser == FALSE) {
+    GstCaps *decode_sinkcaps = NULL;
+    GList *tmp, *parsers;
+    const GList *template;
+
+    for (template = gst_element_factory_get_static_pad_templates (decofactory);
+        template; template = template->next) {
+      if (((GstStaticPadTemplate *) template->data)->direction == GST_PAD_SINK) {
+        decode_sinkcaps =
+            gst_static_pad_template_get_caps (((GstStaticPadTemplate *)
+                template->data));
+        break;
+      }
+    }
+
+    parsers = gst_registry_feature_filter (gst_registry_get_default (),
+        (GstPluginFeatureFilter) filter_parsers, FALSE, NULL);
+
+    for (tmp = parsers; tmp; tmp = tmp->next) {
+      if (gst_element_factory_can_src_any_caps (GST_ELEMENT_FACTORY (tmp->data),
+              decode_sinkcaps)) {
+        glob_parser =
+            gst_element_factory_create (GST_ELEMENT_FACTORY (tmp->data), NULL);
+        break;
+      }
+    }
+
+    if (decode_sinkcaps)
+      gst_caps_unref (decode_sinkcaps);
+    g_list_free_full (parsers, gst_object_unref);
+  }
+
   /* ... create the typefinder */
   glob_typefinder = gst_element_factory_make ("typefind", "typefind");
   if (glob_typefinder == NULL)
@@ -1132,6 +1191,9 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
 
   gst_bin_add_many (GST_BIN (glob_pipeline), glob_src, glob_typefinder,
       glob_multiqueue, glob_decoder, NULL);
+
+  if (glob_parser)
+    gst_bin_add (GST_BIN (glob_pipeline), glob_parser);
 
   if (gst_element_link (glob_src, glob_typefinder) == FALSE)
     goto failed;
@@ -1152,13 +1214,15 @@ failed:
     gst_object_unref (glob_pipeline);
   if (glob_demuxer != NULL)
     gst_object_unref (glob_decoder);
+  if (glob_parser != NULL)
+    gst_object_unref (glob_parser);
   if (glob_src != NULL)
     gst_object_unref (glob_src);
   if (glob_multiqueue != NULL)
     gst_object_unref (glob_multiqueue);
 
-  glob_pipeline = glob_demuxer = glob_decoder = glob_multiqueue = glob_src =
-      NULL;
+  glob_pipeline = glob_demuxer = glob_parser = glob_decoder = glob_multiqueue =
+      glob_src = NULL;
 
   goto done;
 }
