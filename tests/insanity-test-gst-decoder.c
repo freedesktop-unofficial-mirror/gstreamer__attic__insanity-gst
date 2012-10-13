@@ -24,9 +24,9 @@
 #include "media-descriptor-parser.h"
 
 #define LOG(test, format, args...) \
-  INSANITY_LOG (INSANITY_TEST((test)), "demuxer", INSANITY_LOG_LEVEL_DEBUG, format "\n", ##args)
+  INSANITY_LOG (INSANITY_TEST((test)), "decoder", INSANITY_LOG_LEVEL_DEBUG, format "\n", ##args)
 #define ERROR(test, format, args...) \
-  INSANITY_LOG (INSANITY_TEST((test)), "demuxer", INSANITY_LOG_LEVEL_SPAM, format "\n", ##args)
+  INSANITY_LOG (INSANITY_TEST((test)), "decoder", INSANITY_LOG_LEVEL_SPAM, format "\n", ##args)
 
 static GStaticMutex glob_mutex = G_STATIC_MUTEX_INIT;
 #define DECODER_TEST_LOCK() g_static_mutex_lock (&glob_mutex)
@@ -1279,7 +1279,8 @@ teardown_cb (InsanityTest * test)
 {
   clean_test (test);
 
-  gst_buffer_unref (glob_parsing_buf);
+  if (glob_parsing_buf)
+    gst_buffer_unref (glob_parsing_buf);
 }
 
 static gboolean
