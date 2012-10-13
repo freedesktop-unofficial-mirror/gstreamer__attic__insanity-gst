@@ -78,19 +78,19 @@ typedef enum
  *                 +--------+   +-------+  +-+   +----------+
  *               +>|typefind|+->|demuxer|+>|m|+->|          |
  * +------------+| +--------+   +-------+  |u|   | subtitle |
- * |videotestsrc|+             (if needed) |l|   |          |   +--------+
+ * |filesrc     |+             (if needed) |l|   |          |   +--------+
  * +------------+                          |t|   |          |+->|fakesink|
  *                                         |i|   | overlay  |   +--------+
- * +---------+    +---------+  +-------+   |q|   |          |
- * |filesrc  +----|capsfiler|--|convert|-> |u|+->|          |
- * |         |    |1080*1920|  +-------+   |e|   |          |
- * +---------+    +---------+              |u|   +----------+
+ * +------------+ +---------+  +-------+   |q|   |          |
+ * |videotestsrc|-|capsfiler|--|convert|-> |u|+->|          |
+ * |            | |1080*1920|  +-------+   |e|   |          |
+ * +------------+ +---------+              |u|   +----------+
  *                                         +-+
  ******************************************************************************/
 
 /* Global GstElement-s */
 static GstElement *glob_pipeline = NULL;
-static GstElement *glob_uridecodebin = NULL;    /* videotestsrc */
+static GstElement *glob_uridecodebin = NULL;
 static GstElement *glob_suboverlay = NULL;      /* A subtitleoverlay bin */
 static GstElement *glob_videotestsrc = NULL;
 

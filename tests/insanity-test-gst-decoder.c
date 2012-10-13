@@ -24,9 +24,9 @@
 #include "media-descriptor-parser.h"
 
 #define LOG(test, format, args...) \
-  INSANITY_LOG (INSANITY_TEST((test)), "demuxer", INSANITY_LOG_LEVEL_DEBUG, format "\n", ##args)
+  INSANITY_LOG (INSANITY_TEST((test)), "decoder", INSANITY_LOG_LEVEL_DEBUG, format "\n", ##args)
 #define ERROR(test, format, args...) \
-  INSANITY_LOG (INSANITY_TEST((test)), "demuxer", INSANITY_LOG_LEVEL_SPAM, format "\n", ##args)
+  INSANITY_LOG (INSANITY_TEST((test)), "decoder", INSANITY_LOG_LEVEL_SPAM, format "\n", ##args)
 
 static GStaticMutex glob_mutex = G_STATIC_MUTEX_INIT;
 #define DECODER_TEST_LOCK() g_static_mutex_lock (&glob_mutex)
@@ -76,6 +76,7 @@ typedef enum
 static GstElement *glob_src = NULL;
 static GstElement *glob_typefinder = NULL;
 static GstElement *glob_demuxer = NULL;
+static GstElement *glob_parser = NULL;
 static GstElement *glob_decoder = NULL;
 static GstElement *glob_pipeline = NULL;
 static GstElement *glob_multiqueue = NULL;
@@ -85,7 +86,7 @@ static gboolean glob_testing_parser = FALSE;
 /* Gloabl fields */
 
 static ProbeContext *glob_prob_ctx = NULL;
-static MediaDescriptorParser *glob_parser = NULL;
+static MediaDescriptorParser *glob_media_desc_parser = NULL;
 static GstClockTime glob_playback_duration = GST_CLOCK_TIME_NONE;
 static gboolean glob_push_mode = FALSE;
 static GstBuffer *glob_parsing_buf = NULL;
@@ -156,9 +157,9 @@ clean_test (InsanityTest * test)
     glob_prob_ctx = NULL;
   }
 
-  if (glob_parser != NULL) {
-    g_object_unref (glob_parser);
-    glob_parser = NULL;
+  if (glob_media_desc_parser != NULL) {
+    g_object_unref (glob_media_desc_parser);
+    glob_media_desc_parser = NULL;
   }
 
 
@@ -346,21 +347,23 @@ test_queries (InsanityTest * test)
     gboolean seekable, known_seekable;
 
     gst_query_parse_seeking (query, &fmt, &seekable, NULL, NULL);
-    if (glob_parser == NULL) {
+    if (glob_media_desc_parser == NULL) {
       insanity_test_validate_checklist_item (test, "seekable-detection",
           TRUE, "No media-descriptor file, result not verified against it");
 
       glob_seekable = seekable;
     } else {
-      known_seekable = media_descriptor_parser_get_seekable (glob_parser);
+      known_seekable =
+          media_descriptor_parser_get_seekable (glob_media_desc_parser);
 
       insanity_test_validate_checklist_item (test, "seekable-detection",
           known_seekable == seekable, NULL);
       glob_seekable = known_seekable;
     }
   } else {
-    if (glob_parser != NULL)
-      glob_seekable = media_descriptor_parser_get_seekable (glob_parser);
+    if (glob_media_desc_parser != NULL)
+      glob_seekable =
+          media_descriptor_parser_get_seekable (glob_media_desc_parser);
 
     LOG (test,
         "%s Does not handle seeking queries (seekable-detection \"SKIP\")",
@@ -375,7 +378,7 @@ test_queries (InsanityTest * test)
     gchar *validate_msg = NULL;
     gint64 duration;
 
-    if (glob_parser == NULL) {
+    if (glob_media_desc_parser == NULL) {
       gst_query_parse_duration (query, &fmt, &duration);
       validate_msg =
           g_strdup_printf ("Found duration %" GST_TIME_FORMAT
@@ -388,7 +391,8 @@ test_queries (InsanityTest * test)
 
       glob_duration = duration;
     } else {
-      glob_duration = media_descriptor_parser_get_duration (glob_parser);
+      glob_duration =
+          media_descriptor_parser_get_duration (glob_media_desc_parser);
       gst_query_parse_duration (query, &fmt, &duration);
 
       if (glob_duration != duration) {
@@ -408,8 +412,9 @@ test_queries (InsanityTest * test)
     }
 
   } else {
-    if (glob_parser != NULL)
-      glob_duration = media_descriptor_parser_get_seekable (glob_parser);
+    if (glob_media_desc_parser != NULL)
+      glob_duration =
+          media_descriptor_parser_get_seekable (glob_media_desc_parser);
 
     LOG (test, "%s Does not handle duration queries "
         "(duration-detection \"SKIP\")",
@@ -778,9 +783,13 @@ pad_added_cb (GstElement * element, GstPad * new_pad, InsanityTest * test)
 
   DECODER_TEST_LOCK ();
 
-  /* First check if the pad caps are compatible with the decoder */
+  /* First check if the pad caps are compatible with the decoder or the parser */
   caps = gst_pad_get_current_caps (new_pad);
-  decodesinkpad = gst_element_get_compatible_pad (glob_decoder, new_pad, caps);
+  if (glob_parser)
+    decodesinkpad = gst_element_get_compatible_pad (glob_parser, new_pad, caps);
+  else
+    decodesinkpad =
+        gst_element_get_compatible_pad (glob_decoder, new_pad, caps);
 
   if (decodesinkpad == NULL)
     goto error;
@@ -824,15 +833,22 @@ pad_added_cb (GstElement * element, GstPad * new_pad, InsanityTest * test)
     goto error;
   }
 
+  if (glob_parser) {
+    if (!gst_element_link (glob_parser, glob_decoder)) {
+      ERROR (test, "Linking parser with decoder");
+      goto error;
+    }
+  }
+
   /* Now link to the faksink */
   decodesrcpad = gst_element_get_static_pad (glob_decoder, "src");
-  if (linkret != GST_PAD_LINK_OK) {
+  if (decodesrcpad == NULL) {
     ERROR (test, "Getting decoder srcpad");
     goto error;
   }
 
   ssinkpad = gst_element_get_static_pad (fakesink, "sink");
-  if (linkret != GST_PAD_LINK_OK) {
+  if (ssinkpad == NULL) {
     ERROR (test, "Getting fakesink sinkpad");
     goto error;
   }
@@ -867,8 +883,8 @@ pad_added_cb (GstElement * element, GstPad * new_pad, InsanityTest * test)
     goto error;
   }
 
-  if (glob_parser)
-    media_descriptor_parser_add_stream (glob_parser, new_pad);
+  if (glob_media_desc_parser)
+    media_descriptor_parser_add_stream (glob_media_desc_parser, new_pad);
 
 done:
   DECODER_TEST_UNLOCK ();
@@ -1035,6 +1051,21 @@ bus_message_cb (InsanityGstPipelineTest * ptest, GstMessage * msg)
   return TRUE;
 }
 
+static gboolean
+filter_parsers (GstElementFactory * factory, gpointer user_data)
+{
+  if (GST_IS_ELEMENT_FACTORY (factory) == FALSE)
+    return FALSE;
+
+  if (g_strrstr (gst_element_factory_get_klass (factory), "Parser")) {
+    if (gst_plugin_feature_get_rank (GST_PLUGIN_FEATURE (factory)) >=
+        GST_RANK_PRIMARY)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
 /* Test Callbacks  and vmethods*/
 static GstPipeline *
 create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
@@ -1116,6 +1147,38 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
         TRUE, NULL);
   }
 
+  if (glob_testing_parser == FALSE) {
+    GstCaps *decode_sinkcaps = NULL;
+    GList *tmp, *parsers;
+    const GList *template;
+
+    for (template = gst_element_factory_get_static_pad_templates (decofactory);
+        template; template = template->next) {
+      if (((GstStaticPadTemplate *) template->data)->direction == GST_PAD_SINK) {
+        decode_sinkcaps =
+            gst_static_pad_template_get_caps (((GstStaticPadTemplate *)
+                template->data));
+        break;
+      }
+    }
+
+    parsers = gst_registry_feature_filter (gst_registry_get (),
+        (GstPluginFeatureFilter) filter_parsers, FALSE, NULL);
+
+    for (tmp = parsers; tmp; tmp = tmp->next) {
+      if (gst_element_factory_can_src_any_caps (GST_ELEMENT_FACTORY (tmp->data),
+              decode_sinkcaps)) {
+        glob_parser =
+            gst_element_factory_create (GST_ELEMENT_FACTORY (tmp->data), NULL);
+        break;
+      }
+    }
+
+    if (decode_sinkcaps)
+      gst_caps_unref (decode_sinkcaps);
+    g_list_free_full (parsers, gst_object_unref);
+  }
+
   /* ... create the typefinder */
   glob_typefinder = gst_element_factory_make ("typefind", "typefind");
   if (glob_typefinder == NULL)
@@ -1130,6 +1193,9 @@ create_pipeline (InsanityGstPipelineTest * ptest, gpointer unused_data)
 
   gst_bin_add_many (GST_BIN (glob_pipeline), glob_src, glob_typefinder,
       glob_multiqueue, glob_decoder, NULL);
+
+  if (glob_parser)
+    gst_bin_add (GST_BIN (glob_pipeline), glob_parser);
 
   if (gst_element_link (glob_src, glob_typefinder) == FALSE)
     goto failed;
@@ -1150,13 +1216,15 @@ failed:
     gst_object_unref (glob_pipeline);
   if (glob_demuxer != NULL)
     gst_object_unref (glob_decoder);
+  if (glob_parser != NULL)
+    gst_object_unref (glob_parser);
   if (glob_src != NULL)
     gst_object_unref (glob_src);
   if (glob_multiqueue != NULL)
     gst_object_unref (glob_multiqueue);
 
-  glob_pipeline = glob_demuxer = glob_decoder = glob_multiqueue = glob_src =
-      NULL;
+  glob_pipeline = glob_demuxer = glob_parser = glob_decoder = glob_multiqueue =
+      glob_src = NULL;
 
   goto done;
 }
@@ -1181,8 +1249,9 @@ start_cb (InsanityTest * test)
   gst_segment_init (&glob_last_segment, GST_FORMAT_UNDEFINED);
   glob_parsing_buf = gst_buffer_new ();
   xmllocation = g_strconcat (location, ".xml", NULL);
-  glob_parser = media_descriptor_parser_new (test, xmllocation, &err);
-  if (glob_parser == NULL) {
+  glob_media_desc_parser =
+      media_descriptor_parser_new (test, xmllocation, &err);
+  if (glob_media_desc_parser == NULL) {
     LOG (test, "Could not create media descriptor parser: %s not testing it",
         err->message);
     goto done;
@@ -1212,7 +1281,8 @@ teardown_cb (InsanityTest * test)
 {
   clean_test (test);
 
-  gst_buffer_unref (glob_parsing_buf);
+  if (glob_parsing_buf)
+    gst_buffer_unref (glob_parsing_buf);
 }
 
 static gboolean
